@@ -130,6 +130,33 @@ separate from this app). Add a CNAME (or Vercel's provided A/ALIAS record) for
 `app.finloraq.com` pointing at Vercel, then add that domain in Project Settings →
 Domains. Update `NEXTAUTH_URL` in Production to match exactly once the domain is live.
 
+**Status as of 2026-09-22: not done yet — this is the one open item blocking the real
+domain.** `app.finloraq.com` is already added in Vercel (Project Settings → Domains),
+which is why it shows "Invalid Configuration" there rather than being absent — but a DNS
+lookup confirms no record exists for it yet:
+
+```
+$ dig CNAME app.finloraq.com   →  NXDOMAIN (no answer, only an SOA in Authority)
+$ dig NS finloraq.com          →  artemis.dns-parking.com, hermes.dns-parking.com
+$ dig A finloraq.com           →  92.113.16.235, 92.113.23.159 (root domain resolves fine)
+```
+
+The root domain resolves and serves real content, so the zone itself is live — nobody has
+added the `app` record yet, that's all. **Fix (needs the Hostinger account, which this
+session has no credentials for):** in Hostinger's DNS zone editor for `finloraq.com`, add
+exactly the record Vercel's Domains → `app.finloraq.com` → "View DNS configuration" panel
+currently asks for:
+
+| Type | Name | Value |
+|---|---|---|
+| CNAME | `app` | `998cc5aa12f5d29f.vercel-dns-017.com.` |
+
+(Re-check that panel before entering it — Vercel sometimes rotates the target hostname.)
+DNS propagation is usually minutes, occasionally longer. Once `app.finloraq.com` shows
+"Valid Configuration" in Vercel, update `NEXTAUTH_URL` in Production to
+`https://app.finloraq.com` and redeploy (NextAuth callback URLs must match the serving
+domain exactly, or sign-in breaks the same way the bugs in section 0a did).
+
 ## 5. Seed (optional, non-production only)
 
 ```bash
