@@ -1,4 +1,5 @@
 import type { NextAuthOptions } from "next-auth";
+import type { Adapter } from "next-auth/adapters";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { z } from "zod";
@@ -26,7 +27,15 @@ const credentialsSchema = z.object({
 export const MFA_REQUIRED_ERROR = "MFA_REQUIRED";
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
+  // @auth/prisma-adapter@2.x targets Auth.js v5's @auth/core Adapter type
+  // (createUser optional), while next-auth@4's own Adapter type (from
+  // next-auth/adapters) requires createUser. Both adapters implement the
+  // exact same runtime shape (@auth/prisma-adapter is next-auth v4's
+  // documented, officially-recommended Prisma adapter) -- this is a
+  // type-declaration mismatch between the two packages' major versions,
+  // not a real incompatibility, so a cast is the correct fix rather than
+  // downgrading to the unmaintained @next-auth/prisma-adapter package.
+  adapter: PrismaAdapter(prisma) as Adapter,
   session: {
     // Database sessions (not JWT-only): a finance product needs to be able
     // to revoke a session server-side (e.g. on password change, or an
