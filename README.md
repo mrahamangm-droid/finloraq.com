@@ -180,6 +180,58 @@ clear "no AI provider configured" error instead of a fabricated result. Set
   model's JSON response is pure and unit-tested; the AI calls themselves obviously can't
   be unit-tested without hitting a real API.
 
+## What's built (Phase 7 — email, WhatsApp, voice, e-invoicing)
+
+**Important — this phase is entirely external integrations, and none are configured in
+this sandbox.** Per the spec's own rule 28 ("if a feature requires an external service
+that is not yet configured, build the integration interface and a safe development
+implementation rather than pretending the integration is live"), every integration here
+has a real interface plus a dev/simulated implementation that is observably non-live
+(`live: false` in its result, a distinct audit action like `einvoice.submitted_simulated`)
+— never a silent no-op or a faked success.
+
+- **Adapter interfaces** (`src/lib/integrations/types.ts`) — `EInvoicingAdapter`,
+  `PaymentAdapter`, `WhatsAppAdapter`, each a small interface a real provider
+  implementation drops in behind later without touching any caller.
+- **E-invoicing** (`src/lib/integrations/einvoicing.ts`) — `DevEInvoicingAdapter` refuses
+  to "submit" a still-DRAFT invoice, returns a `SIMULATED-<invoiceNumber>` reference for
+  anything already sent, and audit-logs the simulation. Wired to
+  `POST /api/invoices/[id]/submit-einvoice` (requires `invoices:EXPORT`).
+- **WhatsApp** (`src/lib/integrations/whatsapp.ts`) — `DevWhatsAppAdapter` logs and
+  simulates `sendDocumentLink()`/`sendPaymentReminder()` when
+  `WHATSAPP_ACCESS_TOKEN`/`WHATSAPP_PHONE_NUMBER_ID` aren't set; `isWhatsAppConfigured()`
+  flips the Settings page's status badge the moment they are.
+  `src/app/api/webhooks/whatsapp/route.ts` implements Meta's real verification handshake
+  (GET) and a POST stub that accepts and clearly labels inbound events as not-yet-wired
+  (parsing inbound media into the extraction pipeline is a follow-up, not a fake success).
+- **Inbound email → document pipeline** (`src/lib/integrations/email.ts`,
+  `src/app/api/webhooks/email/route.ts`) — a shared-secret-authenticated webhook
+  (`INBOUND_EMAIL_WEBHOOK_SECRET`, refuses every request until it's set — never silently
+  accepts) that reuses the Phase 6 `extractDocument()` pipeline exactly, so an emailed
+  receipt goes through the same OCR/review/approve path a manual upload does. Two
+  simplifications are documented in code rather than hidden: it attributes ingestion to
+  the company's Company Admin membership (no dedicated system-identity concept exists
+  yet) and it authenticates by shared secret rather than a per-provider signature scheme
+  (Postmark/Mailgun/SES each have their own HMAC — a TODO once one is chosen).
+- **Voice command architecture** (`src/lib/ai/voice.ts`) — no speech-to-text provider is
+  configured, so this operates on an already-transcribed string; swapping in real STT
+  ahead of it is the only missing piece for actual voice input. `parseVoiceCommand()`
+  answers a query immediately by delegating to the Phase 6 AI Copilot, but a command that
+  would change data (currently: "draft an expense for AED 500") only ever returns a
+  proposal — it has zero side effects. `confirmVoiceAction()` is the one function that
+  actually writes anything, and it's a separate, explicit call
+  (`POST /api/voice/command` → `POST /api/voice/confirm`), so "financial actions via voice
+  require confirmation" is enforced by the code's shape, not just a UI dialog a client
+  could skip. A confirmed voice expense is a DRAFT like any other — it still needs
+  `expenses:APPROVE` to post.
+- **UI**: the AI Copilot page now has a Voice tab (types a command since there's no STT)
+  that shows query answers immediately and renders a Confirm/Cancel card for proposed
+  actions. The Settings page (previously a stub) is real: an editable company-profile form
+  (name, legal name, timezone, fiscal year end, TRN — deliberately excludes currency/country,
+  since changing those after ledger activity would invalidate historical reports) plus a
+  live/simulated status panel for AI, inbound email, WhatsApp, and e-invoicing, each backed
+  by the actual env-var check rather than a hardcoded "connected."
+
 ## Repository layout
 
 ```
@@ -235,16 +287,13 @@ npm test                    # RBAC + password-policy unit tests
 | 4 | Banking, Reconciliation, Tax, Reports | **Done** |
 | 5 | Projects, Budgets, Cost Centres, Cash-flow intelligence | **Done** |
 | 6 | AI Copilot, OCR/document extraction, anomaly detection | **Done** (needs a real API key to run live) |
-| 7 | Email, WhatsApp, voice architecture, e-invoicing adapters | Not started |
+| 7 | Email, WhatsApp, voice architecture, e-invoicing adapters | **Done** (all adapters are dev/simulated pending real provider credentials) |
 | 8 | Subscriptions, billing, usage metering, enterprise controls | Not started |
 | 9 | Security hardening, testing, performance, accessibility, SEO, production deploy | Ongoing as each phase lands |
 
-Phase 7 is next: Email, WhatsApp, voice architecture, e-invoicing adapters — all external
-integrations, so this phase is mostly building adapter interfaces (per section 25:
-"create adapter interfaces for Tax, E-invoicing, Payment, Banking, Identity, AI
-providers") plus a safe development implementation for each, per the spec's own rule 28
-("If a feature requires an external service that is not yet configured, build the
-integration interface and a safe development implementation rather than pretending the
-integration is live"). The natural entry point for email/WhatsApp ingestion is the
-Phase 6 document-extraction pipeline already built — an inbound attachment becomes a
-`Document` the same way a manual upload does.
+Phase 8 is next: Subscriptions, billing, usage metering, and enterprise controls. The
+`Subscription` and `AiUsageEvent` models already exist in the schema (seeded with a
+Starter-tier row at company creation); this phase turns that into an actual plan-limit
+enforcement layer, a billing/payment adapter (behind the same dev/simulated pattern as
+Phase 7's integrations, since no payment provider is configured here either), and an
+upgrade/downgrade flow.
