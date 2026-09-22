@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { requireTenantContext } from "@/lib/tenant";
 import { prisma } from "@/lib/db";
 import { InvoiceActions } from "@/components/forms/invoice-actions";
+import { PaymentLinkButton } from "@/components/payments/payment-link-button";
 
 export default async function InvoiceDetailPage({ params }: { params: { id: string } }) {
   const { active } = await requireTenantContext();
@@ -65,6 +66,10 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
       </div>
 
       <InvoiceActions invoiceId={invoice.id} status={invoice.status} balanceDue={balanceDue} />
+
+      {["SENT", "PARTIALLY_PAID", "OVERDUE"].includes(invoice.status) && balanceDue > 0 && (
+        <PaymentLinkButton invoiceId={invoice.id} />
+      )}
     </div>
   );
 }

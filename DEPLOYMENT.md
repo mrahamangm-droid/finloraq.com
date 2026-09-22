@@ -113,7 +113,7 @@ is kept for standing up a *new* environment from scratch — see step 3.
    | `NEXTAUTH_SECRET` | `openssl rand -base64 32` | **generate a fresh one per environment** — don't reuse the same value in Preview and Production |
    | `NEXTAUTH_URL` | `https://app.finloraq.com` (Production) / the Vercel preview URL pattern (Preview) | must match the actual serving domain or auth callbacks break |
    | `ANTHROPIC_API_KEY` | your key | optional — AI Copilot/extraction/voice fall back to templated/disabled without it, they don't error |
-   | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | from Stripe | optional — billing UI works in simulated mode without them |
+   | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_CONNECT_WEBHOOK_SECRET`, `STRIPE_PRICE_*` | from Stripe | optional — billing works in simulated mode without them; see **Stripe payments** below |
    | `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID` | from Meta | optional — simulated without them |
    | `INBOUND_EMAIL_WEBHOOK_SECRET` | any strong random string | required only if you wire up inbound email; the webhook rejects all requests until this is set |
    | `REDIS_URL` | from Upstash/Redis Cloud etc. | optional for now — rate limiting works in-memory per-instance without it, but see the production checklist below |
@@ -204,6 +204,27 @@ were handed to the user directly rather than committed to the repo — regenerat
 Verified 2026-09-22 against production: `/favicon.ico`, `/icon.png`, and `/apple-icon.png`
 all return 200 with the correct content-type, and `<head>` carries the matching
 `<link rel="icon">` / `<link rel="apple-touch-icon">` tags.
+
+## 8. Stripe payments
+
+Two things run on Stripe:
+
+- **Subscriptions** — companies pay Finloraq for Growth / Professional / AI-CFO (Billing page → Stripe Checkout; "Manage billing & receipts" opens Stripe's portal).
+- **Invoice payments** — each company connects *its own* Stripe account (Settings → Online payments, via Stripe Connect). Invoices get a "Get payment link"; the customer pays on `/pay/<token>` and the webhook posts DR Bank / CR Accounts Receivable and marks the invoice paid. Money settles to that company's Stripe account, never to Finloraq's.
+
+Do everything in **test mode** first (toggle in the Stripe dashboard).
+
+1. **Products & prices** — Stripe → Product catalog → add three products (Growth, Professional, AI-CFO), each with a *recurring monthly* price in your currency (AED or USD). Copy each `price_…` id.
+2. **Connect** — Stripe → Connect → get started → choose *Standard* accounts (the platform profile asks what you do; describe Finloraq as accounting software whose users collect their own invoice payments).
+3. **Customer portal** — Stripe → Settings → Billing → Customer portal → enable: update payment method, view invoices, cancel subscription; optionally allow switching between the three prices.
+4. **Webhooks** — Stripe → Developers → Webhooks, add **two** endpoints, both with URL `https://<your-app-domain>/api/webhooks/stripe`:
+   - *Your account* events: `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted` → its signing secret is `STRIPE_WEBHOOK_SECRET`.
+   - *Connected accounts* events: `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `account.updated`, `account.application.deauthorized` → its signing secret is `STRIPE_CONNECT_WEBHOOK_SECRET`.
+5. **Vercel env vars** (Settings → Environment Variables; test values for Preview, live values for Production): `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_CONNECT_WEBHOOK_SECRET`, `STRIPE_PRICE_GROWTH`, `STRIPE_PRICE_PROFESSIONAL`, `STRIPE_PRICE_AI_CFO`, `NEXT_PUBLIC_APP_URL` (e.g. `https://app.finloraq.com`, no trailing slash). Redeploy after saving.
+6. **Test** — Billing → Choose plan → pay with card `4242 4242 4242 4242` (any future date, any CVC) → the plan updates within seconds. Settings → Connect Stripe → complete test onboarding → open a sent invoice → Get payment link → pay it with the same test card → the invoice shows Paid and a journal entry appears.
+7. **Go live** — repeat steps 1–5 in live mode with live keys. Keep test keys on Preview deployments.
+
+Security notes: webhook signatures are verified (HMAC-SHA256, 5-minute tolerance) against both secrets; every event id is processed once (`StripeEvent` table); a connected-account payment is only accepted if it comes from the account that company connected; card data never touches Finloraq (Stripe Checkout). If an online payment can't be posted (e.g. the admin who connected Stripe was deactivated) it's kept as `NEEDS_REVIEW` in `OnlinePayment` rather than lost.
 
 ## Production checklist (carried over from README, now with exact commands)
 

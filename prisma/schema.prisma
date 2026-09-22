@@ -141,6 +141,8 @@ model Company {
   documents          Document[]
   auditEvents        AuditEvent[]
   workflowRules      WorkflowRule[]
+  paymentConnection  PaymentConnection?
+  onlinePayments     OnlinePayment[]
   subscription       Subscription?
   invitations        Invitation[]
 
@@ -454,12 +456,15 @@ model Invoice {
   total       Decimal       @db.Decimal(18, 2)
   status      InvoiceStatus @default(DRAFT)
   journalEntryId String?
+  /// Unguessable token for the public /pay/<token> page (created on first "Get payment link").
+  payToken    String?       @unique
   createdAt   DateTime      @default(now())
 
   company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   customer Customer @relation(fields: [customerId], references: [id])
   project  Project? @relation(fields: [projectId], references: [id])
   lines    InvoiceLine[]
+  onlinePayments OnlinePayment[]
 
   @@unique([companyId, invoiceNumber])
   @@index([companyId, status])
@@ -753,6 +758,9 @@ model Subscription {
   status            SubscriptionStatus @default(TRIALING)
   provider          String? // "stripe" | null while unconfigured
   providerCustomerId String?
+  providerSubscriptionId String? @unique
+  providerPriceId   String?
+  cancelAtPeriodEnd Boolean            @default(false)
   currentPeriodEnd  DateTime?
   seats             Int                @default(1)
   createdAt         DateTime           @default(now())
@@ -771,4 +779,63 @@ model AiUsageEvent {
   subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
 
   @@index([subscriptionId, kind])
+}
+
+// ---------------------------------------------------------------------------
+// Online payments (Stripe)
+// ---------------------------------------------------------------------------
+
+/// A company's own Stripe account, connected through Stripe Connect so its
+/// customers' invoice payments settle straight to that company — Finloraq
+/// never holds their money.
+model PaymentConnection {
+  id                      String   @id @default(cuid())
+  companyId               String   @unique
+  provider                String   @default("stripe")
+  accountId               String   @unique
+  chargesEnabled          Boolean  @default(false)
+  payoutsEnabled          Boolean  @default(false)
+  detailsSubmitted        Boolean  @default(false)
+  /// The admin who connected the account; webhook-driven postings are made
+  /// under this membership so they go through the normal RBAC + ledger path.
+  connectedByMembershipId String
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+}
+
+enum OnlinePaymentStatus {
+  POSTED
+  NEEDS_REVIEW
+}
+
+/// One successful online payment of an invoice. The unique provider id makes
+/// webhook retries harmless.
+model OnlinePayment {
+  id                String              @id @default(cuid())
+  companyId         String
+  invoiceId         String
+  provider          String              @default("stripe")
+  providerPaymentId String              @unique
+  checkoutSessionId String?
+  amount            Decimal             @db.Decimal(18, 2)
+  currency          String
+  status            OnlinePaymentStatus
+  journalEntryId    String?
+  note              String?
+  createdAt         DateTime            @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, status])
+  @@index([invoiceId])
+}
+
+/// Stripe event ids already handled — makes webhook delivery idempotent.
+model StripeEvent {
+  id          String   @id
+  type        String
+  processedAt DateTime @default(now())
 }
