@@ -122,7 +122,7 @@ export default async function SettingsPage() {
           )}
           {!canEdit && (
             <p className="text-xs text-muted-foreground sm:col-span-2">
-              Your role doesn't have permission to edit company settings.
+              Your role doesn&apos;t have permission to edit company settings.
             </p>
           )}
         </form>
