@@ -98,7 +98,7 @@ export function MfaPanel() {
             </div>
             <p className="text-sm text-muted-foreground">
               Save these backup codes somewhere safe — each works once if you lose access to your
-              authenticator app. They won't be shown again.
+              authenticator app. They won&apos;t be shown again.
             </p>
             <div className="grid grid-cols-2 gap-1 rounded-md border border-border bg-muted/30 p-3 font-mono text-xs">
               {backupCodes.map((c) => <div key={c}>{c}</div>)}
