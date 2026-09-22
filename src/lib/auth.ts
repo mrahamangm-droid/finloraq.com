@@ -37,10 +37,21 @@ export const authOptions: NextAuthOptions = {
   // downgrading to the unmaintained @next-auth/prisma-adapter package.
   adapter: PrismaAdapter(prisma) as Adapter,
   session: {
-    // Database sessions (not JWT-only): a finance product needs to be able
-    // to revoke a session server-side (e.g. on password change, or an
-    // admin force-logout) without waiting for token expiry.
-    strategy: "database",
+    // JWT, not database, sessions. NextAuth v4's Credentials provider is
+    // hard-incompatible with database sessions — it throws
+    // UnsupportedStrategyError (CALLBACK_CREDENTIALS_JWT_ERROR) on every
+    // sign-in, which is exactly what production was doing: this app never
+    // had a single working login before this fix (see git log). The
+    // adapter stays wired up for its other jobs (account linking, the
+    // schema NextAuth expects) — only the session storage itself moves to
+    // JWT, which is the documented, supported pairing with Credentials.
+    //
+    // The "revoke server-side without waiting for expiry" property the
+    // original database-session choice was reaching for is preserved via
+    // the jwt callback below: it re-checks the user's isActive flag on
+    // every request and drops the session the moment an admin deactivates
+    // the account, rather than waiting out the token's maxAge.
+    strategy: "jwt",
     maxAge: 12 * 60 * 60, // 12h — re-authenticate daily; tune per compliance needs
   },
   pages: {
@@ -146,9 +157,35 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
-    async session({ session, user }) {
-      if (session.user) {
-        session.user.id = user.id;
+    async jwt({ token, user }) {
+      if (user) {
+        token.sub = user.id;
+      }
+      if (!token.sub) return token;
+
+      // Re-check on every request (not just at sign-in) so deactivating a
+      // user actually revokes their access immediately instead of waiting
+      // for the 12h token to expire — see the session-strategy comment
+      // above for why this lives here instead of a database session.
+      const dbUser = await prisma.user.findUnique({
+        where: { id: token.sub },
+        select: { isActive: true },
+      });
+      if (!dbUser || !dbUser.isActive) {
+        // Strip the subject so the session callback below treats this as
+        // signed out rather than trusting a stale token.
+        token.sub = undefined;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      if (session.user && token.sub) {
+        session.user.id = token.sub;
+      } else if (session.user) {
+        // Token was invalidated in the jwt callback above (deactivated or
+        // deleted user) — clear the session's user rather than exposing a
+        // session object that looks valid but points at no real account.
+        session.user = undefined as unknown as typeof session.user;
       }
       return session;
     },
