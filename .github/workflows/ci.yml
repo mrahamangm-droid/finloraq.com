@@ -1,0 +1,64 @@
+name: CI
+
+# Runs on every push and PR. This is the first place `npm run build` and
+# `npm test` actually execute against a real database with real registry
+# access — the dev sandbox this repo was originally built in had neither
+# (see the README's "Getting this running" section), so this workflow is
+# what turns "should work" into "verified."
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: finloraq
+          POSTGRES_PASSWORD: finloraq
+          POSTGRES_DB: finloraq_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U finloraq"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://finloraq:finloraq@localhost:5432/finloraq_ci?sslmode=disable
+      DIRECT_URL: postgresql://finloraq:finloraq@localhost:5432/finloraq_ci?sslmode=disable
+      NEXTAUTH_SECRET: ci-only-secret-not-used-in-production
+      NEXTAUTH_URL: http://localhost:3000
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Apply migrations
+        run: npx prisma migrate deploy
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
