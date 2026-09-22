@@ -378,7 +378,7 @@ or Vercel's build step, both work) before it will run.
 
 ```bash
 npm install
-cp .env.example .env        # fill in DATABASE_URL at minimum
+cp .env.example .env        # fill in DATABASE_URL and DIRECT_URL at minimum
 npx prisma migrate dev --name init
 npx prisma db seed          # optional: demo@finloraq.com / DemoPassword123!
 npm run dev
@@ -386,6 +386,10 @@ npm test                    # RBAC + password-policy + billing-plan-catalog unit
 ```
 
 ## Deploying
+
+**See `DEPLOYMENT.md` for the full step-by-step runbook** (Postgres provisioning with the
+pooled/direct connection split, exact Vercel env vars, domain setup, CI, and a real
+post-deploy verification checklist — not just "the build succeeded"). Summary:
 
 1. Push this repository to GitHub (`git init && git add . && git commit -m "Finloraq Phase 1"`,
    then create the GitHub repo and push).
