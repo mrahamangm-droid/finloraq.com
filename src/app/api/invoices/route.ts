@@ -1,3 +1,4 @@
+import { withApiErrors } from "@/lib/api";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireTenantContext } from "@/lib/tenant";
@@ -20,7 +21,7 @@ const schema = z.object({
   ).min(1),
 });
 
-export async function GET() {
+async function handleGET() {
   const { active } = await requireTenantContext();
   const invoices = await prisma.invoice.findMany({
     where: { companyId: active.companyId },
@@ -30,7 +31,7 @@ export async function GET() {
   return NextResponse.json(invoices);
 }
 
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   const { active, userId } = await requireTenantContext();
   const parsed = schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
@@ -57,3 +58,6 @@ export async function POST(req: Request) {
     throw err;
   }
 }
+
+export const GET = withApiErrors(handleGET);
+export const POST = withApiErrors(handlePOST);
