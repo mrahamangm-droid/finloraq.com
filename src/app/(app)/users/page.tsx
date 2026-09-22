@@ -38,7 +38,7 @@ export default async function UsersPage() {
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Invite someone</h2>
           {seatsFull ? (
             <p className="text-sm text-amber-700 dark:text-amber-400">
-              You've used every seat on the {billing.planDefinition.label} plan ({billing.seats.limit}). Upgrade in{" "}
+              You&apos;ve used every seat on the {billing.planDefinition.label} plan ({billing.seats.limit}). Upgrade in{" "}
               <a href="/billing" className="underline">Billing</a> to invite more people.
             </p>
           ) : (
