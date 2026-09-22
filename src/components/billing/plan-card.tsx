@@ -9,6 +9,7 @@ export function PlanCard({ def, isCurrent, canEdit }: { def: PlanDefinition; isC
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const isEnterprise = def.plan === "ENTERPRISE";
 
   async function changePlan() {
@@ -20,12 +21,19 @@ export function PlanCard({ def, isCurrent, canEdit }: { def: PlanDefinition; isC
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ plan: def.plan }),
     });
-    setLoading(false);
+    const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
+      setLoading(false);
       setError(data.error ?? "Could not change plan.");
       return;
     }
+    if (data.kind === "checkout" && typeof data.url === "string") {
+      window.location.assign(data.url); // Stripe Checkout — keep the button in its loading state
+      return;
+    }
+    setLoading(false);
+    if (data.kind === "updated") setNotice("Plan change sent to Stripe — it shows here as soon as Stripe confirms.");
+    if (data.kind === "cancel_scheduled") setNotice("Your paid plan ends at the close of this billing period.");
     router.refresh();
   }
 
@@ -60,6 +68,7 @@ export function PlanCard({ def, isCurrent, canEdit }: { def: PlanDefinition; isC
         ))}
       </ul>
       {error && <p className="mb-2 text-xs text-destructive">{error}</p>}
+      {notice && <p className="mb-2 text-xs text-muted-foreground">{notice}</p>}
       {canEdit && !isCurrent && (
         isEnterprise ? (
           <a href="mailto:sales@finloraq.com" className="rounded-md border border-border px-3 py-1.5 text-center text-xs font-medium text-foreground hover:bg-muted">
@@ -71,7 +80,7 @@ export function PlanCard({ def, isCurrent, canEdit }: { def: PlanDefinition; isC
             disabled={loading}
             className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50"
           >
-            {loading ? "Processing…" : "Switch to this plan"}
+            {loading ? "Processing…" : def.monthlyPriceUsd > 0 ? "Choose plan" : "Switch to this plan"}
           </button>
         )
       )}
