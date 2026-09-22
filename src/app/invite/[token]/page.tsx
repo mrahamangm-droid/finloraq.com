@@ -13,7 +13,7 @@ export default async function InvitePage({ params }: { params: { token: string }
   const callbackUrl = encodeURIComponent(`/invite/${params.token}`);
 
   if (!result) {
-    return <Shell title="Invitation not found">This invite link doesn't exist or has already been used.</Shell>;
+    return <Shell title="Invitation not found">This invite link doesn&apos;t exist or has already been used.</Shell>;
   }
   if (result.resolved) {
     return <Shell title="Already resolved">This invitation has already been {result.invitation.status.toLowerCase()}.</Shell>;
@@ -28,7 +28,7 @@ export default async function InvitePage({ params }: { params: { token: string }
     return (
       <Shell title={`Join ${invitation.company.name}`}>
         <p className="mb-4">
-          You've been invited to join <strong>{invitation.company.name}</strong> as{" "}
+          You&apos;ve been invited to join <strong>{invitation.company.name}</strong> as{" "}
           <strong>{invitation.role.replace("_", " ")}</strong>. Sign in or create an account with{" "}
           <strong>{invitation.email}</strong> to accept.
         </p>
@@ -48,7 +48,7 @@ export default async function InvitePage({ params }: { params: { token: string }
     return (
       <Shell title="Wrong account">
         <p>
-          This invitation was sent to <strong>{invitation.email}</strong>, but you're signed in as{" "}
+          This invitation was sent to <strong>{invitation.email}</strong>, but you&apos;re signed in as{" "}
           <strong>{session.user.email}</strong>. Sign out and sign back in with the invited address.
         </p>
       </Shell>
