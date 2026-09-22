@@ -163,6 +163,21 @@ exercise:
    Not exercised in the 2026-09-22 pass (test account had no MFA enabled) — still a real
    gap to check before go-live.
 
+## 7. Branding — logo and favicon
+
+Added 2026-09-22: `src/app/icon.png` (512×512), `src/app/apple-icon.png` (180×180), and
+`public/favicon.ico` (multi-res 16/32/64), plus explicit `icons`/`viewport.themeColor`
+metadata in `src/app/layout.tsx`. Color (`#5048E5`) was pulled directly from
+`globals.css`'s `--primary` custom property (`243 75% 59%` HSL), not guessed, so it's an
+exact match to the UI's own indigo, not just a similar shade. Typeface is Poppins,
+matching the live app. Source SVGs and the full render set (9 icon sizes, 1x/2x wordmark)
+were handed to the user directly rather than committed to the repo — regenerate from
+`icon.svg`/`wordmark.svg` with `sharp` if a different size is ever needed.
+
+Verified 2026-09-22 against production: `/favicon.ico`, `/icon.png`, and `/apple-icon.png`
+all return 200 with the correct content-type, and `<head>` carries the matching
+`<link rel="icon">` / `<link rel="apple-touch-icon">` tags.
+
 ## Production checklist (carried over from README, now with exact commands)
 
 - [ ] Every secret above is set in Vercel per-environment, never committed.
