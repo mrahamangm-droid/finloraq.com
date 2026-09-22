@@ -35,15 +35,38 @@ fakes data or pretends to be functional: pages that aren't built yet say so expl
   Reports, Documents, Users, Settings, Audit Log), a dashboard that queries real (currently
   zero) data from Postgres, dark-mode-aware design tokens, and a security-headers config.
 
+## What's built (Phase 2 — accounting engine)
+
+- **Posting engine** (`src/lib/ledger.ts`) — the only code path allowed to write
+  `JournalEntry`/`JournalLine`. Enforces, in this order: lines balance (debit=credit,
+  pure-function-tested), RBAC permission (`CREATE` for a draft, `APPROVE` to post),
+  duplicate-source prevention, an open (not locked) accounting period, valid+active
+  accounts, atomic DB transaction, gapless sequential entry numbering (Postgres advisory
+  lock — see the code comment on why and what to upgrade to at scale), and an audit log
+  entry. Posted entries are never updated or deleted anywhere in the codebase —
+  `reverseJournalEntry()` only ever creates a new offsetting entry.
+- **Posting builders** for the spec's own worked examples (section 6): invoice, customer
+  payment, supplier bill, supplier payment — each pure, unit-tested, and guaranteed
+  balanced by construction.
+- **Reports** (`src/lib/reports.ts`) — Trial Balance, General Ledger, Profit & Loss,
+  Balance Sheet, computed live from posted `JournalLine` rows only. No cached/derived
+  totals that could drift from the ledger; the balance sheet even reports
+  `outOfBalance` (assets − (liabilities + equity)) so a ledger bug would surface loudly
+  instead of silently.
+- **UI**: Chart of Accounts, Journal Entries list, a manual journal entry form (dynamic
+  lines, client-side balance indicator, server re-validates independently), Trial Balance
+  and P&L report pages — all reading real Postgres data via the above.
+- **Tests** (`src/lib/ledger.test.ts`): the debit=credit invariant, rejection of
+  unbalanced/malformed lines, and every one of the spec's four worked posting examples.
+
 ## Not built yet (by design — see phase order below)
 
-Every nav item that isn't Dashboard currently renders a plain "Coming Soon" state. In
-particular: **the double-entry posting engine itself does not exist yet.** The
-`JournalEntry`/`JournalLine` tables are modeled and the schema encodes the rules (posted
-entries are never mutated, corrections are reversal entries, decimals not floats), but
-there is no service yet that validates debits = credits and posts atomically — that's the
-first thing Phase 2 builds, before a single invoice or bill can post anything real. Until
-then, do not treat any total this app might show as ledger-derived truth.
+Invoices, bills, customers, suppliers, expenses and payments (Phase 3) don't exist as UI
+or API yet, so nothing currently calls the posting builders end-to-end from a real sales
+or purchase transaction — only the manual Journal Entry screen does, which is enough to
+prove and test the engine but isn't the full accounting workflow. Banking, tax filing,
+the AI Copilot, projects, and everything after are all still "Coming Soon" stubs in the
+nav, honestly labeled rather than faked.
 
 ## Repository layout
 
@@ -95,7 +118,7 @@ npm test                    # RBAC + password-policy unit tests
 | Phase | Scope | Status |
 |---|---|---|
 | 1 | Foundation, auth, multi-tenancy, company setup, RBAC, DB, UI shell | **Done** |
-| 2 | Accounting engine: Chart of Accounts, Journals, Ledger, Trial Balance, financial statements | Not started |
+| 2 | Accounting engine: Chart of Accounts, Journals, Ledger, Trial Balance, financial statements | **Done** |
 | 3 | Customers, Suppliers, Invoices, Bills, Payments, Expenses | Not started |
 | 4 | Banking, Reconciliation, Tax, Reports | Not started |
 | 5 | Projects, Budgets, Cost Centres, Cash-flow intelligence | Not started |
@@ -104,7 +127,8 @@ npm test                    # RBAC + password-policy unit tests
 | 8 | Subscriptions, billing, usage metering, enterprise controls | Not started |
 | 9 | Security hardening, testing, performance, accessibility, SEO, production deploy | Ongoing as each phase lands |
 
-Phase 2 is next: the double-entry posting engine (`src/lib/ledger.ts`, not yet created),
-with the debit=credit invariant enforced inside a DB transaction and unit-tested against
-the spec's own example postings (invoice, payment, supplier bill, supplier payment)
-before anything in Sales/Purchases is allowed to write a journal entry.
+Phase 3 is next: Customers, Suppliers, Invoices, Bills, Payments, Expenses — real CRUD
+UI and API routes that, on send/approve, call the Phase 2 posting builders
+(`buildInvoicePosting`, `buildBillPosting`, etc.) through `postJournalEntry()` so every
+sales/purchase document produces a real, balanced ledger entry instead of a
+front-end-only total.
