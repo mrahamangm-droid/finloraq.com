@@ -9,8 +9,18 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // directUrl is only read by `prisma migrate`/`prisma db seed`, never by
+  // the runtime client (that always uses DATABASE_URL above). Required:
+  // Prisma errors if DIRECT_URL is unset, so DIRECT_URL must always be
+  // defined in .env — set it to a non-pooled connection string when
+  // DATABASE_URL points at a pooler (Neon's/Supabase's pooled port,
+  // PgBouncer, Vercel Postgres' pooled string: migrations need a direct
+  // connection to run advisory locks and DDL reliably), or to the exact
+  // same value as DATABASE_URL when you're already connecting directly
+  // (e.g. self-hosted Postgres/RDS with no pooler in front of it).
+  directUrl = env("DIRECT_URL")
 }
 
 // ─────────────────────────────────────────────────────────────────────────
