@@ -61,10 +61,10 @@ fakes data or pretends to be functional: pages that aren't built yet say so expl
 
 ## Not built yet (by design — see phase order below)
 
-The AI Copilot, Documents/OCR, subscriptions/billing, and everything after Phase 5 are
-still "Coming Soon" stubs in the nav, honestly labeled rather than faked. There is also
-no live bank feed (Plaid-equivalent) — Banking below is manual entry + matching, which is
-the honest state until Phase 7's external integrations.
+Email/WhatsApp/voice ingestion, e-invoicing adapters, subscriptions/billing, and
+everything after Phase 6 are still "Coming Soon" stubs in the nav, honestly labeled
+rather than faked. There is also no live bank feed (Plaid-equivalent) — Banking is manual
+entry + matching, the honest state until Phase 7's external integrations.
 
 ## What's built (Phase 3 — sales, purchases, expenses)
 
@@ -134,6 +134,52 @@ the honest state until Phase 7's external integrations.
   instead of the Phase 1 placeholder note — all from the functions above, so it can never
   disagree with the ledger.
 
+## What's built (Phase 6 — AI Copilot, document extraction, anomaly detection)
+
+**Important — this phase needs a real API key to actually run.** Nothing here was (or
+could be) tested against a live model in this sandbox: no AI credentials are configured,
+and every code path that needs one degrades explicitly rather than pretending to work —
+the copilot falls back to a templated (non-AI) answer, and document extraction returns a
+clear "no AI provider configured" error instead of a fabricated result. Set
+`ANTHROPIC_API_KEY` in `.env` to turn either on for real.
+
+- **AI abstraction layer** (`src/lib/ai/provider.ts`) — a minimal `AiProvider` interface
+  (`complete`, `completeWithImage`) with an Anthropic implementation; adding OpenAI or
+  another provider is a new class implementing the same interface, not a rewrite of every
+  caller. `getAiProvider()` returns `null` when unconfigured so features degrade instead
+  of throwing.
+- **AI Copilot** (`src/lib/ai/copilot.ts`) — deliberately NOT a free-form tool-calling
+  loop. It classifies the question, fetches the real answer from the existing report
+  functions (`profitAndLoss`, `arAging`, `vatReturn`, `cashFlowForecast`,
+  `customerPaymentBehavior`, duplicate/largest-expense detection), and only then — if a
+  provider is configured — asks the model to phrase that already-computed JSON into
+  prose, under a system prompt that explicitly forbids adding or changing any figure.
+  Without a provider, a deterministic template built from the same data is the answer.
+  Every one of the spec's own example questions (overdue customers, VAT owed, late
+  payers, largest expenses, 90-day forecast, duplicate invoices, explain the P&L, why did
+  profit drop) is a real, data-backed case, not a mock.
+- **Anomaly/duplicate detection** (`src/lib/ai/analysis.ts`) — deliberately NOT an AI
+  call: duplicate invoice/bill detection (same party, same amount, within 7 days) and
+  expense anomaly flagging (>3x an account's trailing-90-day average) are plain
+  deterministic queries, so "why was this flagged" always has an exact, explainable
+  answer rather than a model's opinion.
+- **Document extraction** (`src/lib/ai/extraction.ts`) — the Document → OCR →
+  Extraction step of the spec's pipeline (section 8). Uploads a receipt/bill image, calls
+  the vision-capable model with a strict "read only what's printed, use null rather than
+  guess" prompt, and returns fields for human review — it never creates an Expense
+  itself. `createDraftExpenseFromExtraction()` only runs after that review and produces a
+  DRAFT via the same `createExpense()` every manually-typed expense uses — an approver
+  still has to post it. Known gap: no object storage is configured yet
+  (`OBJECT_STORAGE_*` in `.env.example`), so the source image itself isn't persisted,
+  only the extraction result — the `Document.storageKey` is a placeholder pending that
+  wiring.
+- **UI**: an AI Copilot chat page and a Documents upload/review page, both real, both
+  honest about failure (a clear error banner, not a silent fake success) when no provider
+  is configured.
+- **Tests** (`src/lib/ai/extraction.test.ts`): the code-fence-stripping helper around the
+  model's JSON response is pure and unit-tested; the AI calls themselves obviously can't
+  be unit-tested without hitting a real API.
+
 ## Repository layout
 
 ```
@@ -188,18 +234,17 @@ npm test                    # RBAC + password-policy unit tests
 | 3 | Customers, Suppliers, Invoices, Bills, Payments, Expenses | **Done** |
 | 4 | Banking, Reconciliation, Tax, Reports | **Done** |
 | 5 | Projects, Budgets, Cost Centres, Cash-flow intelligence | **Done** |
-| 6 | AI Copilot, OCR/document extraction, anomaly detection | Not started |
+| 6 | AI Copilot, OCR/document extraction, anomaly detection | **Done** (needs a real API key to run live) |
 | 7 | Email, WhatsApp, voice architecture, e-invoicing adapters | Not started |
 | 8 | Subscriptions, billing, usage metering, enterprise controls | Not started |
 | 9 | Security hardening, testing, performance, accessibility, SEO, production deploy | Ongoing as each phase lands |
 
-Phase 6 is next: the AI Copilot and document extraction. This is the first phase that
-needs an external AI provider call (`AI_PROVIDER`/`ANTHROPIC_API_KEY` in `.env.example`,
-unused until now) — the spec is explicit that AI must never invent figures or silently
-alter records, so the design is: a provider-agnostic `src/lib/ai/` abstraction layer,
-read-only natural-language queries answered from the same report functions this codebase
-already has (`trialBalance`, `profitAndLoss`, `arAging`, `cashFlowForecast`, etc. — the AI
-narrates real numbers, it doesn't compute its own), and any AI-proposed transaction
-(a drafted expense from a receipt, a suggested account/tax code) lands as a DRAFT
-JournalEntry with `sourceType: "AI_DRAFT"` (already in the schema) that still requires a
-human with `journals:APPROVE` to post it — no new code path bypasses the Phase 2 engine.
+Phase 7 is next: Email, WhatsApp, voice architecture, e-invoicing adapters — all external
+integrations, so this phase is mostly building adapter interfaces (per section 25:
+"create adapter interfaces for Tax, E-invoicing, Payment, Banking, Identity, AI
+providers") plus a safe development implementation for each, per the spec's own rule 28
+("If a feature requires an external service that is not yet configured, build the
+integration interface and a safe development implementation rather than pretending the
+integration is live"). The natural entry point for email/WhatsApp ingestion is the
+Phase 6 document-extraction pipeline already built — an inbound attachment becomes a
+`Document` the same way a manual upload does.
