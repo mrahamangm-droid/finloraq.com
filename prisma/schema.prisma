@@ -9,18 +9,21 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  // directUrl is only read by `prisma migrate`/`prisma db seed`, never by
-  // the runtime client (that always uses DATABASE_URL above). Required:
-  // Prisma errors if DIRECT_URL is unset, so DIRECT_URL must always be
-  // defined in .env — set it to a non-pooled connection string when
-  // DATABASE_URL points at a pooler (Neon's/Supabase's pooled port,
-  // PgBouncer, Vercel Postgres' pooled string: migrations need a direct
-  // connection to run advisory locks and DDL reliably), or to the exact
-  // same value as DATABASE_URL when you're already connecting directly
-  // (e.g. self-hosted Postgres/RDS with no pooler in front of it).
-  directUrl = env("DIRECT_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  // No directUrl here on purpose. It's the right move for a classic pooled
+  // setup (Neon/Supabase's pooled port needs a separate direct connection
+  // for migrations) but this project runs on Prisma Postgres (provisioned
+  // through the Vercel Marketplace), which is Accelerate-only — DATABASE_URL
+  // itself is what `prisma migrate deploy` uses, and there's no conventional
+  // postgres:// direct connection string to point directUrl at. A prior
+  // revision of this file added directUrl pointed at POSTGRES_URL, assuming
+  // a Neon/Supabase-style pooler; that broke every deploy with "P1013: the
+  // scheme is not recognized" because Prisma Postgres' connection strings
+  // don't take that shape. If this project ever moves to a provider that
+  // does need the pooled/direct split, add directUrl back and point it at
+  // that provider's real direct connection string — verify against an
+  // actual deploy log before assuming the shape, not from general advice.
 }
 
 // ─────────────────────────────────────────────────────────────────────────
