@@ -302,7 +302,7 @@ const STYLE = `
 
   /* ---------- Final CTA / footer ---------- */
   #fm-root .final-cta{background:radial-gradient(900px 400px at 50% -30%, #1A2246, var(--navy));color:#fff;text-align:center}
-  #fm-root .final-cta h2{font-size:clamp(28px,4vw,42px);font-weight:800;letter-spacing:-.02em}
+  #fm-root .final-cta h2{color:#fff;font-size:clamp(28px,4vw,42px);font-weight:800;letter-spacing:-.02em}
   #fm-root .final-cta p{margin-top:16px;color:var(--on-navy-muted);font-size:16px}
   #fm-root .final-cta .cta-row{justify-content:center;margin-top:30px}
 
