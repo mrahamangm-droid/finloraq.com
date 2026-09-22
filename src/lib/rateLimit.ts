@@ -81,6 +81,6 @@ export function clientIpFromHeaders(headers: Headers | Record<string, string | s
     return Array.isArray(v) ? v[0] : v;
   };
   const forwarded = get("x-forwarded-for");
-  if (forwarded) return forwarded.split(",")[0].trim();
+  if (forwarded) return (forwarded.split(",")[0] ?? forwarded).trim();
   return get("x-real-ip") ?? "unknown";
 }

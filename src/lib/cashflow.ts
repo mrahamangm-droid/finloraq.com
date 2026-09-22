@@ -81,7 +81,7 @@ export async function customerPaymentBehavior(companyId: string) {
     if (daysLateList.length > 0) {
       results.push({
         customerId,
-        customerName: invoices[0].customer.name,
+        customerName: invoices[0]!.customer.name,
         avgDaysLate: Math.round(daysLateList.reduce((a, d) => a + d, 0) / daysLateList.length),
         invoiceCount: daysLateList.length,
       });

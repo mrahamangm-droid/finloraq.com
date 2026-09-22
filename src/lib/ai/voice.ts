@@ -46,7 +46,7 @@ export async function parseVoiceCommand(params: {
   const expenseMatch = t.match(DRAFT_EXPENSE_PATTERN);
 
   if (expenseMatch) {
-    const amount = parseFloat(expenseMatch[1].replace(/,/g, ""));
+    const amount = parseFloat(expenseMatch[1]!.replace(/,/g, ""));
     const description = t.replace(DRAFT_EXPENSE_PATTERN, "").trim() || "Voice-drafted expense";
     return {
       type: "action_proposed",

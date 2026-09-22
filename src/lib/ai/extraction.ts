@@ -158,5 +158,5 @@ export async function createDraftExpenseFromExtraction(params: {
 export function stripCodeFence(text: string): string {
   const trimmed = text.trim();
   const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/);
-  return fenced ? fenced[1] : trimmed;
+  return fenced ? (fenced[1] ?? trimmed) : trimmed;
 }

@@ -66,7 +66,7 @@ describe("MFA backup codes", () => {
   });
 
   it("hashes a code and verifies it back, case/whitespace-insensitively", async () => {
-    const [code] = generateBackupCodes();
+    const [code] = generateBackupCodes() as [string];
     const hash = await hashBackupCode(code);
     expect(await verifyBackupCode(hash, code)).toBe(true);
     expect(await verifyBackupCode(hash, ` ${code.toLowerCase()} `)).toBe(true);

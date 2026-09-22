@@ -91,8 +91,8 @@ describe("posting builders match the spec's exact examples (section 6)", () => {
   it("Customer payment: DR Bank, CR Accounts Receivable", () => {
     const lines = buildInvoicePaymentPosting({ amount: 1050 });
     validateBalanced(lines);
-    expect(lines[0].accountCode).toBe("1000");
-    expect(lines[1].accountCode).toBe("1100");
+    expect(lines[0]!.accountCode).toBe("1000");
+    expect(lines[1]!.accountCode).toBe("1100");
   });
 
   it("Supplier bill: DR Expense, DR Input Tax, CR Accounts Payable", () => {
@@ -108,8 +108,8 @@ describe("posting builders match the spec's exact examples (section 6)", () => {
   it("Supplier payment: DR Accounts Payable, CR Bank", () => {
     const lines = buildSupplierPaymentPosting({ amount: 525 });
     validateBalanced(lines);
-    expect(lines[0].accountCode).toBe("2000");
-    expect(lines[1].accountCode).toBe("1000");
+    expect(lines[0]!.accountCode).toBe("2000");
+    expect(lines[1]!.accountCode).toBe("1000");
   });
 
   it("Direct expense with tax: DR Expense, DR Input Tax, CR Bank", () => {
@@ -121,7 +121,7 @@ describe("posting builders match the spec's exact examples (section 6)", () => {
       { accountCode: "1000", credit: expect.anything(), description: "Bank" },
     ]);
     // credit leg equals amount + tax
-    const bankLine = lines[2];
+    const bankLine = lines[2]!;
     expect(bankLine.credit && Number(bankLine.credit)).toBeCloseTo(210);
   });
 

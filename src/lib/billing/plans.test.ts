@@ -11,8 +11,8 @@ describe("plan catalog", () => {
 
   it("seats and AI usage limits are non-decreasing as plans go up", () => {
     for (let i = 1; i < PLAN_ORDER.length; i++) {
-      const prev = planDefinition(PLAN_ORDER[i - 1]);
-      const curr = planDefinition(PLAN_ORDER[i]);
+      const prev = planDefinition(PLAN_ORDER[i - 1]!);
+      const curr = planDefinition(PLAN_ORDER[i]!);
       expect(curr.seats).toBeGreaterThanOrEqual(prev.seats);
       // null = unlimited, which is always >= any finite limit
       if (prev.aiUsageLimitPerMonth !== null && curr.aiUsageLimitPerMonth !== null) {
