@@ -8,6 +8,7 @@ const REPORTS = [
   { href: "/reports/ar-aging", name: "AR Aging", description: "Outstanding customer invoices by days overdue." },
   { href: "/reports/ap-aging", name: "AP Aging", description: "Outstanding supplier bills by days overdue." },
   { href: "/taxes", name: "VAT Return", description: "Output tax vs input tax for the period." },
+  { href: "/reports/cash-flow", name: "Cash-Flow Forecast", description: "30/60/90-day projection from AR/AP due dates, plus customer payment behavior." },
 ];
 
 export default async function ReportsPage() {
@@ -30,8 +31,8 @@ export default async function ReportsPage() {
       </div>
 
       <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
-        Customer/supplier statements, project profitability, and budget-vs-actual reports are
-        not built yet (later phases — Projects/Cash-flow is Phase 5).
+        Project profitability and budget-vs-actual live on each project&apos;s own page
+        (Projects in the nav). Customer/supplier statements aren&apos;t built yet.
       </p>
     </div>
   );

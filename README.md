@@ -61,10 +61,10 @@ fakes data or pretends to be functional: pages that aren't built yet say so expl
 
 ## Not built yet (by design — see phase order below)
 
-The AI Copilot, Documents/OCR, Projects/cost-centre reporting, subscriptions/billing, and
-everything after Phase 4 are still "Coming Soon" stubs in the nav, honestly labeled
-rather than faked. There is also no live bank feed (Plaid-equivalent) — Banking below is
-manual entry + matching, which is the honest state until Phase 7's external integrations.
+The AI Copilot, Documents/OCR, subscriptions/billing, and everything after Phase 5 are
+still "Coming Soon" stubs in the nav, honestly labeled rather than faked. There is also
+no live bank feed (Plaid-equivalent) — Banking below is manual entry + matching, which is
+the honest state until Phase 7's external integrations.
 
 ## What's built (Phase 3 — sales, purchases, expenses)
 
@@ -110,6 +110,29 @@ manual entry + matching, which is the honest state until Phase 7's external inte
   previously-missing Balance Sheet page, all linked from a new Reports hub.
 - **Tests** (`src/lib/reports.test.ts`): the aging-bucket boundary logic (0, 30, 60, 90
   day edges) is pure and unit-tested independent of the database.
+
+## What's built (Phase 5 — projects, budgets, cost centres, cash-flow)
+
+- **Projects** (`src/lib/projects.ts`) — create a project, optionally linked to a customer
+  and a budget; profitability is computed from real posted documents (sent/paid invoices'
+  subtotal as revenue, approved/paid bills' subtotal as cost), not a guess, with a
+  documented gap: direct expenses/labour aren't counted yet because only Invoice/Bill
+  carry a `projectId` today, not JournalLine.
+- **Cost Centres** (`src/lib/costCentres.ts`) — create/list, and a real spend-by-cost-centre
+  report. The manual Journal Entry form (Accounting → Journal Entries → New) now has a
+  per-line cost centre picker, so `JournalLine.costCentreId` — modeled since Phase 2 but
+  unused until now — has a real writer.
+- **Budget vs Actual** — lives on each project's detail page (budget vs. actual cost,
+  over/under and by how much) rather than a separate report, since budgets in this schema
+  are per-project, not a standalone company-wide budget table yet.
+- **Cash-flow intelligence** (`src/lib/cashflow.ts`) — current cash read from the Bank
+  account's trial-balance line (same source of truth as every other report); a 30/60/90-day
+  forecast built from AR/AP aging due dates — explicitly documented as an "everyone pays on
+  time" projection, not a statistical model; and customer payment-behavior (average days
+  late, from actual payment postings vs. due date) to eventually inform a smarter model.
+- **Dashboard** now shows real cash, MTD net profit, AR/AP outstanding and document counts
+  instead of the Phase 1 placeholder note — all from the functions above, so it can never
+  disagree with the ledger.
 
 ## Repository layout
 
@@ -164,14 +187,19 @@ npm test                    # RBAC + password-policy unit tests
 | 2 | Accounting engine: Chart of Accounts, Journals, Ledger, Trial Balance, financial statements | **Done** |
 | 3 | Customers, Suppliers, Invoices, Bills, Payments, Expenses | **Done** |
 | 4 | Banking, Reconciliation, Tax, Reports | **Done** |
-| 5 | Projects, Budgets, Cost Centres, Cash-flow intelligence | Not started |
+| 5 | Projects, Budgets, Cost Centres, Cash-flow intelligence | **Done** |
 | 6 | AI Copilot, OCR/document extraction, anomaly detection | Not started |
 | 7 | Email, WhatsApp, voice architecture, e-invoicing adapters | Not started |
 | 8 | Subscriptions, billing, usage metering, enterprise controls | Not started |
 | 9 | Security hardening, testing, performance, accessibility, SEO, production deploy | Ongoing as each phase lands |
 
-Phase 5 is next: Projects, Budgets, Cost Centres, Cash-flow intelligence — the schema
-already has `Project`, `CostCentre`, `Department` and budget fields; this phase builds
-project profitability (revenue/cost/margin by project, using the `projectId` already on
-invoice/bill lines' parent documents) and a real cash-flow forecast off AR/AP aging plus
-payment-behavior history rather than a guessed number.
+Phase 6 is next: the AI Copilot and document extraction. This is the first phase that
+needs an external AI provider call (`AI_PROVIDER`/`ANTHROPIC_API_KEY` in `.env.example`,
+unused until now) — the spec is explicit that AI must never invent figures or silently
+alter records, so the design is: a provider-agnostic `src/lib/ai/` abstraction layer,
+read-only natural-language queries answered from the same report functions this codebase
+already has (`trialBalance`, `profitAndLoss`, `arAging`, `cashFlowForecast`, etc. — the AI
+narrates real numbers, it doesn't compute its own), and any AI-proposed transaction
+(a drafted expense from a receipt, a suggested account/tax code) lands as a DRAFT
+JournalEntry with `sourceType: "AI_DRAFT"` (already in the schema) that still requires a
+human with `journals:APPROVE` to post it — no new code path bypasses the Phase 2 engine.

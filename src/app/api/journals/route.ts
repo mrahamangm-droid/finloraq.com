@@ -9,6 +9,7 @@ const lineSchema = z.object({
   debit: z.number().min(0).optional(),
   credit: z.number().min(0).optional(),
   description: z.string().optional(),
+  costCentreId: z.string().optional(),
 });
 
 const createSchema = z.object({
