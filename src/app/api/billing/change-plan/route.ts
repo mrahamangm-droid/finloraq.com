@@ -3,6 +3,8 @@ import { z } from "zod";
 import { requireTenantContext } from "@/lib/tenant";
 import { requirePermission } from "@/lib/rbac";
 import { changePlan } from "@/lib/billing/subscription";
+import { isStripeConfigured } from "@/lib/stripe/client";
+import { changePlanWithStripe } from "@/lib/stripe/subscriptions";
 
 const schema = z.object({
   plan: z.enum(["STARTER", "GROWTH", "PROFESSIONAL", "AI_CFO", "ENTERPRISE"]),
@@ -25,8 +27,14 @@ export async function POST(req: Request) {
   }
 
   try {
+    if (isStripeConfigured()) {
+      // Real billing: Stripe Checkout for a new subscription, in-place change otherwise.
+      // The plan itself only changes when Stripe's webhook confirms it.
+      const result = await changePlanWithStripe({ companyId: active.companyId, userId, plan: parsed.data.plan });
+      return NextResponse.json(result);
+    }
     const result = await changePlan({ companyId: active.companyId, userId, newPlan: parsed.data.plan });
-    return NextResponse.json(result);
+    return NextResponse.json({ kind: "simulated", ...result });
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : "Could not change plan." }, { status: 400 });
   }
