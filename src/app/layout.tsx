@@ -15,6 +15,22 @@ export const metadata: Metadata = {
   // search engine to usefully index; robots.txt (public/robots.txt)
   // backs this up for crawlers that ignore per-page meta tags.
   robots: { index: false, follow: false },
+  // src/app/icon.png and src/app/apple-icon.png already auto-generate the
+  // matching <link> tags via Next's file-based icon convention — this is
+  // just explicit about it, and adds the legacy public/favicon.ico for
+  // browsers/bookmark managers that request /favicon.ico directly instead
+  // of reading <head>.
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon.png", type: "image/png" },
+    ],
+    apple: "/apple-icon.png",
+  },
+};
+
+export const viewport = {
+  themeColor: "#5048E5",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
