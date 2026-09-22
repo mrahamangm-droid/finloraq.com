@@ -20,8 +20,8 @@ export async function findDuplicateBills(companyId: string) {
   const duplicates: { a: typeof bills[number]; b: typeof bills[number] }[] = [];
   for (let i = 0; i < bills.length; i++) {
     for (let j = i + 1; j < bills.length; j++) {
-      const a = bills[i];
-      const b = bills[j];
+      const a = bills[i]!;
+      const b = bills[j]!;
       if (a.supplierId !== b.supplierId) continue;
       if (!a.total.equals(b.total)) continue;
       const daysApart = Math.abs(a.issueDate.getTime() - b.issueDate.getTime()) / 86400000;
@@ -47,8 +47,8 @@ export async function findDuplicateInvoices(companyId: string) {
   const duplicates: { a: typeof invoices[number]; b: typeof invoices[number] }[] = [];
   for (let i = 0; i < invoices.length; i++) {
     for (let j = i + 1; j < invoices.length; j++) {
-      const a = invoices[i];
-      const b = invoices[j];
+      const a = invoices[i]!;
+      const b = invoices[j]!;
       if (a.customerId !== b.customerId) continue;
       if (!a.total.equals(b.total)) continue;
       const daysApart = Math.abs(a.issueDate.getTime() - b.issueDate.getTime()) / 86400000;
