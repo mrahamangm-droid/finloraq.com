@@ -1,0 +1,725 @@
+// Finloraq — Prisma schema
+// Phase 1 (foundation, auth, multi-tenancy, RBAC, company setup) is fully modeled.
+// Phase 2+ accounting tables are included as the ledger skeleton so later phases
+// attach without a schema rewrite, but their write-paths are not implemented yet —
+// see /src/lib/ledger.ts for the posting-engine stub and TODOs.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// IDENTITY, TENANCY, RBAC
+// ─────────────────────────────────────────────────────────────────────────
+
+enum GlobalRole {
+  SUPER_ADMIN // Finloraq platform operator, not a company member
+  USER
+}
+
+/// A person who can sign in. A single User can belong to multiple Companies
+/// (accountants / multi-company staff) via CompanyMembership.
+model User {
+  id            String     @id @default(cuid())
+  email         String     @unique
+  emailVerified DateTime?
+  name          String
+  passwordHash  String
+  globalRole    GlobalRole @default(USER)
+  mfaEnabled    Boolean    @default(false)
+  mfaSecret     String? // encrypted at rest, never returned via API
+  isActive      Boolean    @default(true)
+  lastLoginAt   DateTime?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  memberships CompanyMembership[]
+  auditEvents AuditEvent[]
+  sessions    Session[]
+  approvals   Approval[]
+
+  @@index([email])
+}
+
+/// NextAuth session table (database session strategy — safer than JWT-only
+/// for a finance product: sessions are revocable server-side).
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  ipAddress    String?
+  userAgent    String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+/// Tenant root. Every business-data row hangs off a Company (or a Branch
+/// that belongs to one), which is how tenant isolation is enforced —
+/// every query in /src/lib/db.ts's scoped client is filtered by companyId.
+model Company {
+  id            String   @id @default(cuid())
+  name          String
+  legalName     String?
+  countryCode   String // ISO 3166-1 alpha-2, drives the active TaxPack
+  baseCurrency  String // ISO 4217, e.g. "AED"
+  timezone      String   @default("Asia/Dubai")
+  fiscalYearEnd Int      @default(12) // month 1-12
+  taxRegNumber  String? // e.g. UAE TRN
+  isDemo        Boolean  @default(false)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  memberships        CompanyMembership[]
+  branches           Branch[]
+  departments        Department[]
+  costCentres        CostCentre[]
+  accounts           Account[]
+  accountingPeriods  AccountingPeriod[]
+  journalEntries     JournalEntry[]
+  customers          Customer[]
+  suppliers          Supplier[]
+  invoices           Invoice[]
+  bills              Bill[]
+  bankAccounts       BankAccount[]
+  taxCodes           TaxCode[]
+  projects           Project[]
+  documents          Document[]
+  auditEvents        AuditEvent[]
+  workflowRules      WorkflowRule[]
+  subscription       Subscription?
+  invitations        Invitation[]
+
+  @@index([countryCode])
+}
+
+model Branch {
+  id        String   @id @default(cuid())
+  companyId String
+  name      String
+  code      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, code])
+}
+
+model Department {
+  id        String   @id @default(cuid())
+  companyId String
+  name      String
+  code      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, code])
+}
+
+model CostCentre {
+  id        String   @id @default(cuid())
+  companyId String
+  name      String
+  code      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, code])
+}
+
+enum CompanyRole {
+  COMPANY_ADMIN
+  CFO
+  FINANCE_MANAGER
+  ACCOUNTANT
+  STAFF
+  AUDITOR
+}
+
+enum PermissionAction {
+  VIEW
+  CREATE
+  EDIT
+  APPROVE
+  DELETE
+  EXPORT
+}
+
+/// Join table: which users belong to which company, with which role.
+/// This — not the User row — is what request-time authorization checks.
+model CompanyMembership {
+  id        String      @id @default(cuid())
+  companyId String
+  userId    String
+  role      CompanyRole
+  isActive  Boolean     @default(true)
+  createdAt DateTime    @default(now())
+
+  company     Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user        User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  overrides   PermissionOverride[]
+
+  @@unique([companyId, userId])
+  @@index([userId])
+}
+
+/// Optional per-user, per-module exceptions to the role's default permission
+/// matrix (e.g. an Accountant granted EXPORT on Reports). The default matrix
+/// itself is defined in code (/src/lib/rbac.ts) so it ships with tests.
+model PermissionOverride {
+  id            String            @id @default(cuid())
+  membershipId  String
+  module        String // e.g. "reports", "journals", "bills"
+  action        PermissionAction
+  granted       Boolean
+
+  membership CompanyMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+
+  @@unique([membershipId, module, action])
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  REVOKED
+}
+
+model Invitation {
+  id        String           @id @default(cuid())
+  companyId String
+  email     String
+  role      CompanyRole
+  token     String           @unique
+  status    InvitationStatus @default(PENDING)
+  invitedBy String
+  expiresAt DateTime
+  createdAt DateTime         @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, email])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// ACCOUNTING CORE (schema in place for Phase 2; posting engine not yet built)
+// ─────────────────────────────────────────────────────────────────────────
+
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  REVENUE
+  EXPENSE
+}
+
+model Account {
+  id          String      @id @default(cuid())
+  companyId   String
+  code        String
+  name        String
+  type        AccountType
+  parentId    String?
+  isSystem    Boolean     @default(false) // system accounts can't be deleted (e.g. AR, AP, VAT control)
+  isActive    Boolean     @default(true)
+  currency    String? // null = base currency
+  createdAt   DateTime    @default(now())
+
+  company        Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  parent         Account?         @relation("AccountHierarchy", fields: [parentId], references: [id])
+  children       Account[]        @relation("AccountHierarchy")
+  journalLines   JournalLine[]
+
+  @@unique([companyId, code])
+  @@index([companyId, type])
+}
+
+enum PeriodStatus {
+  OPEN
+  CLOSING
+  LOCKED
+}
+
+model AccountingPeriod {
+  id        String       @id @default(cuid())
+  companyId String
+  name      String // e.g. "2026-09"
+  startDate DateTime
+  endDate   DateTime
+  status    PeriodStatus @default(OPEN)
+  lockedAt  DateTime?
+  lockedBy  String?
+
+  company        Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  journalEntries JournalEntry[]
+
+  @@unique([companyId, name])
+}
+
+enum JournalSourceType {
+  MANUAL
+  INVOICE
+  BILL
+  PAYMENT
+  RECEIPT
+  EXPENSE
+  BANK_IMPORT
+  REVERSAL
+  ADJUSTMENT
+  RECURRING
+  AI_DRAFT
+}
+
+enum JournalStatus {
+  DRAFT
+  POSTED
+  REVERSED
+}
+
+/// Immutable once POSTED. Corrections are new REVERSAL/ADJUSTMENT entries
+/// that reference reversalOfId — rows are never deleted or mutated post-post.
+/// Enforcement lives in /src/lib/ledger.ts (server-only posting service),
+/// never in the client.
+model JournalEntry {
+  id             String            @id @default(cuid())
+  companyId      String
+  periodId       String
+  entryNumber    String // sequential, per-company, gapless for POSTED entries
+  date           DateTime
+  sourceType     JournalSourceType
+  sourceId       String? // id of the Invoice/Bill/Payment/etc. that generated this
+  memo           String?
+  status         JournalStatus     @default(DRAFT)
+  reversalOfId   String?
+  currency       String
+  exchangeRate   Decimal           @default(1) @db.Decimal(18, 8)
+  postedAt       DateTime?
+  postedBy       String?
+  createdBy      String
+  createdAt      DateTime          @default(now())
+
+  company      Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  period       AccountingPeriod  @relation(fields: [periodId], references: [id])
+  reversalOf   JournalEntry?     @relation("Reversal", fields: [reversalOfId], references: [id])
+  reversals    JournalEntry[]    @relation("Reversal")
+  lines        JournalLine[]
+
+  @@unique([companyId, entryNumber])
+  @@index([companyId, periodId, status])
+}
+
+model JournalLine {
+  id             String   @id @default(cuid())
+  journalEntryId String
+  accountId      String
+  debit          Decimal  @default(0) @db.Decimal(18, 2)
+  credit         Decimal  @default(0) @db.Decimal(18, 2)
+  costCentreId   String?
+  departmentId   String?
+  projectId      String?
+  description    String?
+
+  journalEntry JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  account      Account      @relation(fields: [accountId], references: [id])
+
+  @@index([journalEntryId])
+  @@index([accountId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// PARTIES
+// ─────────────────────────────────────────────────────────────────────────
+
+model Customer {
+  id          String   @id @default(cuid())
+  companyId   String
+  name        String
+  email       String?
+  phone       String?
+  taxRegNumber String?
+  currency    String?
+  paymentTermsDays Int @default(30)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invoices Invoice[]
+
+  @@index([companyId])
+}
+
+model Supplier {
+  id          String   @id @default(cuid())
+  companyId   String
+  name        String
+  email       String?
+  phone       String?
+  taxRegNumber String?
+  currency    String?
+  paymentTermsDays Int @default(30)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  bills   Bill[]
+
+  @@index([companyId])
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  VOID
+}
+
+model Invoice {
+  id          String        @id @default(cuid())
+  companyId   String
+  customerId  String
+  projectId   String?
+  invoiceNumber String
+  issueDate   DateTime
+  dueDate     DateTime
+  currency    String
+  subtotal    Decimal       @db.Decimal(18, 2)
+  taxTotal    Decimal       @db.Decimal(18, 2)
+  total       Decimal       @db.Decimal(18, 2)
+  status      InvoiceStatus @default(DRAFT)
+  journalEntryId String?
+  createdAt   DateTime      @default(now())
+
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id])
+  project  Project? @relation(fields: [projectId], references: [id])
+  lines    InvoiceLine[]
+
+  @@unique([companyId, invoiceNumber])
+  @@index([companyId, status])
+}
+
+model InvoiceLine {
+  id          String  @id @default(cuid())
+  invoiceId   String
+  description String
+  quantity    Decimal @db.Decimal(18, 4)
+  unitPrice   Decimal @db.Decimal(18, 4)
+  taxCodeId   String?
+  lineTotal   Decimal @db.Decimal(18, 2)
+
+  invoice Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  taxCode TaxCode? @relation(fields: [taxCodeId], references: [id])
+}
+
+enum BillStatus {
+  DRAFT
+  APPROVED
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  VOID
+}
+
+model Bill {
+  id          String     @id @default(cuid())
+  companyId   String
+  supplierId  String
+  projectId   String?
+  billNumber  String
+  issueDate   DateTime
+  dueDate     DateTime
+  currency    String
+  subtotal    Decimal    @db.Decimal(18, 2)
+  taxTotal    Decimal    @db.Decimal(18, 2)
+  total       Decimal    @db.Decimal(18, 2)
+  status      BillStatus @default(DRAFT)
+  journalEntryId String?
+  createdAt   DateTime   @default(now())
+
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  supplier Supplier @relation(fields: [supplierId], references: [id])
+  project  Project? @relation(fields: [projectId], references: [id])
+  lines    BillLine[]
+
+  @@unique([companyId, billNumber])
+  @@index([companyId, status])
+}
+
+model BillLine {
+  id          String  @id @default(cuid())
+  billId      String
+  description String
+  quantity    Decimal @db.Decimal(18, 4)
+  unitPrice   Decimal @db.Decimal(18, 4)
+  taxCodeId   String?
+  lineTotal   Decimal @db.Decimal(18, 2)
+
+  bill    Bill     @relation(fields: [billId], references: [id], onDelete: Cascade)
+  taxCode TaxCode? @relation(fields: [taxCodeId], references: [id])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// BANKING
+// ─────────────────────────────────────────────────────────────────────────
+
+model BankAccount {
+  id            String   @id @default(cuid())
+  companyId     String
+  name          String
+  accountNumber String? // last 4 only should be shown in UI
+  currency      String
+  openingBalance Decimal @default(0) @db.Decimal(18, 2)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  company      Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  transactions BankTransaction[]
+
+  @@index([companyId])
+}
+
+enum BankTxStatus {
+  UNMATCHED
+  MATCHED
+  RECONCILED
+  IGNORED
+}
+
+model BankTransaction {
+  id            String       @id @default(cuid())
+  bankAccountId String
+  date          DateTime
+  description   String
+  amount        Decimal      @db.Decimal(18, 2) // signed: +in / -out
+  status        BankTxStatus @default(UNMATCHED)
+  matchedJournalEntryId String?
+  importBatchId String?
+  createdAt     DateTime     @default(now())
+
+  bankAccount BankAccount @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+
+  @@index([bankAccountId, status])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// TAX ENGINE (country-agnostic; UAE pack seeded first)
+// ─────────────────────────────────────────────────────────────────────────
+
+enum TaxTreatment {
+  STANDARD
+  ZERO_RATED
+  EXEMPT
+  OUT_OF_SCOPE
+}
+
+model TaxCode {
+  id          String       @id @default(cuid())
+  companyId   String
+  countryCode String
+  code        String // e.g. "VAT_STD_5"
+  name        String
+  rate        Decimal      @db.Decimal(6, 4) // e.g. 0.0500 for 5%
+  treatment   TaxTreatment @default(STANDARD)
+  isInput     Boolean // true = input/purchase tax, false = output/sales tax
+  isActive    Boolean      @default(true)
+
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invoiceLines InvoiceLine[]
+  billLines    BillLine[]
+
+  @@unique([companyId, code])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// PROJECTS
+// ─────────────────────────────────────────────────────────────────────────
+
+model Project {
+  id          String   @id @default(cuid())
+  companyId   String
+  name        String
+  code        String
+  customerId  String?
+  budget      Decimal? @db.Decimal(18, 2)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invoices Invoice[]
+  bills    Bill[]
+
+  @@unique([companyId, code])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// DOCUMENTS (AI extraction pipeline target — Phase 6)
+// ─────────────────────────────────────────────────────────────────────────
+
+enum DocumentStatus {
+  UPLOADED
+  PROCESSING
+  EXTRACTED
+  MATCHED
+  DRAFTED
+  LINKED
+  FAILED
+}
+
+model Document {
+  id             String         @id @default(cuid())
+  companyId      String
+  fileName       String
+  storageKey     String // object storage path — never a public URL
+  hash           String // sha256, for duplicate detection
+  mimeType       String
+  sizeBytes      Int
+  status         DocumentStatus @default(UPLOADED)
+  extractedData  Json?
+  relatedEntity  String? // e.g. "Bill:cuid..."
+  uploadedBy     String
+  createdAt      DateTime       @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, status])
+  @@index([hash])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// WORKFLOW / APPROVALS
+// ─────────────────────────────────────────────────────────────────────────
+
+model WorkflowRule {
+  id           String   @id @default(cuid())
+  companyId    String
+  name         String
+  entityType   String // "Expense" | "Bill" | "JournalEntry" ...
+  minAmount    Decimal? @db.Decimal(18, 2)
+  maxAmount    Decimal? @db.Decimal(18, 2)
+  requiredRole CompanyRole
+  isActive     Boolean  @default(true)
+
+  company   Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  approvals Approval[]
+
+  @@index([companyId, entityType])
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Approval {
+  id             String         @id @default(cuid())
+  workflowRuleId String
+  entityType     String
+  entityId       String
+  status         ApprovalStatus @default(PENDING)
+  decidedBy      String?
+  decidedAt      DateTime?
+  comment        String?
+  createdAt      DateTime       @default(now())
+
+  workflowRule WorkflowRule @relation(fields: [workflowRuleId], references: [id])
+  decider      User?        @relation(fields: [decidedBy], references: [id])
+
+  @@index([entityType, entityId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// AUDIT
+// ─────────────────────────────────────────────────────────────────────────
+
+/// Append-only. No update/delete path exists anywhere in the app for this
+/// model — /src/lib/audit.ts only ever calls create().
+model AuditEvent {
+  id           String   @id @default(cuid())
+  companyId    String?
+  userId       String?
+  action       String // e.g. "journal.post", "invoice.void", "user.login"
+  entityType   String
+  entityId     String
+  previousValue Json?
+  newValue     Json?
+  source       String   @default("web") // web | api | ai | system
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime @default(now())
+
+  company Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User?    @relation(fields: [userId], references: [id])
+
+  @@index([companyId, entityType, entityId])
+  @@index([createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// SUBSCRIPTIONS (billing-provider-agnostic)
+// ─────────────────────────────────────────────────────────────────────────
+
+enum SubscriptionPlan {
+  STARTER
+  GROWTH
+  PROFESSIONAL
+  AI_CFO
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+}
+
+model Subscription {
+  id                String             @id @default(cuid())
+  companyId         String             @unique
+  plan              SubscriptionPlan   @default(STARTER)
+  status            SubscriptionStatus @default(TRIALING)
+  provider          String? // "stripe" | null while unconfigured
+  providerCustomerId String?
+  currentPeriodEnd  DateTime?
+  seats             Int                @default(1)
+  createdAt         DateTime           @default(now())
+
+  company  Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  aiUsage  AiUsageEvent[]
+}
+
+model AiUsageEvent {
+  id             String   @id @default(cuid())
+  subscriptionId String
+  kind           String // "copilot_query" | "ocr_page" | "forecast_run"
+  units          Int      @default(1)
+  createdAt      DateTime @default(now())
+
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([subscriptionId, kind])
+}
