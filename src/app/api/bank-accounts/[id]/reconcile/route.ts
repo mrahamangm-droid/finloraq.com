@@ -1,8 +1,9 @@
+import { withApiErrors } from "@/lib/api";
 import { NextResponse } from "next/server";
 import { requireTenantContext } from "@/lib/tenant";
 import { reconcileBankAccount } from "@/lib/banking";
 
-export async function POST(_req: Request, { params }: { params: { id: string } }) {
+async function handlePOST(_req: Request, { params }: { params: { id: string } }) {
   const { active, userId } = await requireTenantContext();
   const count = await reconcileBankAccount({
     companyId: active.companyId,
@@ -12,3 +13,5 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
   });
   return NextResponse.json({ reconciled: count });
 }
+
+export const POST = withApiErrors(handlePOST);
