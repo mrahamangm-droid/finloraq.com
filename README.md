@@ -61,9 +61,10 @@ fakes data or pretends to be functional: pages that aren't built yet say so expl
 
 ## Not built yet (by design — see phase order below)
 
-Banking (reconciliation, bank feed import/matching), tax filing/reports, the AI Copilot,
-projects/cost-centre reporting, and everything after Phase 3 are still "Coming Soon"
-stubs in the nav, honestly labeled rather than faked.
+The AI Copilot, Documents/OCR, Projects/cost-centre reporting, subscriptions/billing, and
+everything after Phase 4 are still "Coming Soon" stubs in the nav, honestly labeled
+rather than faked. There is also no live bank feed (Plaid-equivalent) — Banking below is
+manual entry + matching, which is the honest state until Phase 7's external integrations.
 
 ## What's built (Phase 3 — sales, purchases, expenses)
 
@@ -90,6 +91,25 @@ stubs in the nav, honestly labeled rather than faked.
   Manager", etc.) isn't wired up yet; every approval today is a flat
   `journals:APPROVE`/`bills:APPROVE`/`expenses:APPROVE` permission check. The
   `WorkflowRule`/`Approval` tables already model the thresholds for when that lands.
+
+## What's built (Phase 4 — banking, tax, reports)
+
+- **Banking** (`src/lib/banking.ts`) — bank accounts, manual transaction entry (signed
+  amount, no live feed yet — see note above), matching a transaction to a posted journal
+  entry's Bank line by exact amount (zero tolerance; a mismatch is a human decision, not
+  something to fuzz), and a bulk "reconcile" step that moves MATCHED transactions to
+  RECONCILED. Requires `banking:APPROVE`, which CFO/Finance Manager/Company Admin hold
+  and Accountant/Staff don't — reconciliation sign-off is deliberately a step up from
+  day-to-day bookkeeping.
+- **Tax** — a real VAT return (`vatReturn()` in `src/lib/reports.ts`): output tax minus
+  input tax, computed from posted `JournalLine` rows against the Output/Input Tax
+  accounts, not a separate running total. Filing to an actual tax authority (UAE FTA
+  e-invoicing/e-filing) is external and belongs to Phase 7.
+- **Reports** — AR and AP aging (`arAging()`/`apAging()`), bucketed 0/1-30/31-60/61-90/90+
+  from each invoice/bill's own due date and its actual posted payments, plus the
+  previously-missing Balance Sheet page, all linked from a new Reports hub.
+- **Tests** (`src/lib/reports.test.ts`): the aging-bucket boundary logic (0, 30, 60, 90
+  day edges) is pure and unit-tested independent of the database.
 
 ## Repository layout
 
@@ -143,14 +163,15 @@ npm test                    # RBAC + password-policy unit tests
 | 1 | Foundation, auth, multi-tenancy, company setup, RBAC, DB, UI shell | **Done** |
 | 2 | Accounting engine: Chart of Accounts, Journals, Ledger, Trial Balance, financial statements | **Done** |
 | 3 | Customers, Suppliers, Invoices, Bills, Payments, Expenses | **Done** |
-| 4 | Banking, Reconciliation, Tax, Reports | Not started |
+| 4 | Banking, Reconciliation, Tax, Reports | **Done** |
 | 5 | Projects, Budgets, Cost Centres, Cash-flow intelligence | Not started |
 | 6 | AI Copilot, OCR/document extraction, anomaly detection | Not started |
 | 7 | Email, WhatsApp, voice architecture, e-invoicing adapters | Not started |
 | 8 | Subscriptions, billing, usage metering, enterprise controls | Not started |
 | 9 | Security hardening, testing, performance, accessibility, SEO, production deploy | Ongoing as each phase lands |
 
-Phase 4 is next: Banking (bank accounts, transaction import, matching/reconciliation
-against the `BankTransaction` rows already in the schema), Tax reports (VAT return
-computed from posted `TaxCode`-linked lines), and the Reports module beyond P&L/Trial
-Balance (AR/AP aging, customer/supplier statements, bank reconciliation report).
+Phase 5 is next: Projects, Budgets, Cost Centres, Cash-flow intelligence — the schema
+already has `Project`, `CostCentre`, `Department` and budget fields; this phase builds
+project profitability (revenue/cost/margin by project, using the `projectId` already on
+invoice/bill lines' parent documents) and a real cash-flow forecast off AR/AP aging plus
+payment-behavior history rather than a guessed number.

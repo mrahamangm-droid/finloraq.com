@@ -34,6 +34,12 @@ describe("RBAC default matrix", () => {
     expect(roleCan("FINANCE_MANAGER", "journals", "DELETE")).toBe(false);
   });
 
+  it("CFO and FINANCE_MANAGER can reconcile bank accounts; ACCOUNTANT cannot", () => {
+    expect(roleCan("CFO", "banking", "APPROVE")).toBe(true);
+    expect(roleCan("FINANCE_MANAGER", "banking", "APPROVE")).toBe(true);
+    expect(roleCan("ACCOUNTANT", "banking", "APPROVE")).toBe(false);
+  });
+
   it("every role's module list only ever grants a subset of ALL actions", () => {
     // Sanity check against typos in the matrix (e.g. a stray action name).
     const validActions = new Set(["VIEW", "CREATE", "EDIT", "APPROVE", "DELETE", "EXPORT"]);

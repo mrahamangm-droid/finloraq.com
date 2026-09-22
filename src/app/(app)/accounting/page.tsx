@@ -34,9 +34,15 @@ export default async function ChartOfAccountsPage() {
           </Link>
           <Link
             href="/accounting/reports/profit-and-loss"
-            className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"
+            className="rounded-md border border-border px-3 py-1.5 text-sm text-foreground hover:bg-muted"
           >
             Profit &amp; Loss
+          </Link>
+          <Link
+            href="/accounting/reports/balance-sheet"
+            className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"
+          >
+            Balance Sheet
           </Link>
         </div>
       </div>
