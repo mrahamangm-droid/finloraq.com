@@ -10,6 +10,36 @@ no committed lockfile (non-reproducible installs), no `.eslintrc` (so `npm run l
 CI — couldn't actually run), and a `directUrl` schema addition that was reverted after it
 broke every live deploy — see the callout in step 1 before you add it back.
 
+## 0a. Two production-only bugs found and fixed by actually using the deployed app
+
+A green build and a loading `/login` page are not the same claim as "a person can register and
+use this app," and they turned out to hide two bugs that only show up once real requests hit
+the deployed functions:
+
+1. **Every register/login 500'd**: `argon2` (native binary) had no prebuilt binding for the
+   Node ABI Vercel's serverless functions actually ran (`Error: No native build was found for
+   platform=linux arch=x64 ... abi=137`). Changing the project's Node.js Version setting in
+   Vercel and redeploying did **not** change the runtime ABI on this account/plan — so this
+   isn't a "pick an older Node" problem, it's a "don't depend on a native addon in a serverless
+   target" problem. Fixed by switching `src/lib/password.ts` to `hash-wasm`'s Argon2id
+   (WebAssembly, zero native deps, same OWASP-recommended algorithm and tuning) — see that
+   file's comment and the commit that removed the `argon2` dependency.
+2. **Every sign-in 500'd, separately, even after (1) was fixed**: `src/lib/auth.ts` had
+   `session: { strategy: "database" }` with NextAuth v4's `CredentialsProvider`. NextAuth v4
+   hard-refuses that combination (`CALLBACK_CREDENTIALS_JWT_ERROR` /
+   `UnsupportedStrategyError`) — Credentials sign-in only works with JWT sessions. This means
+   **login had never worked in this app's production deployment**, independent of the argon2
+   bug; registering an account was never sufficient proof the app was usable. Fixed by
+   switching to `strategy: "jwt"` and adding an `isActive` recheck in the `jwt` callback so a
+   deactivated user still gets locked out immediately instead of only at token expiry (the
+   property the original database-session choice was trying to buy).
+
+Both were only caught by actually registering a test account and signing in against the live
+Vercel deployment, not by reading logs after the fact — do that (or trust CI's future E2E
+coverage, which doesn't exist yet) before calling a deploy "done." After both fixes, the full
+register → onboard company → create customer → raise invoice → post it → record payment →
+Trial Balance/P&L flow was verified end-to-end against production and balances correctly.
+
 ## 0. Why nothing could be verified end-to-end before now
 
 The repo was originally built in a sandboxed environment whose network policy blocked
@@ -113,16 +143,25 @@ not a fixture the app depends on.
 ## 6. Verify the deployed app, not just the build
 
 A green Vercel build means `next build` succeeded — it does not mean the app works
-end-to-end. After deploy, actually exercise:
+end-to-end. Section 0a above is exactly why: two separate bugs made every register and
+every login 500 in production despite consistently green builds. After deploy, actually
+exercise:
 
 1. Register a new account → company onboarding wizard completes (creates Company + COA +
-   UAE VAT pack + open period + Starter subscription in one transaction).
+   UAE VAT pack + open period + Starter subscription in one transaction). **Verified
+   2026-09-22** against production after the section 0a fixes.
 2. Create a customer, raise a draft invoice, post it, record a payment → check it shows
    up correctly in Trial Balance and P&L (this is the spec's own "Definition of Done"
    test in section 34 — an invoice should flow Invoice → Journal → Ledger → Trial
-   Balance → P&L → Balance Sheet).
-3. Log out, log back in — session persists (database-backed sessions).
+   Balance → P&L → Balance Sheet). **Verified 2026-09-22**: a 1000.00 invoice posted and
+   paid produced a balanced Trial Balance (Bank 1000 dr, AR 1000 dr/1000 cr net zero,
+   Sales Revenue 1000 cr — 2000.00 total each side) and a P&L showing Revenue 1000.00 /
+   Net Profit 1000.00.
+3. Log out, log back in — session persists. **Verified 2026-09-22** (now JWT sessions,
+   not database — see 0a).
 4. If MFA is enabled for your account, confirm the second-factor step actually appears.
+   Not exercised in the 2026-09-22 pass (test account had no MFA enabled) — still a real
+   gap to check before go-live.
 
 ## Production checklist (carried over from README, now with exact commands)
 
