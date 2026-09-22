@@ -1,6 +1,7 @@
-# This is app.finloraq.com — the authenticated product itself, not the
-# marketing site (finloraq.com stays on WordPress). Every route here is
-# behind login or exists only to route into one, so there's nothing worth
-# indexing and no reason to let crawlers spend a budget on it.
+# app.finloraq.com is the authenticated product, with one exception:
+# "/" is now the public marketing homepage (see src/app/page.tsx) and is
+# meant to be indexed. Every other route is behind login or exists only
+# to route into one, so there's nothing else here worth a crawl budget.
 User-agent: *
+Allow: /$
 Disallow: /
