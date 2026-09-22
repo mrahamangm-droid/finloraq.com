@@ -46,6 +46,8 @@ export const config = {
     // src/lib/integrations/email.ts, the WhatsApp/Stripe webhook routes).
     // Without this exclusion, withAuth would 401 every provider callback
     // before it ever reached that verification logic.
-    "/api/((?!auth|webhooks).)*",
+    // /api/pay/* is the public "Pay now" checkout for invoice links —
+    // protected by its unguessable token instead of a session.
+    "/api/((?!auth|webhooks|pay/).)*",
   ],
 };
