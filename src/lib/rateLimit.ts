@@ -28,7 +28,7 @@ function maybeCleanup(now: number) {
   if (now - lastCleanup < CLEANUP_INTERVAL_MS) return;
   lastCleanup = now;
   for (const [key, bucket] of buckets) {
-    if (bucket.hits.length === 0 || now - bucket.hits[bucket.hits.length - 1] > CLEANUP_INTERVAL_MS) {
+    if (bucket.hits.length === 0 || now - bucket.hits[bucket.hits.length - 1]! > CLEANUP_INTERVAL_MS) {
       buckets.delete(key);
     }
   }
