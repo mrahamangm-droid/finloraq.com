@@ -232,6 +232,52 @@ export async function postJournalEntry(input: PostJournalEntryInput) {
 }
 
 /**
+ * Transitions an existing DRAFT entry to POSTED in place. This is the one
+ * permitted mutation of a JournalEntry row — a DRAFT hasn't been posted
+ * yet, so "posted entries are immutable" doesn't apply to it. Once this
+ * returns, the row is POSTED and this function (and nothing else) will
+ * ever touch it again.
+ */
+export async function postDraftJournalEntry(params: {
+  companyId: string;
+  membershipId: string;
+  userId: string;
+  journalEntryId: string;
+}) {
+  const allowed = await can(params.membershipId, "journals", "APPROVE");
+  if (!allowed) {
+    throw new InvalidLineError("Posting a journal entry requires the APPROVE permission on Journals.");
+  }
+
+  const draft = await prisma.journalEntry.findFirstOrThrow({
+    where: { id: params.journalEntryId, companyId: params.companyId },
+  });
+  if (draft.status !== "DRAFT") {
+    throw new InvalidLineError("Only a draft entry can be posted.");
+  }
+
+  const posted = await prisma.$transaction(async (tx) => {
+    await findOpenPeriod(tx, params.companyId, draft.date); // re-check: period may have locked since the draft was saved
+    return tx.journalEntry.update({
+      where: { id: draft.id },
+      data: { status: "POSTED", postedAt: new Date(), postedBy: params.userId },
+      include: { lines: true },
+    });
+  });
+
+  await recordAuditEvent({
+    companyId: params.companyId,
+    userId: params.userId,
+    action: "journal.post_draft",
+    entityType: "JournalEntry",
+    entityId: posted.id,
+    newValue: { entryNumber: posted.entryNumber },
+  });
+
+  return posted;
+}
+
+/**
  * Corrections only — posted entries are never edited or deleted. Creates a
  * new POSTED entry with every line's debit/credit swapped, linked via
  * reversalOfId. The original row is never touched, so "immutable once
@@ -341,4 +387,23 @@ export function buildSupplierPaymentPosting(input: { amount: Decimal.Value }): L
     { accountCode: "2000", debit: input.amount, description: "Accounts Payable" },
     { accountCode: "1000", credit: input.amount, description: "Bank" },
   ];
+}
+
+/** Employee/direct expense paid from the bank immediately: DR Expense, DR
+ *  Input Tax, CR Bank. (Distinct from a Bill, which goes through Accounts
+ *  Payable because it isn't paid yet.) */
+export function buildExpensePosting(input: {
+  amount: Decimal.Value;
+  taxAmount?: Decimal.Value;
+  expenseAccountCode?: string;
+}): LineInput[] {
+  const lines: LineInput[] = [
+    { accountCode: input.expenseAccountCode ?? "5000", debit: input.amount, description: "Expense" },
+  ];
+  if (input.taxAmount && !isZero(input.taxAmount)) {
+    lines.push({ accountCode: "1200", debit: input.taxAmount, description: "Input Tax Receivable" });
+  }
+  const total = money(input.amount).plus(input.taxAmount ?? 0);
+  lines.push({ accountCode: "1000", credit: total, description: "Bank" });
+  return lines;
 }

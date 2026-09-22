@@ -7,6 +7,7 @@ import {
   buildInvoicePaymentPosting,
   buildBillPosting,
   buildSupplierPaymentPosting,
+  buildExpensePosting,
 } from "./ledger";
 
 describe("validateBalanced — the core double-entry invariant", () => {
@@ -109,5 +110,24 @@ describe("posting builders match the spec's exact examples (section 6)", () => {
     validateBalanced(lines);
     expect(lines[0].accountCode).toBe("2000");
     expect(lines[1].accountCode).toBe("1000");
+  });
+
+  it("Direct expense with tax: DR Expense, DR Input Tax, CR Bank", () => {
+    const lines = buildExpensePosting({ amount: 200, taxAmount: 10 });
+    validateBalanced(lines);
+    expect(lines).toEqual([
+      { accountCode: "5000", debit: 200, description: "Expense" },
+      { accountCode: "1200", debit: 10, description: "Input Tax Receivable" },
+      { accountCode: "1000", credit: expect.anything(), description: "Bank" },
+    ]);
+    // credit leg equals amount + tax
+    const bankLine = lines[2];
+    expect(bankLine.credit && Number(bankLine.credit)).toBeCloseTo(210);
+  });
+
+  it("Direct expense with no tax omits the tax line", () => {
+    const lines = buildExpensePosting({ amount: 200 });
+    validateBalanced(lines);
+    expect(lines).toHaveLength(2);
   });
 });

@@ -1,0 +1,21 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { requireTenantContext } from "@/lib/tenant";
+import { createSupplier } from "@/lib/parties";
+
+export async function createSupplierAction(formData: FormData) {
+  const { active, userId } = await requireTenantContext();
+
+  await createSupplier({
+    companyId: active.companyId,
+    membershipId: active.id,
+    userId,
+    name: String(formData.get("name") ?? ""),
+    email: (formData.get("email") as string) || undefined,
+    phone: (formData.get("phone") as string) || undefined,
+    paymentTermsDays: formData.get("paymentTermsDays") ? Number(formData.get("paymentTermsDays")) : undefined,
+  });
+
+  revalidatePath("/suppliers");
+}

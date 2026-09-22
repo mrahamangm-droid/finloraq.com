@@ -61,12 +61,35 @@ fakes data or pretends to be functional: pages that aren't built yet say so expl
 
 ## Not built yet (by design — see phase order below)
 
-Invoices, bills, customers, suppliers, expenses and payments (Phase 3) don't exist as UI
-or API yet, so nothing currently calls the posting builders end-to-end from a real sales
-or purchase transaction — only the manual Journal Entry screen does, which is enough to
-prove and test the engine but isn't the full accounting workflow. Banking, tax filing,
-the AI Copilot, projects, and everything after are all still "Coming Soon" stubs in the
-nav, honestly labeled rather than faked.
+Banking (reconciliation, bank feed import/matching), tax filing/reports, the AI Copilot,
+projects/cost-centre reporting, and everything after Phase 3 are still "Coming Soon"
+stubs in the nav, honestly labeled rather than faked.
+
+## What's built (Phase 3 — sales, purchases, expenses)
+
+- **Customers & Suppliers** — CRUD (create + list; edit/deactivate not yet built).
+- **Invoices**: draft creation with line items and per-line tax codes computed
+  server-side (`src/lib/sales.ts`); posting to the ledger (`postInvoiceToLedger`, DRAFT→SENT)
+  calls `buildInvoicePosting()` from Phase 2 — this is the first place a real business
+  transaction produces a real, balanced journal entry, not just the manual journal form.
+  Customer payments (`recordInvoicePayment`) post `buildInvoicePaymentPosting()` and
+  derive PARTIALLY_PAID/PAID status from actual posted payment entries, not a separate
+  counter.
+- **Bills**: same shape on the purchase side (`src/lib/purchases.ts`) —
+  `createBill` → `approveAndPostBill` (DRAFT→APPROVED, posts `buildBillPosting()`) →
+  `recordSupplierPayment` (posts `buildSupplierPaymentPosting()`).
+- **Expenses** (`src/lib/expenses.ts`): submitted as a DRAFT journal entry (so STAFF, who
+  can create expenses but not approve journals, is never blocked), then
+  `approveExpense()` transitions it to POSTED via the ledger's new
+  `postDraftJournalEntry()` — the one permitted mutation of a `JournalEntry` row, since a
+  DRAFT hasn't been posted yet and "posted entries are immutable" doesn't apply to it.
+- **UI**: Customers, Suppliers, Sales (invoice list/create/detail with Post + Record
+  Payment), Purchases (bill list/create/detail with Approve + Record Payment), Expenses
+  (submit + approve) — all real, all backed by the above.
+- Known simplification: amount-based approval routing (section 13 — "Expense < AED 500 →
+  Manager", etc.) isn't wired up yet; every approval today is a flat
+  `journals:APPROVE`/`bills:APPROVE`/`expenses:APPROVE` permission check. The
+  `WorkflowRule`/`Approval` tables already model the thresholds for when that lands.
 
 ## Repository layout
 
@@ -119,7 +142,7 @@ npm test                    # RBAC + password-policy unit tests
 |---|---|---|
 | 1 | Foundation, auth, multi-tenancy, company setup, RBAC, DB, UI shell | **Done** |
 | 2 | Accounting engine: Chart of Accounts, Journals, Ledger, Trial Balance, financial statements | **Done** |
-| 3 | Customers, Suppliers, Invoices, Bills, Payments, Expenses | Not started |
+| 3 | Customers, Suppliers, Invoices, Bills, Payments, Expenses | **Done** |
 | 4 | Banking, Reconciliation, Tax, Reports | Not started |
 | 5 | Projects, Budgets, Cost Centres, Cash-flow intelligence | Not started |
 | 6 | AI Copilot, OCR/document extraction, anomaly detection | Not started |
@@ -127,8 +150,7 @@ npm test                    # RBAC + password-policy unit tests
 | 8 | Subscriptions, billing, usage metering, enterprise controls | Not started |
 | 9 | Security hardening, testing, performance, accessibility, SEO, production deploy | Ongoing as each phase lands |
 
-Phase 3 is next: Customers, Suppliers, Invoices, Bills, Payments, Expenses — real CRUD
-UI and API routes that, on send/approve, call the Phase 2 posting builders
-(`buildInvoicePosting`, `buildBillPosting`, etc.) through `postJournalEntry()` so every
-sales/purchase document produces a real, balanced ledger entry instead of a
-front-end-only total.
+Phase 4 is next: Banking (bank accounts, transaction import, matching/reconciliation
+against the `BankTransaction` rows already in the schema), Tax reports (VAT return
+computed from posted `TaxCode`-linked lines), and the Reports module beyond P&L/Trial
+Balance (AR/AP aging, customer/supplier statements, bank reconciliation report).
