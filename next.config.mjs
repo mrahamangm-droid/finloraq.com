@@ -2,7 +2,10 @@
 const nextConfig = {
   reactStrictMode: true,
   experimental: {
-    serverComponentsExternalPackages: ["@prisma/client", "argon2"],
+    // argon2 (native binary) was removed in favor of hash-wasm (WASM,
+    // no native build) — see src/lib/password.ts. @prisma/client stays
+    // external since it loads its query engine binary at runtime.
+    serverComponentsExternalPackages: ["@prisma/client"],
   },
   async headers() {
     return [
