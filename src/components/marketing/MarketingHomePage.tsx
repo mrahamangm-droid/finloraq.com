@@ -27,6 +27,7 @@
 // it as idiomatic React components if this page grows real product
 // logic beyond a marketing demo.
 import { useEffect } from "react";
+import { HowFinloraqWorks } from "./how-it-works/HowFinloraqWorks";
 
 const STYLE = `
   #fm-root{
@@ -320,6 +321,7 @@ const BODY_HTML = `<header class="nav">
   <div class="wrap nav-row">
     <div class="brand-mark"><span class="dot"></span>FINLORAQ</div>
     <nav class="links">
+      <a href="#how-it-works">How it works</a>
       <a href="#demo">Products</a>
       <a href="#audience">Solutions</a>
       <a href="#agents">AI Finance</a>
@@ -349,7 +351,11 @@ const BODY_HTML = `<header class="nav">
   </div>
 </section>
 
-<!-- 2. LIVE PRODUCT PREVIEW / TRY THE DEMO -->
+`;
+
+// Everything after the hero. The "How Finloraq works" section is rendered
+// between the two halves as a React component (see HowFinloraqWorks).
+const BODY_HTML_AFTER_HERO = `<!-- 2. LIVE PRODUCT PREVIEW / TRY THE DEMO -->
 <section class="canvas" id="demo" style="background:var(--canvas-2);border-bottom:1px solid var(--line)">
   <div class="wrap">
     <div class="sec-head">
@@ -917,7 +923,13 @@ export function MarketingHomePage() {
         rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@600;700;800&family=Public+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap"
       />
-      <div id="fm-root" dangerouslySetInnerHTML={{ __html: BODY_HTML }} />
+      <div id="fm-root">
+        {/* display:contents keeps the wrappers out of layout, so the sticky
+            nav and every #fm-root selector behave exactly as before */}
+        <div style={{ display: "contents" }} dangerouslySetInnerHTML={{ __html: BODY_HTML }} />
+        <HowFinloraqWorks />
+        <div style={{ display: "contents" }} dangerouslySetInnerHTML={{ __html: BODY_HTML_AFTER_HERO }} />
+      </div>
     </>
   );
 }
