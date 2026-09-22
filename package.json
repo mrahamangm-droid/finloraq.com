@@ -5,7 +5,7 @@
   "description": "Finloraq — AI Finance Operating System",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma migrate deploy && next build",
     "postinstall": "prisma generate",
     "start": "next start",
     "lint": "eslint .",
