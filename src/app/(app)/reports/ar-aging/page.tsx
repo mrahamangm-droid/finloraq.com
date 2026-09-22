@@ -20,7 +20,7 @@ export default async function ArAgingPage() {
         {BUCKETS.map((b) => (
           <div key={b} className="rounded-lg border border-border bg-card p-3">
             <div className="text-xs uppercase text-muted-foreground">{b}</div>
-            <div className="mt-1 text-lg font-semibold text-card-foreground">{totals[b].toFixed(2)}</div>
+            <div className="mt-1 text-lg font-semibold text-card-foreground">{(totals[b] ?? 0).toFixed(2)}</div>
           </div>
         ))}
       </div>
