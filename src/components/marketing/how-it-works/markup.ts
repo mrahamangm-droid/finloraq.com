@@ -140,13 +140,13 @@ export const HIW_STYLE = `
 .hiw .hiw-stage.is-drag .hiw-dragover{display:grid}
 
 /* 3D labels (positioned by the scene every frame) */
-.hiw .hiw-l{position:absolute;left:0;top:0;translate:-50% -50%;white-space:nowrap;font-size:12px;font-weight:600;line-height:1.2;color:rgba(206,212,236,.66);will-change:transform;transition:color .3s,text-shadow .3s,background-color .3s,border-color .3s;visibility:hidden}
+.hiw .hiw-l{position:absolute;left:0;top:0;translate:-50% -50%;white-space:nowrap;font-size:clamp(10.5px,.85vw,12px);font-weight:600;line-height:1.2;color:rgba(206,212,236,.66);will-change:transform;transition:color .3s,text-shadow .3s,background-color .3s,border-color .3s;visibility:hidden}
 .hiw .hiw-l.is-lit{color:#fff;text-shadow:0 0 14px rgba(127,227,212,.8)}
 .hiw .hiw-l--left{translate:0 -50%}
-.hiw .hiw-l--title{font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:rgba(167,156,255,.7)}
+.hiw .hiw-l--title{font-size:clamp(8.5px,.78vw,11px);font-weight:800;letter-spacing:clamp(.06em,.01vw + .05em,.14em);text-transform:uppercase;color:rgba(167,156,255,.7)}
 .hiw .hiw-l--title span{font-family:var(--font-mono, ui-monospace, monospace);margin-right:7px;opacity:.7}
 .hiw .hiw-l--title.is-lit{color:#fff;text-shadow:0 0 16px rgba(139,130,255,.9)}
-.hiw .hiw-l--step{font-size:10.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:rgba(167,156,255,.6)}
+.hiw .hiw-l--step{font-size:clamp(9px,.74vw,10.5px);font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:rgba(167,156,255,.6)}
 .hiw .hiw-l--step.is-lit{color:var(--h-teal-2)}
 .hiw .hiw-l--slab{font-size:11px;letter-spacing:.04em}
 .hiw .hiw-l--detect,.hiw .hiw-l--action,.hiw .hiw-l--bubble{font-size:12px;font-weight:700;padding:6px 11px;border-radius:999px;backdrop-filter:blur(6px);text-shadow:none}
