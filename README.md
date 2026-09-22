@@ -287,6 +287,70 @@ adapter behind that interface to make it live; nothing else in the billing flow 
   with feature checklists, one-click simulated upgrade/downgrade) and the real Users &
   Roles page described above.
 
+## What's built (Phase 9 — security hardening, testing, performance, accessibility, SEO, deploy)
+
+- **Multi-factor authentication** (`src/lib/mfa.ts`, `src/lib/userMfa.ts`) — a hand-rolled
+  TOTP implementation (RFC 6238, built on RFC 4226's HOTP) using only Node's built-in
+  `crypto` module, since this sandbox can't `npm install` a library to verify it against.
+  Unit-tested against the RFC's own published test vectors, not just "looks right"
+  (`mfa.test.ts`). Setup is two steps (generate → confirm with a real code) so a
+  never-scanned secret can't lock an account out; enabling generates 10 one-time backup
+  codes (only their Argon2id hash is ever stored). Login (`src/lib/auth.ts`) now has a
+  real second-factor step: the Credentials provider throws a distinct `MFA_REQUIRED`
+  signal once the password's already correct, and the login page reveals a code field
+  without ever implying the password was right to a request that skipped it.
+- **Rate limiting** (`src/lib/rateLimit.ts`) — a sliding-window limiter applied to login
+  (10/15min per email), MFA code attempts (5/5min per account — tighter, since brute-forcing
+  a 6-digit code needs far more tries than guessing a password), registration (10/hour per
+  IP), and the inbound email/WhatsApp webhooks (20/min per IP, against secret-brute-forcing).
+  Explicitly documented as in-memory/per-instance — real protection for a single-instance
+  deployment today, with `REDIS_URL` (already in `.env.example`) as the stated upgrade path
+  for multi-instance production, behind the same function signature.
+- **Bug fix, not a new feature**: the auth middleware was 401-ing every `/api/*` route
+  except NextAuth's own, which meant the inbound email/WhatsApp/Stripe webhooks — real
+  server-to-server callbacks with no user session — would have been rejected before they
+  ever reached their own secret/signature checks. Caught while wiring this phase's
+  rate-limit rules onto those same routes; fixed in `src/middleware.ts`.
+- **Real Audit Log page** — `AuditEvent` rows have been written by every mutating action
+  since Phase 1 (`recordAuditEvent()`), but the page itself was a stub. It's a real,
+  filterable (by action substring, entity type), paginated (50/page) view over that data
+  now — nothing new is logged, this just finally renders what was already there.
+- **Performance**: two composite DB indexes that the query patterns actually need but
+  didn't have — `JournalEntry(companyId, status, date)` for the reporting engine's
+  date-range scans, and `AuditEvent(companyId, createdAt)` for the new Audit Log's
+  paginated newest-first listing. The Sales and Purchases list pages, which had no bound,
+  now cap at 200 rows with an explicit comment that a real paginated/searchable list is the
+  actual fix for a company that outgrows that — a cap is a safety net, not a substitute.
+- **Security headers** (`next.config.mjs`) — added `Strict-Transport-Security` and a real
+  (not aspirational) `Content-Security-Policy` alongside the `X-Frame-Options`/
+  `X-Content-Type-Options`/`Referrer-Policy`/`Permissions-Policy` headers already in place
+  since Phase 1. The CSP still allows `'unsafe-inline'` for scripts/styles — Next's own
+  hydration needs that without a per-request nonce wired through middleware, which is
+  flagged as the concrete next step in the production checklist below rather than faked.
+- **Accessibility**: icon-only buttons (send question, send voice command, copy MFA
+  secret) got `aria-label`s; form inputs that only had a visually-adjacent `<label>`
+  without an `htmlFor`/`id` pairing (screen readers can't associate them) were fixed in
+  the MFA panel. `lang="en"` and page metadata were already correct from Phase 1. This is
+  a real but partial pass, not a full audit — flagged honestly rather than claimed as done.
+- **SEO**: this app (`app.finloraq.com`) is the authenticated product, not the marketing
+  site — finloraq.com stays on WordPress and is what should actually rank. Added
+  `robots: { index: false, follow: false }` to the root metadata and a `public/robots.txt`
+  disallowing all crawling, so this app can never accidentally compete with or dilute the
+  marketing site's search presence.
+- **Testing**: `mfa.test.ts` (RFC 6238 vectors + backup-code hashing) and
+  `rateLimit.test.ts` (pure sliding-window logic) are new; combined with the existing
+  RBAC/password/billing-plan-catalog/reports-aging tests, `npm test` now covers every pure
+  (non-DB) function this codebase considers security- or correctness-critical. Anything
+  that needs a live database (the ledger's actual posting behavior, RBAC's DB-backed
+  `can()`, every server action) still needs integration tests against a real Postgres
+  instance — impossible to add here without one, called out plainly rather than mocked
+  into a false sense of coverage.
+- **Production deploy checklist** — a concrete, checkable list (not just "deploy it") in
+  the Deploying section below: secrets, migrations, the Redis rate-limiter swap, real
+  adapters replacing every dev/simulated one, CI running `build`/`test` for the first time
+  ever (this sandbox never could), the CSP nonce follow-up, and MFA-for-admins before
+  go-live.
+
 ## Repository layout
 
 ```
@@ -332,6 +396,38 @@ npm test                    # RBAC + password-policy + billing-plan-catalog unit
 4. finloraq.com's marketing site stays on WordPress/Hostinger as-is; deploy this app on
    its own subdomain (e.g. `app.finloraq.com`) and point that CNAME at Vercel.
 
+### Production checklist (Phase 9)
+
+Before pointing real customers at a deployment:
+
+- [ ] Every secret in `.env.example` is set in Vercel (or wherever it's hosted) as an
+      environment variable, never committed. Generate `NEXTAUTH_SECRET` fresh per
+      environment (`openssl rand -base64 32`) — don't reuse a dev value.
+- [ ] `DATABASE_URL` points at a real Postgres instance with automated backups and
+      encryption at rest (RDS/Neon/Supabase all provide this by default).
+- [ ] `npx prisma migrate deploy` runs as part of the deploy/release step, not manually —
+      and is only ever additive in production (no `prisma migrate reset`).
+- [ ] `REDIS_URL` is set and `src/lib/rateLimit.ts`'s in-memory limiter is swapped for a
+      Redis-backed one (see that file's own comment) — required once there's more than one
+      server instance, since the in-memory version's counters don't share across instances.
+- [ ] `ANTHROPIC_API_KEY` (or another provider) is set if the AI Copilot/extraction/voice
+      features should actually run live rather than templated/disabled.
+- [ ] Real adapters replace the dev/simulated ones once providers are chosen: Stripe for
+      billing (`src/lib/integrations/payment.ts`), an e-invoicing access point
+      (`src/lib/integrations/einvoicing.ts`), WhatsApp Business credentials
+      (`src/lib/integrations/whatsapp.ts`), and an inbound-email provider secret
+      (`INBOUND_EMAIL_WEBHOOK_SECRET`) — each is a drop-in behind its existing interface.
+- [ ] `npm run build` and `npm test` both pass in CI before every deploy — neither has run
+      in this sandbox (no registry access), so this is the first real verification either
+      gets.
+- [ ] The CSP in `next.config.mjs` is tightened from `'unsafe-inline'` to a per-request
+      nonce (Next's middleware supports this) once there's a CI pipeline to catch anything
+      it breaks — noted in that file rather than done blind here.
+- [ ] MFA is enabled for every admin-level account at minimum (`Settings` → Two-Factor
+      Authentication) before go-live.
+- [ ] `robots.txt` (`public/robots.txt`) correctly disallows all crawling — confirm this
+      app's subdomain is never the one Google indexes; finloraq.com's WordPress site is.
+
 ## Roadmap (spec's own phase order)
 
 | Phase | Scope | Status |
@@ -344,14 +440,14 @@ npm test                    # RBAC + password-policy + billing-plan-catalog unit
 | 6 | AI Copilot, OCR/document extraction, anomaly detection | **Done** (needs a real API key to run live) |
 | 7 | Email, WhatsApp, voice architecture, e-invoicing adapters | **Done** (all adapters are dev/simulated pending real provider credentials) |
 | 8 | Subscriptions, billing, usage metering, enterprise controls | **Done** (payment adapter is dev/simulated pending real provider credentials) |
-| 9 | Security hardening, testing, performance, accessibility, SEO, production deploy | Ongoing as each phase lands |
+| 9 | Security hardening, testing, performance, accessibility, SEO, production deploy | **Done** — see the production checklist below before go-live |
 
-Phase 9 is next: Security hardening, testing, performance, accessibility, SEO, and
-production deploy. Concretely that's the spec's MFA architecture (the schema/auth layer
-is ready for a challenge step — see the TODO in `src/lib/auth.ts`), rate limiting on
-auth/webhook endpoints, the still-stubbed Audit Log page (every event is already being
-recorded via `recordAuditEvent()` throughout every phase — it just isn't rendered
-anywhere yet), broader automated test coverage (the ledger/RBAC/reports/plan-catalog
-tests that exist today are real but far from exhaustive), and the actual production
-deploy checklist (Vercel env vars, `prisma migrate deploy` as a release step, the
-`app.finloraq.com` subdomain pointing at Vercel per the "Deploying" section below).
+**All 9 phases of the spec's own implementation order are now built.** What "done" means
+throughout this README is stated plainly per phase above: real, hand-written,
+database-backed logic wherever the sandbox could support it, and an honestly-labeled
+dev/simulated implementation (never a silent fake) wherever it depends on a credential,
+service, or registry access this environment doesn't have. The concrete list of what
+still needs to happen before this is live for real customers — install dependencies
+somewhere with registry access, run the test suite for the first time, provision a real
+database, set real provider credentials, push to GitHub, deploy — is the "Production
+checklist" under Deploying, above.

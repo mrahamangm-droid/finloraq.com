@@ -4,6 +4,7 @@ import { getAiProvider } from "@/lib/ai/provider";
 import { isWhatsAppConfigured } from "@/lib/integrations/whatsapp";
 import { getEInvoicingAdapter } from "@/lib/integrations/einvoicing";
 import { updateCompanySettingsAction } from "./actions";
+import { MfaPanel } from "@/components/settings/mfa-panel";
 
 function StatusBadge({ live, label }: { live: boolean; label: string }) {
   return (
@@ -126,6 +127,8 @@ export default async function SettingsPage() {
           )}
         </form>
       </div>
+
+      <MfaPanel />
 
       <div className="rounded-lg border border-border bg-card">
         <div className="border-b border-border px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">

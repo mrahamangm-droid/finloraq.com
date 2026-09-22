@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { checkRateLimit, clientIpFromHeaders } from "@/lib/rateLimit";
 
 /**
  * WhatsApp Business API webhook shape (Meta's actual protocol): GET is the
@@ -14,6 +15,11 @@ import { NextResponse } from "next/server";
  * unconfigured).
  */
 export async function GET(req: Request) {
+  const ip = clientIpFromHeaders(req.headers);
+  if (!checkRateLimit(`webhook-whatsapp:${ip}`, 20, 60 * 1000).allowed) {
+    return NextResponse.json({ error: "Too many requests." }, { status: 429 });
+  }
+
   const url = new URL(req.url);
   const mode = url.searchParams.get("hub.mode");
   const token = url.searchParams.get("hub.verify_token");

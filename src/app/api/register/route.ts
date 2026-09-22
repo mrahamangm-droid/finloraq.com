@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { hashPassword, isPasswordStrong } from "@/lib/password";
 import { recordAuditEvent } from "@/lib/audit";
+import { checkRateLimit, clientIpFromHeaders } from "@/lib/rateLimit";
 
 const schema = z.object({
   name: z.string().min(1).max(200),
@@ -11,6 +12,15 @@ const schema = z.object({
 });
 
 export async function POST(req: Request) {
+  // Per-IP limit against automated account creation (10/hour is roomy for
+  // a real person, e.g. retrying a typo'd email) — email enumeration is
+  // separately prevented below by the generic error message, not by this.
+  const ip = clientIpFromHeaders(req.headers);
+  const limit = checkRateLimit(`register:${ip}`, 10, 60 * 60 * 1000);
+  if (!limit.allowed) {
+    return NextResponse.json({ error: "Too many attempts. Try again later." }, { status: 429 });
+  }
+
   const body = await req.json().catch(() => null);
   const parsed = schema.safeParse(body);
   if (!parsed.success) {

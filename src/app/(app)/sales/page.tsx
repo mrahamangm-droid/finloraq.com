@@ -12,10 +12,15 @@ function statusColor(status: string) {
 export default async function SalesPage() {
   const { active } = await requireTenantContext();
 
+  // Capped rather than paginated for now (Phase 9 perf pass) — a company
+  // with more than 200 invoices needs a real paginated/searchable list,
+  // which is a bigger UI change than a safety cap; this at least stops
+  // the page from loading every invoice ever issued into one response.
   const invoices = await prisma.invoice.findMany({
     where: { companyId: active.companyId },
     orderBy: { issueDate: "desc" },
     include: { customer: true },
+    take: 200,
   });
 
   return (

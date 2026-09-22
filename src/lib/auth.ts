@@ -5,11 +5,25 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { verifyPassword } from "@/lib/password";
 import { recordAuditEvent } from "@/lib/audit";
+import { verifyTotpToken, verifyBackupCode } from "@/lib/mfa";
+import { checkRateLimit } from "@/lib/rateLimit";
 
 const credentialsSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
+  mfaToken: z.string().optional(),
 });
+
+/**
+ * Thrown from authorize() with a specific message so the login page can
+ * distinguish "wrong password" from "password's right, now enter your MFA
+ * code" — NextAuth's Credentials provider passes a thrown error's message
+ * straight through to the client via signIn()'s result.error (unlike
+ * OAuth providers, which normalize errors for security). MFA_REQUIRED is
+ * not a secret — it never confirms the password was wrong, only that the
+ * account needs a second factor once the password's already been checked.
+ */
+export const MFA_REQUIRED_ERROR = "MFA_REQUIRED";
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
@@ -29,11 +43,21 @@ export const authOptions: NextAuthOptions = {
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
+        mfaToken: { label: "MFA code", type: "text" },
       },
       async authorize(raw) {
         const parsed = credentialsSchema.safeParse(raw);
         if (!parsed.success) return null;
-        const { email, password } = parsed.data;
+        const { email, password, mfaToken } = parsed.data;
+
+        // Rate-limited per email (see src/lib/rateLimit.ts's documented
+        // in-memory-per-instance limitation) — 10 attempts per 15 minutes
+        // is generous for a real user who mistyped a password, tight
+        // enough to blunt an online guessing attack against one account.
+        const limit = checkRateLimit(`login:${email.toLowerCase()}`, 10, 15 * 60 * 1000);
+        if (!limit.allowed) {
+          throw new Error("Too many sign-in attempts. Try again in a few minutes.");
+        }
 
         const user = await prisma.user.findUnique({ where: { email } });
 
@@ -53,6 +77,48 @@ export const authOptions: NextAuthOptions = {
             });
           }
           return null;
+        }
+
+        if (user.mfaEnabled) {
+          if (!mfaToken) {
+            // Password was correct — surface a distinct signal so the
+            // login page can show the second-factor field, without
+            // implying anything about the password's correctness to a
+            // request that DIDN'T supply one (an attacker probing a
+            // stolen password still just sees "needs MFA", which they'd
+            // get right or wrong anyway — this never reveals the
+            // password was right in isolation, only after both checks).
+            throw new Error(MFA_REQUIRED_ERROR);
+          }
+
+          // A second, tighter limit on the code itself — 6-digit TOTP
+          // brute force needs many more than 10 tries, so this is
+          // separate from (and stricter than) the password-attempt limit
+          // above: 5 code attempts per 5 minutes per account.
+          const mfaLimit = checkRateLimit(`mfa:${user.id}`, 5, 5 * 60 * 1000);
+          if (!mfaLimit.allowed) {
+            throw new Error("Too many MFA attempts. Try again in a few minutes.");
+          }
+
+          const totpOk = user.mfaSecret ? verifyTotpToken(user.mfaSecret, mfaToken) : false;
+          const backupOk = totpOk ? false : await tryConsumeBackupCode(user.id, mfaToken);
+
+          if (!totpOk && !backupOk) {
+            await recordAuditEvent({
+              userId: user.id,
+              action: "auth.mfa_failed",
+              entityType: "User",
+              entityId: user.id,
+            });
+            throw new Error("Invalid MFA code.");
+          }
+
+          await recordAuditEvent({
+            userId: user.id,
+            action: backupOk ? "auth.mfa_backup_code_used" : "auth.mfa_success",
+            entityType: "User",
+            entityId: user.id,
+          });
         }
 
         await prisma.user.update({
@@ -78,8 +144,23 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
   },
-  // TODO(Phase 9 security hardening): add MFA challenge step, rate limiting
-  // on the credentials provider (e.g. via a Redis-backed limiter keyed on
-  // email+IP), and re-authentication prompts before sensitive actions
-  // (posting a period-lock override, exporting all customer data, etc.)
+  // Re-authentication prompts before especially sensitive actions (a
+  // period-lock override, a bulk customer-data export) are still a
+  // follow-up — MFA covers login, not step-up auth mid-session.
 };
+
+async function tryConsumeBackupCode(userId: string, code: string): Promise<boolean> {
+  const unusedCodes = await prisma.mfaBackupCode.findMany({
+    where: { userId, usedAt: null },
+  });
+  for (const candidate of unusedCodes) {
+    if (await verifyBackupCode(candidate.codeHash, code)) {
+      await prisma.mfaBackupCode.update({
+        where: { id: candidate.id },
+        data: { usedAt: new Date() },
+      });
+      return true;
+    }
+  }
+  return false;
+}

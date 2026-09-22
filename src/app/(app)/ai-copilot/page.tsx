@@ -155,7 +155,7 @@ export default function AiCopilotPage() {
               placeholder="Type a voice command…"
               className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm"
             />
-            <button type="submit" disabled={voiceLoading} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
+            <button type="submit" disabled={voiceLoading} aria-label="Send voice command" className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
               <Mic className="h-4 w-4" />
             </button>
           </form>
@@ -247,7 +247,7 @@ export default function AiCopilotPage() {
               placeholder="Ask about your finances…"
               className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm"
             />
-            <button type="submit" disabled={loading} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
+            <button type="submit" disabled={loading} aria-label="Send question" className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
               <Send className="h-4 w-4" />
             </button>
           </form>

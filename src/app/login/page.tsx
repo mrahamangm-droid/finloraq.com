@@ -13,6 +13,13 @@ export default function LoginPage() {
   const callbackUrl = rawCallback && rawCallback.startsWith("/") && !rawCallback.startsWith("//") ? rawCallback : "/dashboard";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [mfaToken, setMfaToken] = useState("");
+  // MFA is a second step in the same form, not a separate page: password
+  // is verified first (server-side, in src/lib/auth.ts's authorize()),
+  // and only once that succeeds does the server tell us a code is needed
+  // — this state just reveals the field, it never itself decides whether
+  // the password was right.
+  const [needsMfa, setNeedsMfa] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -24,13 +31,19 @@ export default function LoginPage() {
     const result = await signIn("credentials", {
       email,
       password,
+      mfaToken: needsMfa ? mfaToken : undefined,
       redirect: false,
     });
 
     setLoading(false);
 
     if (result?.error) {
-      setError("Invalid email or password.");
+      if (result.error === "MFA_REQUIRED") {
+        setNeedsMfa(true);
+        setError(null);
+        return;
+      }
+      setError(needsMfa ? result.error : "Invalid email or password.");
       return;
     }
     router.push(callbackUrl);
@@ -55,9 +68,10 @@ export default function LoginPage() {
               type="email"
               required
               autoComplete="email"
+              disabled={needsMfa}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none ring-primary focus:ring-2"
+              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none ring-primary focus:ring-2 disabled:opacity-60"
             />
           </div>
           <div>
@@ -69,21 +83,57 @@ export default function LoginPage() {
               type="password"
               required
               autoComplete="current-password"
+              disabled={needsMfa}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none ring-primary focus:ring-2"
+              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none ring-primary focus:ring-2 disabled:opacity-60"
             />
           </div>
 
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          {needsMfa && (
+            <div>
+              <label htmlFor="mfaToken" className="mb-1 block text-sm font-medium text-card-foreground">
+                Authentication code
+              </label>
+              <input
+                id="mfaToken"
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                autoFocus
+                required
+                placeholder="123456 or a backup code"
+                value={mfaToken}
+                onChange={(e) => setMfaToken(e.target.value)}
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none ring-primary focus:ring-2"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                Enter the 6-digit code from your authenticator app, or a backup code.
+              </p>
+            </div>
+          )}
+
+          {error && (
+            <p role="alert" className="text-sm text-destructive">{error}</p>
+          )}
 
           <button
             type="submit"
             disabled={loading}
             className="w-full rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60"
           >
-            {loading ? "Signing in…" : "Sign in"}
+            {loading ? "Signing in…" : needsMfa ? "Verify" : "Sign in"}
           </button>
+
+          {needsMfa && (
+            <button
+              type="button"
+              onClick={() => { setNeedsMfa(false); setMfaToken(""); setError(null); }}
+              className="w-full text-center text-xs text-muted-foreground hover:underline"
+            >
+              Use a different account
+            </button>
+          )}
         </form>
       </div>
     </div>

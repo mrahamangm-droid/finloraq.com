@@ -32,7 +32,14 @@ model User {
   passwordHash  String
   globalRole    GlobalRole @default(USER)
   mfaEnabled    Boolean    @default(false)
-  mfaSecret     String? // encrypted at rest, never returned via API
+  mfaSecret     String? // base32 TOTP secret; never returned via any API response.
+  // "Encrypted at rest" here relies on the database provider's disk
+  // encryption (standard on RDS/Neon/Supabase) — it is NOT application-
+  // level encrypted before storage. Unlike a password, a TOTP secret
+  // must be readable in plaintext to verify a code (HMAC needs the raw
+  // key), so hashing isn't an option here the way it is for passwords/
+  // backup codes; envelope-encrypting this column with a KMS key before
+  // insert is the real hardening step, left as a TODO for production.
   isActive      Boolean    @default(true)
   lastLoginAt   DateTime?
   createdAt     DateTime   @default(now())
@@ -42,8 +49,26 @@ model User {
   auditEvents AuditEvent[]
   sessions    Session[]
   approvals   Approval[]
+  backupCodes MfaBackupCode[]
 
   @@index([email])
+}
+
+/// One-time MFA recovery codes (spec section 21's MFA requirement). Only
+/// a salted hash is ever stored — same reasoning as passwords — so a DB
+/// read alone can never yield a usable code. Each row is consumed once
+/// (usedAt set) rather than deleted, so "a used code was used" stays
+/// auditable.
+model MfaBackupCode {
+  id        String    @id @default(cuid())
+  userId    String
+  codeHash  String
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 /// NextAuth session table (database session strategy — safer than JWT-only
@@ -327,6 +352,12 @@ model JournalEntry {
 
   @@unique([companyId, entryNumber])
   @@index([companyId, periodId, status])
+  // The reporting engine's real hot path (trial balance, P&L, balance
+  // sheet, general ledger — src/lib/reports.ts) always filters
+  // POSTED entries within a date range for one company; the
+  // (companyId, periodId, status) index above doesn't help a date-range
+  // scan, so this covers that query shape directly.
+  @@index([companyId, status, date])
 }
 
 model JournalLine {
@@ -676,6 +707,11 @@ model AuditEvent {
 
   @@index([companyId, entityType, entityId])
   @@index([createdAt])
+  // The Audit Log page (Phase 9) lists one company's events newest-first
+  // with pagination — this composite covers that scan+sort directly,
+  // where the standalone createdAt index above would still need to
+  // filter companyId out of every partition.
+  @@index([companyId, createdAt])
 }
 
 // ─────────────────────────────────────────────────────────────────────────

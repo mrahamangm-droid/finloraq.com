@@ -12,10 +12,12 @@ function statusColor(status: string) {
 export default async function PurchasesPage() {
   const { active } = await requireTenantContext();
 
+  // Same cap-not-paginate tradeoff as the Sales list (see its comment).
   const bills = await prisma.bill.findMany({
     where: { companyId: active.companyId },
     orderBy: { issueDate: "desc" },
     include: { supplier: true },
+    take: 200,
   });
 
   return (

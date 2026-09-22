@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { verifyInboundEmailSecret, processInboundEmailAttachment } from "@/lib/integrations/email";
+import { checkRateLimit, clientIpFromHeaders } from "@/lib/rateLimit";
 
 const schema = z.object({
   companyId: z.string().min(1),
@@ -17,6 +18,13 @@ const schema = z.object({
  * documented simplifications around company routing and acting identity.
  */
 export async function POST(req: Request) {
+  // Per-IP limit against brute-forcing the shared secret — a real
+  // provider retries a handful of times on failure, not hundreds.
+  const ip = clientIpFromHeaders(req.headers);
+  if (!checkRateLimit(`webhook-email:${ip}`, 20, 60 * 1000).allowed) {
+    return NextResponse.json({ error: "Too many requests." }, { status: 429 });
+  }
+
   if (!verifyInboundEmailSecret(req.headers.get("x-webhook-secret"))) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
