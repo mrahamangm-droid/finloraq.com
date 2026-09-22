@@ -232,6 +232,61 @@ has a real interface plus a dev/simulated implementation that is observably non-
   live/simulated status panel for AI, inbound email, WhatsApp, and e-invoicing, each backed
   by the actual env-var check rather than a hardcoded "connected."
 
+## What's built (Phase 8 — subscriptions, billing, usage metering, enterprise controls)
+
+**Important — no payment provider is configured in this sandbox.** Plan changes go
+through the same real `PaymentAdapter` interface a Stripe integration would (`charge()`),
+but the dev implementation never moves money — it returns a clearly-marked
+`live: false` simulated result and audit-logs it as such, same honesty pattern as every
+Phase 7 integration. Set `STRIPE_SECRET_KEY`/`STRIPE_WEBHOOK_SECRET` and swap in a real
+adapter behind that interface to make it live; nothing else in the billing flow changes.
+
+- **Plan catalog** (`src/lib/billing/plans.ts`) — the five plans from the spec
+  (Starter/Growth/Professional/AI-CFO/Enterprise) as one typed table: monthly price, seat
+  count, a monthly AI-usage cap, and per-feature flags (document extraction, voice
+  commands, e-invoicing, multi-company, API access). Every other file — the billing page,
+  the usage-limit checks, the plan-change API — reads from this table rather than
+  hardcoding a number anywhere else. Unit-tested (`plans.test.ts`) for internal
+  consistency: limits and unlocked features never regress on a higher-priced plan.
+- **Usage metering & enforcement** (`src/lib/billing/usage.ts`) — every AI Copilot
+  question and document extraction records a real `AiUsageEvent` row (previously this was
+  only implied by an audit-log entry, never actually persisted — fixed here). Before
+  answering, `enforceAiUsageLimit()` checks the company's plan cap for the current
+  calendar month and throws a clear, catchable error once it's reached, rather than the
+  feature silently degrading or a bill quietly growing unbounded.
+- **Feature gating by plan**: document extraction (Starter excluded), voice commands
+  (Professional+ only), and e-invoicing submission (Growth+ only) all check
+  `planDefinition(...).features` and return a plain "upgrade to unlock this" message
+  instead of a generic permission error, so the limit is explainable, not mysterious.
+- **Subscription management** (`src/lib/billing/subscription.ts`) — `getBillingSnapshot()`
+  (plan, status, seats used/limit, AI usage used/limit — what the Billing page and
+  `GET /api/billing/subscription` render) and `changePlan()` (drives the simulated
+  checkout above, updates the `Subscription` row, audit-logs the change). Downgrading
+  below your current active-seat count is intentionally still allowed — flagged as a TODO
+  rather than silently blocked, since deciding *which* members to deactivate isn't a
+  billing-form decision.
+- **Enterprise controls — real multi-user management** (`src/lib/users.ts`,
+  `(app)/users/page.tsx`): the Users & Roles page was a stub since Phase 1; it's real now.
+  Invite by email + role (enforced against the plan's seat limit via
+  `enforceSeatLimit()`), accept via a tokenized link at `/invite/[token]` (strictly checked
+  against the signed-in session's own email — never trusts the token alone), change a
+  member's role, deactivate a member — with a guard against demoting or deactivating the
+  last Company Admin. No outbound email provider exists to deliver the invite
+  automatically (the same gap Phase 7 flagged for receipts), so the link is surfaced
+  directly in the UI for an admin to copy and send. The invite page reuses `/login` and
+  `/register`, which now support a same-site-only `callbackUrl` so accepting an invite as
+  a brand-new user flows straight back to the invitation after signup — open-redirect-safe
+  by construction (only ever a relative path).
+- **Bug fix carried over from Phase 7**: the auth middleware protected every `/api/*`
+  route except NextAuth's own, which would have 401'd the inbound email/WhatsApp/Stripe
+  webhooks before they ever reached their own signature/secret verification — those are
+  unauthenticated server-to-server callbacks with no user session to check. Fixed by
+  excluding `/api/webhooks/*` from the auth gate in `src/middleware.ts`; each webhook
+  still authenticates itself independently.
+- **UI**: a Billing page (current plan/usage with progress bars, a plan-comparison grid
+  with feature checklists, one-click simulated upgrade/downgrade) and the real Users &
+  Roles page described above.
+
 ## Repository layout
 
 ```
@@ -263,7 +318,7 @@ cp .env.example .env        # fill in DATABASE_URL at minimum
 npx prisma migrate dev --name init
 npx prisma db seed          # optional: demo@finloraq.com / DemoPassword123!
 npm run dev
-npm test                    # RBAC + password-policy unit tests
+npm test                    # RBAC + password-policy + billing-plan-catalog unit tests
 ```
 
 ## Deploying
@@ -288,12 +343,15 @@ npm test                    # RBAC + password-policy unit tests
 | 5 | Projects, Budgets, Cost Centres, Cash-flow intelligence | **Done** |
 | 6 | AI Copilot, OCR/document extraction, anomaly detection | **Done** (needs a real API key to run live) |
 | 7 | Email, WhatsApp, voice architecture, e-invoicing adapters | **Done** (all adapters are dev/simulated pending real provider credentials) |
-| 8 | Subscriptions, billing, usage metering, enterprise controls | Not started |
+| 8 | Subscriptions, billing, usage metering, enterprise controls | **Done** (payment adapter is dev/simulated pending real provider credentials) |
 | 9 | Security hardening, testing, performance, accessibility, SEO, production deploy | Ongoing as each phase lands |
 
-Phase 8 is next: Subscriptions, billing, usage metering, and enterprise controls. The
-`Subscription` and `AiUsageEvent` models already exist in the schema (seeded with a
-Starter-tier row at company creation); this phase turns that into an actual plan-limit
-enforcement layer, a billing/payment adapter (behind the same dev/simulated pattern as
-Phase 7's integrations, since no payment provider is configured here either), and an
-upgrade/downgrade flow.
+Phase 9 is next: Security hardening, testing, performance, accessibility, SEO, and
+production deploy. Concretely that's the spec's MFA architecture (the schema/auth layer
+is ready for a challenge step — see the TODO in `src/lib/auth.ts`), rate limiting on
+auth/webhook endpoints, the still-stubbed Audit Log page (every event is already being
+recorded via `recordAuditEvent()` throughout every phase — it just isn't rendered
+anywhere yet), broader automated test coverage (the ledger/RBAC/reports/plan-catalog
+tests that exist today are real but far from exhaustive), and the actual production
+deploy checklist (Vercel env vars, `prisma migrate deploy` as a release step, the
+`app.finloraq.com` subdomain pointing at Vercel per the "Deploying" section below).

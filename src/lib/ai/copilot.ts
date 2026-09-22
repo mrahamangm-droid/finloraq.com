@@ -4,6 +4,7 @@ import { findDuplicateBills, findDuplicateInvoices, largestExpenses } from "@/li
 import { getAiProvider } from "@/lib/ai/provider";
 import { requirePermission } from "@/lib/rbac";
 import { recordAuditEvent } from "@/lib/audit";
+import { enforceAiUsageLimit, recordAiUsage } from "@/lib/billing/usage";
 
 export interface CopilotAnswer {
   answer: string;
@@ -29,6 +30,7 @@ export async function answerQuestion(params: {
   question: string;
 }): Promise<CopilotAnswer> {
   await requirePermission(params.membershipId, "ai_copilot", "VIEW");
+  await enforceAiUsageLimit(params.companyId);
 
   const q = params.question.toLowerCase();
   const now = new Date();
@@ -142,6 +144,7 @@ export async function answerQuestion(params: {
     newValue: { question: params.question, aiPhrased },
     source: "ai",
   });
+  await recordAiUsage({ companyId: params.companyId, kind: "copilot_query" });
 
   return { answer, data, aiPhrased };
 }

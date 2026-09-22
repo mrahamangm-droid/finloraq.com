@@ -1,12 +1,12 @@
 import Link from "next/link";
 import {
   LayoutDashboard, BookOpen, ShoppingCart, Receipt, Wallet, Landmark, Users, Truck,
-  FolderKanban, Percent, Bot, FileBarChart, FileText, UserCog, Settings, ScrollText,
+  FolderKanban, Percent, Bot, FileBarChart, FileText, UserCog, Settings, ScrollText, CreditCard,
 } from "lucide-react";
 
 // Main navigation per the product spec (section 19): Dashboard, Accounting,
 // Sales, Purchases, Expenses, Banking, Customers, Suppliers, Projects,
-// Taxes, AI Copilot, Reports, Documents, Users, Settings, Audit Log.
+// Taxes, AI Copilot, Reports, Documents, Users, Billing, Settings, Audit Log.
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/accounting", label: "Accounting", icon: BookOpen },
@@ -22,6 +22,7 @@ const NAV = [
   { href: "/reports", label: "Reports", icon: FileBarChart },
   { href: "/documents", label: "Documents", icon: FileText },
   { href: "/users", label: "Users", icon: UserCog },
+  { href: "/billing", label: "Billing", icon: CreditCard },
   { href: "/settings", label: "Settings", icon: Settings },
   { href: "/audit", label: "Audit Log", icon: ScrollText },
 ];

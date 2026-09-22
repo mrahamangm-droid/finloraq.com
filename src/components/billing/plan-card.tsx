@@ -1,0 +1,80 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Check } from "lucide-react";
+import type { PlanDefinition } from "@/lib/billing/plans";
+
+export function PlanCard({ def, isCurrent, canEdit }: { def: PlanDefinition; isCurrent: boolean; canEdit: boolean }) {
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const isEnterprise = def.plan === "ENTERPRISE";
+
+  async function changePlan() {
+    if (isEnterprise) return;
+    setLoading(true);
+    setError(null);
+    const res = await fetch("/api/billing/change-plan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ plan: def.plan }),
+    });
+    setLoading(false);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setError(data.error ?? "Could not change plan.");
+      return;
+    }
+    router.refresh();
+  }
+
+  const featureList: [string, boolean][] = [
+    ["Document extraction (OCR)", def.features.documentExtraction],
+    ["Voice commands", def.features.voiceCommands],
+    ["E-invoicing", def.features.eInvoicing],
+    ["Multi-company", def.features.multiCompany],
+    ["API access", def.features.apiAccess],
+  ];
+
+  return (
+    <div className={`flex flex-col rounded-lg border p-4 ${isCurrent ? "border-primary ring-1 ring-primary" : "border-border"} bg-card`}>
+      <div className="mb-1 flex items-center justify-between">
+        <span className="text-sm font-semibold text-card-foreground">{def.label}</span>
+        {isCurrent && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">Current</span>}
+      </div>
+      <div className="mb-2 text-2xl font-bold text-card-foreground">
+        {isEnterprise ? "Custom" : def.monthlyPriceUsd === 0 ? "Free" : `$${def.monthlyPriceUsd}`}
+        {!isEnterprise && def.monthlyPriceUsd > 0 && <span className="text-sm font-normal text-muted-foreground">/mo</span>}
+      </div>
+      <p className="mb-3 text-xs text-muted-foreground">{def.description}</p>
+      <div className="mb-3 text-xs text-muted-foreground">
+        {def.seats} seats · {def.aiUsageLimitPerMonth === null ? "Unlimited" : def.aiUsageLimitPerMonth} AI actions/mo
+      </div>
+      <ul className="mb-4 flex-1 space-y-1 text-xs">
+        {featureList.map(([label, on]) => (
+          <li key={label} className={`flex items-center gap-1.5 ${on ? "text-card-foreground" : "text-muted-foreground/50 line-through"}`}>
+            <Check className={`h-3 w-3 ${on ? "text-green-600" : "text-muted-foreground/30"}`} />
+            {label}
+          </li>
+        ))}
+      </ul>
+      {error && <p className="mb-2 text-xs text-destructive">{error}</p>}
+      {canEdit && !isCurrent && (
+        isEnterprise ? (
+          <a href="mailto:sales@finloraq.com" className="rounded-md border border-border px-3 py-1.5 text-center text-xs font-medium text-foreground hover:bg-muted">
+            Contact us
+          </a>
+        ) : (
+          <button
+            onClick={changePlan}
+            disabled={loading}
+            className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50"
+          >
+            {loading ? "Processing…" : "Switch to this plan"}
+          </button>
+        )
+      )}
+    </div>
+  );
+}

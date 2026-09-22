@@ -4,6 +4,8 @@ import { requirePermission } from "@/lib/rbac";
 import { recordAuditEvent } from "@/lib/audit";
 import { getAiProvider, AiNotConfiguredError } from "@/lib/ai/provider";
 import { createExpense } from "@/lib/expenses";
+import { enforceAiUsageLimit, recordAiUsage } from "@/lib/billing/usage";
+import { planDefinition } from "@/lib/billing/plans";
 
 export interface ExtractedDocumentFields {
   vendorName: string | null;
@@ -43,6 +45,12 @@ export async function extractDocument(params: {
   mimeType: string;
 }): Promise<{ documentId: string; fields: ExtractedDocumentFields }> {
   await requirePermission(params.membershipId, "documents", "CREATE");
+
+  const subscription = await prisma.subscription.findUnique({ where: { companyId: params.companyId } });
+  if (subscription && !planDefinition(subscription.plan).features.documentExtraction) {
+    throw new Error(`Document extraction isn't included in the ${planDefinition(subscription.plan).label} plan. Upgrade to enable it.`);
+  }
+  await enforceAiUsageLimit(params.companyId);
 
   const provider = getAiProvider();
   if (!provider) {
@@ -104,6 +112,7 @@ export async function extractDocument(params: {
     newValue: { vendorName: fields.vendorName, amount: fields.amount },
     source: "ai",
   });
+  await recordAiUsage({ companyId: params.companyId, kind: "ocr_page" });
 
   return { documentId: document.id, fields };
 }

@@ -38,6 +38,14 @@ export const config = {
     "/settings/:path*",
     "/audit/:path*",
     "/ai-copilot/:path*",
-    "/api/((?!auth).)*", // protect all API routes except NextAuth's own
+    "/billing/:path*",
+    // Protect all API routes except NextAuth's own and the inbound
+    // webhooks (email/WhatsApp/Stripe) — those are unauthenticated
+    // server-to-server callbacks with no user session to check; each one
+    // verifies its own shared secret/signature instead (see
+    // src/lib/integrations/email.ts, the WhatsApp/Stripe webhook routes).
+    // Without this exclusion, withAuth would 401 every provider callback
+    // before it ever reached that verification logic.
+    "/api/((?!auth|webhooks).)*",
   ],
 };

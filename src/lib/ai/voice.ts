@@ -1,5 +1,7 @@
 import { answerQuestion } from "@/lib/ai/copilot";
 import { createExpense } from "@/lib/expenses";
+import { prisma } from "@/lib/db";
+import { planDefinition } from "@/lib/billing/plans";
 
 /**
  * Voice command architecture (spec section 9). There's no speech-to-text
@@ -32,6 +34,14 @@ export async function parseVoiceCommand(params: {
   userId: string;
   transcript: string;
 }): Promise<VoiceCommandResult> {
+  const subscription = await prisma.subscription.findUnique({ where: { companyId: params.companyId } });
+  if (subscription && !planDefinition(subscription.plan).features.voiceCommands) {
+    return {
+      type: "unrecognized",
+      message: `Voice commands aren't included in the ${planDefinition(subscription.plan).label} plan. Upgrade to Professional or higher to enable them.`,
+    };
+  }
+
   const t = params.transcript.trim();
   const expenseMatch = t.match(DRAFT_EXPENSE_PATTERN);
 
