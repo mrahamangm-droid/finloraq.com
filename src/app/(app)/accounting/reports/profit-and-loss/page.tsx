@@ -23,16 +23,18 @@ export default async function ProfitAndLossPage() {
         {report.revenue.length === 0 ? (
           <p className="text-sm text-muted-foreground">No revenue posted this period.</p>
         ) : (
-          <table className="w-full text-sm">
-            <tbody>
-              {report.revenue.map((r) => (
-                <tr key={r.accountCode}>
-                  <td className="py-1 text-card-foreground">{r.accountName}</td>
-                  <td className="py-1 text-right text-card-foreground">{r.amount.toFixed(2)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <tbody>
+                {report.revenue.map((r) => (
+                  <tr key={r.accountCode}>
+                    <td className="py-1 text-card-foreground">{r.accountName}</td>
+                    <td className="py-1 text-right text-card-foreground">{r.amount.toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
         <div className="mt-2 flex justify-between border-t border-border pt-2 text-sm font-medium">
           <span>Total Revenue</span>
@@ -45,16 +47,18 @@ export default async function ProfitAndLossPage() {
         {report.expense.length === 0 ? (
           <p className="text-sm text-muted-foreground">No expenses posted this period.</p>
         ) : (
-          <table className="w-full text-sm">
-            <tbody>
-              {report.expense.map((r) => (
-                <tr key={r.accountCode}>
-                  <td className="py-1 text-card-foreground">{r.accountName}</td>
-                  <td className="py-1 text-right text-card-foreground">{r.amount.toFixed(2)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <tbody>
+                {report.expense.map((r) => (
+                  <tr key={r.accountCode}>
+                    <td className="py-1 text-card-foreground">{r.accountName}</td>
+                    <td className="py-1 text-right text-card-foreground">{r.amount.toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
         <div className="mt-2 flex justify-between border-t border-border pt-2 text-sm font-medium">
           <span>Total Expenses</span>
