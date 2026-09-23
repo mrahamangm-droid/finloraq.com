@@ -63,7 +63,7 @@ export function NewJournalEntryForm({ costCentres }: { costCentres: { id: string
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-3 gap-4 rounded-lg border border-border bg-card p-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 rounded-lg border border-border bg-card p-4">
         <div>
           <label className="mb-1 block text-sm font-medium text-card-foreground">Date</label>
           <input
@@ -73,7 +73,7 @@ export function NewJournalEntryForm({ costCentres }: { costCentres: { id: string
             className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
           />
         </div>
-        <div className="col-span-2">
+        <div className="sm:col-span-2">
           <label className="mb-1 block text-sm font-medium text-card-foreground">Memo</label>
           <input
             value={memo}
@@ -85,76 +85,78 @@ export function NewJournalEntryForm({ costCentres }: { costCentres: { id: string
       </div>
 
       <div className="rounded-lg border border-border bg-card">
-        <table className="w-full text-sm">
-          <thead className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
-            <tr>
-              <th className="px-3 py-2">Account code</th>
-              <th className="px-3 py-2">Description</th>
-              <th className="px-3 py-2">Cost centre</th>
-              <th className="w-28 px-3 py-2 text-right">Debit</th>
-              <th className="w-28 px-3 py-2 text-right">Credit</th>
-              <th className="w-10" />
-            </tr>
-          </thead>
-          <tbody>
-            {lines.map((line, i) => (
-              <tr key={i} className="border-b border-border last:border-0">
-                <td className="px-3 py-1.5">
-                  <input
-                    value={line.accountCode}
-                    onChange={(e) => updateLine(i, { accountCode: e.target.value })}
-                    placeholder="e.g. 1000"
-                    className="w-full rounded border border-border bg-background px-2 py-1 font-mono text-xs"
-                  />
-                </td>
-                <td className="px-3 py-1.5">
-                  <input
-                    value={line.description}
-                    onChange={(e) => updateLine(i, { description: e.target.value })}
-                    className="w-full rounded border border-border bg-background px-2 py-1 text-xs"
-                  />
-                </td>
-                <td className="px-3 py-1.5">
-                  <select
-                    value={line.costCentreId}
-                    onChange={(e) => updateLine(i, { costCentreId: e.target.value })}
-                    className="w-full rounded border border-border bg-background px-2 py-1 text-xs"
-                  >
-                    <option value="">—</option>
-                    {costCentres.map((cc) => <option key={cc.id} value={cc.id}>{cc.code}</option>)}
-                  </select>
-                </td>
-                <td className="px-3 py-1.5">
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={line.debit}
-                    onChange={(e) => updateLine(i, { debit: e.target.value, credit: "" })}
-                    className="w-full rounded border border-border bg-background px-2 py-1 text-right text-xs"
-                  />
-                </td>
-                <td className="px-3 py-1.5">
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={line.credit}
-                    onChange={(e) => updateLine(i, { credit: e.target.value, debit: "" })}
-                    className="w-full rounded border border-border bg-background px-2 py-1 text-right text-xs"
-                  />
-                </td>
-                <td className="px-1 text-center">
-                  <button
-                    onClick={() => setLines((prev) => prev.filter((_, idx) => idx !== i))}
-                    disabled={lines.length <= 2}
-                    className="text-muted-foreground hover:text-destructive disabled:opacity-30"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
+              <tr>
+                <th className="px-3 py-2">Account code</th>
+                <th className="px-3 py-2">Description</th>
+                <th className="px-3 py-2">Cost centre</th>
+                <th className="w-28 px-3 py-2 text-right">Debit</th>
+                <th className="w-28 px-3 py-2 text-right">Credit</th>
+                <th className="w-10" />
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {lines.map((line, i) => (
+                <tr key={i} className="border-b border-border last:border-0">
+                  <td className="px-3 py-1.5">
+                    <input
+                      value={line.accountCode}
+                      onChange={(e) => updateLine(i, { accountCode: e.target.value })}
+                      placeholder="e.g. 1000"
+                      className="w-full rounded border border-border bg-background px-2 py-1 font-mono text-xs"
+                    />
+                  </td>
+                  <td className="px-3 py-1.5">
+                    <input
+                      value={line.description}
+                      onChange={(e) => updateLine(i, { description: e.target.value })}
+                      className="w-full rounded border border-border bg-background px-2 py-1 text-xs"
+                    />
+                  </td>
+                  <td className="px-3 py-1.5">
+                    <select
+                      value={line.costCentreId}
+                      onChange={(e) => updateLine(i, { costCentreId: e.target.value })}
+                      className="w-full rounded border border-border bg-background px-2 py-1 text-xs"
+                    >
+                      <option value="">—</option>
+                      {costCentres.map((cc) => <option key={cc.id} value={cc.id}>{cc.code}</option>)}
+                    </select>
+                  </td>
+                  <td className="px-3 py-1.5">
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={line.debit}
+                      onChange={(e) => updateLine(i, { debit: e.target.value, credit: "" })}
+                      className="w-full rounded border border-border bg-background px-2 py-1 text-right text-xs"
+                    />
+                  </td>
+                  <td className="px-3 py-1.5">
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={line.credit}
+                      onChange={(e) => updateLine(i, { credit: e.target.value, debit: "" })}
+                      className="w-full rounded border border-border bg-background px-2 py-1 text-right text-xs"
+                    />
+                  </td>
+                  <td className="px-1 text-center">
+                    <button
+                      onClick={() => setLines((prev) => prev.filter((_, idx) => idx !== i))}
+                      disabled={lines.length <= 2}
+                      className="text-muted-foreground hover:text-destructive disabled:opacity-30"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
         <div className="flex items-center justify-between border-t border-border px-3 py-2">
           <button
             onClick={() => setLines((prev) => [...prev, emptyLine()])}
