@@ -93,7 +93,7 @@ const STYLE = `
   @media (max-width:720px){ #fm-root section{padding-block:56px} #fm-root .wrap{padding-inline:16px} }
 
   /* ---------- Nav ---------- */
-  #fm-root header.nav{position:sticky;top:env(safe-area-inset-top,0px);z-index:40;background:color-mix(in srgb, var(--bg) 88%, transparent);backdrop-filter:saturate(140%) blur(10px);border-bottom:1px solid var(--line)}
+  #fm-root header.nav{position:sticky;top:env(safe-area-inset-top,0px);z-index:40;background:var(--bg);background:color-mix(in srgb, var(--bg) 88%, transparent);-webkit-backdrop-filter:saturate(140%) blur(10px);backdrop-filter:saturate(140%) blur(10px);border-bottom:1px solid var(--line)}
   #fm-root .nav-row{display:flex;align-items:center;gap:32px;height:68px}
   #fm-root .brand-mark{display:flex;align-items:center;gap:9px;font-family:var(--font-display);font-weight:800;font-size:19px;letter-spacing:-.01em;flex:0 0 auto}
   #fm-root .brand-mark .dot{width:9px;height:9px;border-radius:50%;background:var(--brand)}
@@ -112,7 +112,7 @@ const STYLE = `
   #fm-root details.mnav[open] > summary span:nth-child(2){opacity:0}
   #fm-root details.mnav[open] > summary span:nth-child(3){transform:translateY(-7px) rotate(-45deg)}
   #fm-root details.mnav > summary:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
-  #fm-root .mnav-panel{position:fixed;left:0;right:0;top:calc(68px + env(safe-area-inset-top,0px));max-height:calc(100dvh - 68px);overflow-y:auto;background:var(--bg);border-bottom:1px solid var(--line);box-shadow:0 18px 40px rgba(0,0,0,.18);padding:8px 16px 20px;display:flex;flex-direction:column}
+  #fm-root .mnav-panel{position:fixed;left:0;right:0;top:calc(68px + env(safe-area-inset-top,0px));max-height:calc(100vh - 68px);max-height:calc(100dvh - 68px);overflow-y:auto;background:var(--bg);border-bottom:1px solid var(--line);box-shadow:0 18px 40px rgba(0,0,0,.18);padding:8px 16px 20px;display:flex;flex-direction:column}
   #fm-root .mnav-panel a{display:block;padding:14px 4px;font-size:16px;font-weight:600;color:var(--ink);border-bottom:1px solid var(--line)}
   #fm-root .mnav-panel a[aria-current="page"]{color:var(--brand)}
   #fm-root .mnav-panel .mnav-cta{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
@@ -385,6 +385,9 @@ const STYLE = `
   #fm-root .faq{border-top:1px solid var(--line)}
   #fm-root .faq-item{border-bottom:1px solid var(--line)}
   #fm-root .faq-q{width:100%;text-align:left;background:none;border:none;font:inherit;padding:18px 0;display:flex;justify-content:space-between;align-items:center;gap:16px;cursor:pointer;font-weight:700;font-size:15px;color:var(--ink)}
+  #fm-root .faq-q{list-style:none}
+  #fm-root .faq-q::-webkit-details-marker{display:none}
+  #fm-root .faq-q::marker{content:""}
   #fm-root .faq-q .chev{transition:transform .18s ease;flex:0 0 auto;color:var(--ink-subtle)}
   #fm-root .faq-item[open] .chev{transform:rotate(180deg)}
   #fm-root .faq-a{padding-bottom:18px;font-size:14px;color:var(--ink-muted);line-height:1.65;max-width:70ch}
