@@ -1,3 +1,4 @@
+import { withApiErrors } from "@/lib/api";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireTenantContext } from "@/lib/tenant";
@@ -7,7 +8,7 @@ import { prisma } from "@/lib/db";
 
 const schema = z.object({ entryNumber: z.string().min(1) });
 
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+async function handlePOST(req: Request, { params }: { params: { id: string } }) {
   const { active, userId } = await requireTenantContext();
   const parsed = schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
@@ -37,3 +38,5 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     throw err;
   }
 }
+
+export const POST = withApiErrors(handlePOST);
