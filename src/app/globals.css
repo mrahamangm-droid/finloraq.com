@@ -44,14 +44,53 @@
   }
 }
 
-/* iOS Safari zooms the whole page when a focused field's text is under 16px.
-   Keep form text at 16px on phones so tapping Login/Register/any form field
-   doesn't jump the layout. */
-@media (max-width: 640px) {
+/* iOS/iPadOS Safari zooms the whole page when a focused field's text is under
+   16px. Keep form text at 16px on phones and on any touch-first device
+   (iPads, Android tablets) so tapping Login/Register/any form field doesn't
+   jump the layout. */
+@media (max-width: 640px), (pointer: coarse) {
   input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
   select,
   textarea {
     /* !important: must beat utility classes like text-sm and scoped widget styles */
     font-size: 16px !important;
+  }
+}
+
+/* Full-height layouts on phones and tablets. 100vh on iOS/Android includes
+   the area behind the browser toolbar, which cut off the bottom of the app
+   and pushed centred login forms down. Browsers that support dynamic
+   viewport units (Safari 15.4+, Chrome 108+, Firefox 101+) use the visible
+   height; older ones keep 100vh. */
+.app-shell {
+  height: 100vh;
+}
+@supports (height: 100dvh) {
+  .app-shell {
+    height: 100dvh;
+  }
+  .min-h-screen {
+    min-height: 100dvh;
+  }
+  .h-screen {
+    height: 100dvh;
+  }
+}
+
+/* Mobile navigation drawer (src/components/nav/mobile-nav.tsx). */
+.app-drawer[data-state="open"] {
+  animation: app-drawer-in 0.2s ease-out;
+}
+@keyframes app-drawer-in {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-drawer[data-state="open"] {
+    animation: none;
   }
 }
