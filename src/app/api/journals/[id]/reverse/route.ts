@@ -1,8 +1,9 @@
+import { withApiErrors } from "@/lib/api";
 import { NextResponse } from "next/server";
 import { requireTenantContext } from "@/lib/tenant";
 import { reverseJournalEntry, InvalidLineError, DuplicatePostingError, PeriodLockedError } from "@/lib/ledger";
 
-export async function POST(_req: Request, { params }: { params: { id: string } }) {
+async function handlePOST(_req: Request, { params }: { params: { id: string } }) {
   const { active, userId } = await requireTenantContext();
 
   try {
@@ -20,3 +21,5 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     throw err;
   }
 }
+
+export const POST = withApiErrors(handlePOST);
