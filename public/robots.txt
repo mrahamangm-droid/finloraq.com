@@ -1,7 +1,17 @@
-# app.finloraq.com is the authenticated product, with one exception:
-# "/" is now the public marketing homepage (see src/app/page.tsx) and is
-# meant to be indexed. Every other route is behind login or exists only
-# to route into one, so there's nothing else here worth a crawl budget.
+# finloraq.com: the public marketing pages are meant to be found; everything
+# else is the signed-in product (or routes into it), so it's kept out of the
+# index. Keep the Allow list in sync with MARKETING_ROUTES in
+# src/components/marketing/marketing-routes.ts (the sitemap is built from it).
 User-agent: *
 Allow: /$
+Allow: /ai-accounting$
+Allow: /ai-cfo$
+Allow: /cash-flow-forecasting$
+Allow: /guides$
+Allow: /sitemap.xml$
+Allow: /opengraph-image
+Allow: /icon.png$
+Allow: /apple-icon.png$
 Disallow: /
+
+Sitemap: https://finloraq.com/sitemap.xml
