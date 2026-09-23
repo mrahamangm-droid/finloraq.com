@@ -201,5 +201,7 @@ export const MARKETING_BASE_STYLE = `
   #fm-root .foot-grid h6{color:#fff;font-size:12px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:14px}
   #fm-root .foot-grid ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px;font-size:13.5px}
   #fm-root .foot-grid a:hover{color:#fff}
+  /* Touch screens: footer links get a ≥24px tap area (WCAG 2.2 target size) without changing the desktop look */
+  @media (pointer:coarse){ #fm-root .foot-grid ul{gap:2px} #fm-root .foot-grid a{display:inline-block;padding-block:5px} }
   #fm-root .foot-bottom{border-top:1px solid var(--navy-line);padding:20px 0;font-size:12.5px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
 `;
