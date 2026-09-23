@@ -50,8 +50,11 @@ export function PlanCard({ def, isCurrent, canEdit }: { def: PlanDefinition; isC
         {isCurrent && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">Current</span>}
       </div>
       <div className="mb-2 text-2xl font-bold text-card-foreground">
-        {isEnterprise ? "Custom" : def.monthlyPriceUsd === 0 ? "Free" : `$${def.monthlyPriceUsd}`}
+        {isEnterprise ? "Custom" : def.monthlyPriceUsd === 0 ? "Free" : `AED ${def.monthlyPriceAed.toLocaleString("en-US")}`}
         {!isEnterprise && def.monthlyPriceUsd > 0 && <span className="text-sm font-normal text-muted-foreground">/mo</span>}
+        {!isEnterprise && def.monthlyPriceUsd > 0 && (
+          <div className="text-xs font-normal text-muted-foreground">US${def.monthlyPriceUsd}/mo outside the UAE · incl. VAT</div>
+        )}
       </div>
       <p className="mb-3 text-xs text-muted-foreground">{def.description}</p>
       <div className="mb-3 text-xs text-muted-foreground">
