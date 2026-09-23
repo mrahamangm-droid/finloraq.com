@@ -20,11 +20,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="app-shell flex overflow-hidden">
       <Sidebar />
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <Topbar userName={session.user.name} companyName={ctx.active.company.name} />
-        <main className="flex-1 overflow-y-auto bg-muted/30 p-6">{children}</main>
+        <main className="flex-1 overflow-y-auto overscroll-contain bg-muted/30 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6">{children}</main>
       </div>
     </div>
   );
