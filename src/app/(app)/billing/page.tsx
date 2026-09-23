@@ -2,10 +2,35 @@ import { requireTenantContext } from "@/lib/tenant";
 import { can } from "@/lib/rbac";
 import { getBillingSnapshot } from "@/lib/billing/subscription";
 import { isPaymentConfigured } from "@/lib/integrations/payment";
-import { PlanCard } from "@/components/billing/plan-card";
+import { stripeMode, syncFromCheckoutSession } from "@/lib/integrations/stripe";
+import { ManageBillingButton, PlanCard } from "@/components/billing/plan-card";
 
-export default async function BillingPage() {
+export const dynamic = "force-dynamic";
+
+export default async function BillingPage({
+  searchParams,
+}: {
+  searchParams?: { checkout?: string; session_id?: string };
+}) {
   const { active } = await requireTenantContext();
+
+  // Returning from Stripe Checkout: sync right away so the new plan shows
+  // without waiting for the webhook (which remains the source of truth).
+  let checkoutNotice: { tone: "ok" | "warn"; text: string } | null = null;
+  if (searchParams?.checkout === "success" && searchParams.session_id && isPaymentConfigured()) {
+    try {
+      const complete = await syncFromCheckoutSession(searchParams.session_id, active.companyId);
+      checkoutNotice = complete
+        ? { tone: "ok", text: "Payment received — your plan has been updated." }
+        : { tone: "warn", text: "Checkout is still processing. Your plan will update as soon as Stripe confirms the payment." };
+    } catch {
+      checkoutNotice = { tone: "warn", text: "Payment submitted. Your plan will update as soon as Stripe confirms it." };
+    }
+  } else if (searchParams?.checkout === "cancelled") {
+    checkoutNotice = { tone: "warn", text: "Checkout cancelled — no charge was made." };
+  }
+
+  const mode = stripeMode();
   const [snapshot, canEdit] = await Promise.all([
     getBillingSnapshot(active.companyId),
     can(active.id, "settings", "EDIT"),
@@ -22,10 +47,24 @@ export default async function BillingPage() {
         <h1 className="text-xl font-semibold text-foreground">Billing</h1>
         <p className="text-sm text-muted-foreground">
           {isPaymentConfigured()
-            ? "Plan changes are charged through the live payment provider."
+            ? mode === "test"
+              ? "Stripe TEST mode — checkout uses test cards (e.g. 4242 4242 4242 4242); no real money moves."
+              : "Plan changes are billed securely through Stripe."
             : "No payment provider is configured — plan changes here are recorded and audited exactly like a real checkout, but no card is ever charged."}
         </p>
       </div>
+
+      {checkoutNotice && (
+        <div
+          className={`rounded-md border px-4 py-3 text-sm ${
+            checkoutNotice.tone === "ok"
+              ? "border-green-600/30 bg-green-600/10 text-green-700 dark:text-green-400"
+              : "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+          }`}
+        >
+          {checkoutNotice.text}
+        </div>
+      )}
 
       <div className="rounded-lg border border-border bg-card p-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
@@ -39,6 +78,7 @@ export default async function BillingPage() {
               )}
             </div>
           </div>
+          {canEdit && isPaymentConfigured() && snapshot.subscription.provider === "stripe" && <ManageBillingButton />}
           <div className="grid grid-cols-2 gap-6">
             <div>
               <div className="text-xs text-muted-foreground">Seats</div>
