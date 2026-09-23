@@ -7,12 +7,18 @@ import { NextResponse } from "next/server";
 // API route still calls requirePermission()/requireTenantContext() because
 // middleware alone can't express per-module, per-action RBAC.
 export default withAuth(
-  function middleware() {
+  function middleware(req) {
+    // API callers get a JSON 401 instead of an HTML redirect to /login.
+    if (req.nextUrl.pathname.startsWith("/api/") && !req.nextauth.token) {
+      return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+    }
     return NextResponse.next();
   },
   {
     callbacks: {
-      authorized: ({ token }) => !!token,
+      // Pages: redirect to /login when there's no session. API routes are let
+      // through here so the middleware function above can answer with a 401.
+      authorized: ({ token, req }) => req.nextUrl.pathname.startsWith("/api/") || !!token,
     },
     pages: {
       signIn: "/login",
@@ -48,6 +54,9 @@ export const config = {
     // before it ever reached that verification logic.
     // /api/public/* is public by design (pricing/currency context for the
     // marketing site — no user data).
-    "/api/((?!auth|webhooks|public).)*",
+    // NB: the lookahead must sit in front of `.*` — the previous form
+    // "/api/((?!auth|webhooks|public).)*" compiled to single-character
+    // segments and never matched real paths like /api/billing/subscription.
+    "/api/((?!auth/|auth$|webhooks/|public/).*)",
   ],
 };
