@@ -145,7 +145,7 @@ export const MARKETING_BASE_STYLE = `
   #fm-root section.canvas-2{background:var(--canvas-2)}
 
   #fm-root .card{background:var(--canvas);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--shadow-sm)}
-  #fm-root .demo-badge{display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.08em;color:var(--warning);background:var(--warning-bg);padding:4px 10px;border-radius:var(--r-full);margin-bottom:14px}
+  #fm-root .demo-badge{display:inline-block;font-size:11.5px;font-weight:800;letter-spacing:.08em;color:var(--warning);background:var(--warning-bg);padding:4px 10px;border-radius:var(--r-full);margin-bottom:14px}
 
   /* ---------- Reusable landing-page building blocks ---------- */
   #fm-root .feature-grid{margin-top:36px;display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
