@@ -8,16 +8,18 @@ function Section({ title, rows, total }: { title: string; rows: { accountName: s
       {rows.length === 0 ? (
         <p className="text-sm text-muted-foreground">None posted.</p>
       ) : (
-        <table className="w-full text-sm">
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.accountName}>
-                <td className="py-1 text-card-foreground">{r.accountName}</td>
-                <td className="py-1 text-right text-card-foreground">{r.amount.toFixed(2)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.accountName}>
+                  <td className="py-1 text-card-foreground">{r.accountName}</td>
+                  <td className="py-1 text-right text-card-foreground">{r.amount.toFixed(2)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
       <div className="mt-2 flex justify-between border-t border-border pt-2 text-sm font-medium">
         <span>Total {title}</span>
