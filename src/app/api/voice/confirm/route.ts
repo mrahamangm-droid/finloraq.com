@@ -1,3 +1,4 @@
+import { withApiErrors } from "@/lib/api";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireTenantContext } from "@/lib/tenant";
@@ -18,7 +19,7 @@ const schema = z.object({
  * Creates a DRAFT expense only; it still needs a separate Approve action
  * (expenses:APPROVE) to post to the ledger, same as any other expense.
  */
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   const { active, userId } = await requireTenantContext();
   await requirePermission(active.id, "expenses", "CREATE");
 
@@ -41,3 +42,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: err instanceof Error ? err.message : "Could not create expense." }, { status: 400 });
   }
 }
+
+export const POST = withApiErrors(handlePOST);
