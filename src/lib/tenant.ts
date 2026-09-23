@@ -7,6 +7,18 @@ import { ForbiddenError } from "@/lib/rbac";
 const ACTIVE_COMPANY_COOKIE = "finloraq_active_company";
 
 /**
+ * No signed-in user at all. Extends ForbiddenError so any existing
+ * `instanceof ForbiddenError` handling keeps working, while API routes
+ * (see src/lib/api.ts) can answer it with 401 instead of 403.
+ */
+export class UnauthorizedError extends ForbiddenError {
+  constructor(message = "You must be signed in.") {
+    super(message);
+    this.name = "UnauthorizedError";
+  }
+}
+
+/**
  * Resolves "who is signed in, and which company are they currently acting
  * as" for a server component/action/route. This is the single choke point
  * tenant isolation runs through — every data-access function should derive
@@ -34,10 +46,16 @@ export async function getTenantContext() {
   return { userId: session.user.id, memberships, active };
 }
 
-/** Throws if there's no signed-in user with an active company membership. */
+/**
+ * Throws UnauthorizedError if nobody is signed in, or ForbiddenError if the
+ * user has no active company membership.
+ */
 export async function requireTenantContext() {
   const ctx = await getTenantContext();
-  if (!ctx?.active) {
+  if (!ctx) {
+    throw new UnauthorizedError();
+  }
+  if (!ctx.active) {
     throw new ForbiddenError("No active company selected.");
   }
   return ctx as {
