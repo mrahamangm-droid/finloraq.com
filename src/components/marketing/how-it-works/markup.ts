@@ -53,7 +53,8 @@ export function renderHowItWorksHtml(): string {
     <ol class="hiw-outline" aria-label="Pipeline stages">${outline}</ol>
   </div>
 
-  <div class="hiw-demo">
+  <button type="button" class="hiw-try-toggle" data-hiw-try aria-expanded="false" aria-controls="hiw-demo">Try it with your own document <span aria-hidden="true">↓</span></button>
+  <div class="hiw-demo" id="hiw-demo">
     <div class="hiw-drop-col">
       <h3>Try it with a document</h3>
       <p class="hiw-sub">Drop a file and watch the pipeline handle it — or pick a sample.</p>
@@ -237,6 +238,15 @@ export const HIW_STYLE = `
 
 @media (max-width:980px){
   .hiw .hiw-demo{grid-template-columns:1fr}
+}
+.hiw .hiw-try-toggle{display:none}
+@media (max-width:760px){
+  /* Phones: the 3D tour tells the story; the hands-on demo opens on request (or when a card is tapped). */
+  .hiw .hiw-try-toggle{display:flex;align-items:center;justify-content:center;gap:8px;width:calc(100% - 32px);margin:16px auto 0;min-height:48px;border-radius:14px;border:1px solid var(--h-line);background:rgba(110,100,240,.16);color:#fff;font:inherit;font-size:15px;font-weight:700;cursor:pointer}
+  .hiw .hiw-try-toggle:focus-visible{outline:2px solid #8981F5;outline-offset:2px}
+  .hiw .hiw-demo{display:none}
+  .hiw.hiw--try-open .hiw-demo{display:grid}
+  .hiw.hiw--try-open .hiw-try-toggle span{transform:rotate(180deg)}
 }
 @media (max-width:760px){
   #fm-root .hiw, .hiw{padding:64px 0 72px}

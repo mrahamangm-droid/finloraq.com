@@ -173,7 +173,16 @@ export function mountHowItWorks(root: HTMLElement): () => void {
 
   // ------------------------------------------------------------ actions
 
+  // Phones keep the hands-on demo folded away until asked for.
+  const tryBtn = root.querySelector<HTMLButtonElement>("[data-hiw-try]");
+  const setTryOpen = (open: boolean) => {
+    root.classList.toggle("hiw--try-open", open);
+    tryBtn?.setAttribute("aria-expanded", String(open));
+  };
+  if (tryBtn) on(tryBtn, "click", () => setTryOpen(!root.classList.contains("hiw--try-open")));
+
   function playTrace(trace: Trace, extra: { inspection?: Inspection; sampleId?: string }) {
+    setTryOpen(true); // a card tap / dropped file / sample chip always shows its trace
     mode = "single";
     current = { trace, ...extra };
     lastShown = -2;
