@@ -113,7 +113,7 @@ is kept for standing up a *new* environment from scratch — see step 3.
    | `NEXTAUTH_SECRET` | `openssl rand -base64 32` | **generate a fresh one per environment** — don't reuse the same value in Preview and Production |
    | `NEXTAUTH_URL` | `https://app.finloraq.com` (Production) / the Vercel preview URL pattern (Preview) | must match the actual serving domain or auth callbacks break |
    | `ANTHROPIC_API_KEY` | your key | optional — AI Copilot/extraction/voice fall back to templated/disabled without it, they don't error |
-   | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | from Stripe | optional — billing UI works in simulated mode without them |
+   | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | from Stripe — see section 3b | optional — billing UI works in simulated mode without them |
    | `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID` | from Meta | optional — simulated without them |
    | `INBOUND_EMAIL_WEBHOOK_SECRET` | any strong random string | required only if you wire up inbound email; the webhook rejects all requests until this is set |
    | `REDIS_URL` | from Upstash/Redis Cloud etc. | optional for now — rate limiting works in-memory per-instance without it, but see the production checklist below |
@@ -122,6 +122,38 @@ is kept for standing up a *new* environment from scratch — see step 3.
 4. Deploy. The build log is where `prisma migrate deploy` runs against your real
    database for the first time — watch it for migration errors, not just a green
    checkmark on `next build`.
+
+## 3b. Stripe billing (start in test mode)
+
+The billing integration is real Stripe Checkout + Customer Portal + a signed webhook
+(`src/lib/integrations/stripe.ts`, `src/app/api/webhooks/stripe/route.ts`). There is no
+manual product setup: the first checkout for a plan creates its Stripe Product and monthly
+Price from `src/lib/billing/plans.ts` (lookup key `finloraq_<plan>_monthly`). Re-running
+these steps is safe — everything is idempotent.
+
+1. Stripe Dashboard → switch **Test mode** on → Developers → API keys → copy the
+   **Secret key** (`sk_test_…`).
+2. Developers → Webhooks → **Add endpoint**:
+   - URL: `https://<your-app-domain>/api/webhooks/stripe`
+     (e.g. `https://finloraq-app.vercel.app/api/webhooks/stripe`)
+   - Events: `checkout.session.completed`, `checkout.session.async_payment_succeeded`,
+     `checkout.session.async_payment_failed`, `customer.subscription.created`,
+     `customer.subscription.updated`, `customer.subscription.deleted`,
+     `customer.subscription.paused`, `customer.subscription.resumed`, `invoice.paid`,
+     `invoice.payment_failed`
+   - Copy the endpoint's **Signing secret** (`whsec_…`).
+3. Settings → Billing → **Customer portal** → click **Save** once (Stripe refuses portal
+   sessions until the portal config has been saved in that mode). To let customers switch
+   plans there, enable "Customers can switch plans" and add the Finloraq products — they
+   appear after the first checkout for each plan.
+4. Vercel → Project → Settings → Environment Variables (Production): set
+   `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`, then **Redeploy**.
+5. Verify: `POST /api/webhooks/stripe` without a signature now returns **400** (not 501);
+   Billing page says "Stripe TEST mode"; upgrade to Growth with card `4242 4242 4242 4242`,
+   any future expiry/CVC → you return to Billing with "Payment received" and plan = Growth;
+   Stripe → Webhooks shows 200 deliveries; Audit Log shows `billing.stripe_synced`.
+6. Going live later: repeat steps 1–4 with Live mode on (`sk_live_…`, a new live webhook
+   endpoint and its own `whsec_…`). Test-mode customer ids are replaced automatically.
 
 ## 4. Point the domain
 
