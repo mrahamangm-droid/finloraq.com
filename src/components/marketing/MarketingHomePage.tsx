@@ -252,7 +252,7 @@ const STYLE = `
   /* ---------- Agents ---------- */
   #fm-root .agent-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
   @media (max-width:880px){ #fm-root .agent-grid{grid-template-columns:repeat(2,1fr)} }
-  @media (max-width:560px){ #fm-root .agent-grid{grid-template-columns:1fr} }
+  @media (max-width:560px){ #fm-root .agent-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px} #fm-root .agent-card{padding:14px} #fm-root .agent-card h4{margin-top:10px;font-size:14.5px} #fm-root .agent-card p{font-size:12.5px;margin-top:4px} #fm-root .agent-card .glyph{width:30px;height:30px;font-size:12px} }
   #fm-root .agent-card{background:var(--navy-2);border:1px solid var(--navy-line);border-radius:var(--r-lg);padding:22px}
   #fm-root .agent-card .glyph{width:34px;height:34px;border-radius:9px;background:var(--brand-tint);color:var(--brand);display:flex;align-items:center;justify-content:center;font-weight:800;font-family:var(--font-mono);font-size:13px}
   #fm-root .agent-card h4{color:#fff;margin-top:16px;font-size:15.5px}
@@ -278,6 +278,15 @@ const STYLE = `
   #fm-root .found-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--navy-line);border:1px solid var(--navy-line);border-radius:var(--r-md);overflow:hidden}
   @media (max-width:760px){ #fm-root .found-grid{grid-template-columns:repeat(2,1fr)} }
   #fm-root .found-item{background:var(--navy-2);color:#fff;padding:16px;font-size:13.5px;font-weight:700}
+  /* Foundation + trust (one section, two columns) */
+  #fm-root .ft-grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:40px;align-items:start}
+  #fm-root .ft-col h5{color:#fff;font-size:12px;text-transform:uppercase;letter-spacing:.08em;margin:0 0 14px;opacity:.85}
+  #fm-root .ft-grid .found-grid{grid-template-columns:repeat(2,1fr)}
+  #fm-root .ft-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px}
+  #fm-root .ft-list li{color:var(--on-navy-muted);font-size:14px;line-height:1.55;padding-left:18px;position:relative}
+  #fm-root .ft-list li::before{content:"";position:absolute;left:0;top:.6em;width:7px;height:7px;border-radius:50%;background:var(--brand)}
+  #fm-root .ft-list b{color:#fff}
+  @media (max-width:860px){ #fm-root .ft-grid{grid-template-columns:1fr;gap:28px} }
 
   /* ---------- Doc intelligence ---------- */
   #fm-root .flow{display:flex;flex-wrap:wrap;gap:0;align-items:stretch;margin-top:12px}
@@ -312,6 +321,14 @@ const STYLE = `
 
   /* ---------- Audience ---------- */
   #fm-root .aud-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+  /* Compact audience strip */
+  #fm-root section.aud-strip{padding-block:40px;border-bottom:1px solid var(--line)}
+  #fm-root .aud-row{display:grid;grid-template-columns:minmax(0,1.2fr) repeat(4,minmax(0,1fr));gap:24px;align-items:start}
+  #fm-root .aud-lead h3{font-family:var(--font-display);font-size:20px;line-height:1.25;margin:6px 0 0}
+  #fm-root .aud-item b{display:block;font-size:14.5px}
+  #fm-root .aud-item span{display:block;font-size:13px;color:var(--ink-muted);margin-top:4px;line-height:1.5}
+  @media (max-width:980px){ #fm-root .aud-row{grid-template-columns:repeat(2,minmax(0,1fr))} #fm-root .aud-lead{grid-column:1/-1} }
+  @media (max-width:420px){ #fm-root .aud-row{gap:18px 14px} }
   @media (max-width:900px){ #fm-root .aud-grid{grid-template-columns:repeat(2,1fr)} }
   @media (max-width:520px){ #fm-root .aud-grid{grid-template-columns:1fr} }
   #fm-root .aud-card{border:1px solid var(--line);border-radius:var(--r-md);padding:20px;background:var(--canvas)}
@@ -324,7 +341,11 @@ const STYLE = `
   #fm-root .price-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
   @media (max-width:1024px){ #fm-root .price-grid{grid-template-columns:repeat(3,1fr)} }
   @media (max-width:700px){ #fm-root .price-grid{grid-template-columns:repeat(2,1fr)} }
-  @media (max-width:460px){ #fm-root .price-grid{grid-template-columns:1fr} }
+  @media (max-width:700px){
+    /* phones: one swipeable row with the next card peeking, instead of 5 stacked cards */
+    #fm-root .price-grid{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;gap:12px;margin-inline:-16px;padding:4px 16px 14px;scroll-padding-inline:16px;scrollbar-width:thin}
+    #fm-root .price-grid > .plan{flex:0 0 min(78%,300px);scroll-snap-align:start}
+  }
   #fm-root .plan{border:1px solid var(--line);border-radius:var(--r-lg);padding:20px;display:flex;flex-direction:column;gap:14px;background:var(--canvas)}
   #fm-root .plan.feat{border-color:var(--brand);box-shadow:0 0 0 1px var(--brand)}
   #fm-root .plan .pname{font-weight:800;font-size:15px}
@@ -336,6 +357,8 @@ const STYLE = `
   #fm-root .cur-note{margin:0;font-size:12.5px;color:var(--ink-muted)}
   #fm-root .cur-note a{text-decoration:underline}
   @media (max-width:560px){ #fm-root .cur-pick{width:100%;justify-content:space-between;min-width:0} #fm-root .cur-pick span{flex:0 0 auto} #fm-root .cur-pick select{flex:1 1 0;min-width:0;max-width:260px;width:100%;text-overflow:ellipsis} }
+  #fm-root .swipe-hint{display:none;margin:0 0 10px;font-size:12.5px;font-weight:600;color:var(--ink-muted)}
+  @media (max-width:700px){ #fm-root .swipe-hint{display:block} }
   #fm-root .plan .pusd{font-size:12px;color:var(--ink-muted);margin-top:2px}
   #fm-root .plan .pprice small{font-family:var(--font-body);font-size:12px;font-weight:600;color:var(--ink-muted)}
   #fm-root .plan ul{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px;font-size:12.5px;color:var(--ink-muted);flex:1}
@@ -359,7 +382,7 @@ const STYLE = `
   #fm-root footer{background:var(--navy);color:var(--on-navy-muted);border-top:1px solid var(--navy-line)}
   #fm-root .foot-grid{display:grid;grid-template-columns:1.4fr repeat(4,1fr);gap:32px;padding-block:56px}
   @media (max-width:820px){ #fm-root .foot-grid{grid-template-columns:repeat(2,1fr)} }
-  @media (max-width:520px){ #fm-root .foot-grid{grid-template-columns:1fr} }
+  @media (max-width:520px){ #fm-root .foot-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:28px 16px;padding-block:40px} #fm-root .foot-grid > div:first-child{grid-column:1/-1} }
   #fm-root .foot-grid h6{color:#fff;font-size:12px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:14px}
   #fm-root .foot-grid ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px;font-size:13.5px}
   #fm-root .foot-grid a:hover{color:#fff}
@@ -540,9 +563,35 @@ const BODY_HTML_AFTER_HERO = `<!-- 2. LIVE PRODUCT PREVIEW / TRY THE DEMO -->
         </div>
 
         <div class="demo-panel" data-panel="whatif" hidden>
-          <div class="panel-title">What-If, right from the dashboard</div>
-          <p class="mini-note" style="margin-top:0">Model a scenario against these same numbers — a slower sales month, a longer payment cycle — before it happens. Nothing here changes an actual record.</p>
-          <button class="btn btn-primary btn-sm" style="margin-top:14px" data-scroll="whatif-full">Open the full simulator ↓</button>
+          <div class="panel-title">What-If simulator</div>
+          <p class="mini-note" style="margin-top:0">Model a slower sales month, a longer payment cycle or new hires against these same numbers. Nothing here changes an actual record.</p>
+          <div class="whatif">
+            <div class="whatif-controls">
+              <div class="slider-row">
+                <div class="top"><span>Sales</span><span class="v" id="wf-sales-v">-20%</span></div>
+                <input type="range" id="wf-sales" min="-50" max="20" value="-20">
+              </div>
+              <div class="slider-row">
+                <div class="top"><span>Customer payment time</span><span class="v" id="wf-days-v">+15 days</span></div>
+                <input type="range" id="wf-days" min="0" max="45" value="15">
+              </div>
+              <div class="slider-row">
+                <div class="top"><span>Hiring</span><span class="v" id="wf-hire-v">+5 employees</span></div>
+                <input type="range" id="wf-hire" min="0" max="15" value="5">
+              </div>
+              <div class="slider-row">
+                <div class="top"><span>Supplier costs</span><span class="v" id="wf-cost-v">+10%</span></div>
+                <input type="range" id="wf-cost" min="0" max="40" value="10">
+              </div>
+              <button class="btn btn-primary btn-block">Try a Scenario</button>
+            </div>
+            <div class="whatif-result">
+              <div class="wr-row"><span>Cash impact</span><span class="wv num" id="wf-cash" style="color:var(--danger)">↓ $47K</span></div>
+              <div class="wr-row"><span>Profit impact</span><span class="wv num" id="wf-profit" style="color:var(--danger)">↓ $22K</span></div>
+              <div class="wr-row"><span>Runway change</span><span class="wv num" id="wf-runway" style="color:var(--danger)">-2.0 months</span></div>
+              <div class="sim-note">SIMULATION — DOES NOT CHANGE YOUR ACCOUNTING RECORDS</div>
+            </div>
+          </div>
         </div>
 
       </div>
@@ -550,73 +599,7 @@ const BODY_HTML_AFTER_HERO = `<!-- 2. LIVE PRODUCT PREVIEW / TRY THE DEMO -->
   </div>
 </section>
 
-<!-- 3. THE FINLORAQ DIFFERENCE -->
-<section class="canvas" id="difference">
-  <div class="wrap">
-    <div class="sec-head" style="margin-bottom:0">
-      <div class="eyebrow">From accounting to business intelligence</div>
-      <h2 style="margin-top:12px">The Finloraq difference</h2>
-      <p>Most software stops at recording a transaction. Finloraq carries it all the way to a decision.</p>
-    </div>
-    <div class="loop-track">
-      <div class="loop-step is-active"><div class="n">01</div><h4>Record</h4><p>Your financial data — invoices, bills, banking, payroll — captured with full double-entry accuracy.</p></div>
-      <div class="loop-step"><div class="n">02</div><h4>Understand</h4><p>What happened this week, this month, this quarter — surfaced without digging through reports.</p></div>
-      <div class="loop-step"><div class="n">03</div><h4>Predict</h4><p>What could happen next — cash pressure, overdue risk, margin drift, before it lands.</p></div>
-      <div class="loop-step"><div class="n">04</div><h4>Act</h4><p>What you should do about it — a reviewed, approved, recorded action.</p></div>
-    </div>
-  </div>
-</section>
-
-<!-- 4. BUSINESS PULSE -->
-<section class="canvas" id="pulse" style="background:var(--canvas-2);border-top:1px solid var(--line);border-bottom:1px solid var(--line)">
-  <div class="wrap">
-    <div class="sec-head">
-      <div class="eyebrow">Business Pulse</div>
-      <h2 style="margin-top:12px">See your business clearly.</h2>
-      <p>Real examples of what Business Pulse surfaces — not generic charts, but specific, actionable signals.</p>
-    </div>
-    <div class="icard-grid">
-      <div class="icard">
-        <span class="tag warn" style="width:fit-content">CASH GAP</span>
-        <div class="headline">Potential cash pressure in 21 days</div>
-        <div class="why"><b>$42K</b> supplier payments + <b>$31K</b> expected payroll + <b>$18K</b> delayed receivables</div>
-        <div class="actions"><button class="btn btn-ghost btn-sm">View Forecast</button><button class="btn btn-ghost btn-sm">What If?</button></div>
-      </div>
-      <div class="icard">
-        <span class="tag danger" style="width:fit-content">OVERDUE</span>
-        <div class="headline">$18,400 overdue — Customer ABC</div>
-        <div class="why">12 days past due, largest open balance this month.</div>
-        <div class="actions"><button class="btn btn-ghost btn-sm">Review</button><button class="btn btn-ghost btn-sm">Remind</button></div>
-      </div>
-      <div class="icard">
-        <span class="tag info" style="width:fit-content">ANOMALY</span>
-        <div class="headline">Supplier pricing increased 23%</div>
-        <div class="why">Packaging supplier cost jumped against a flat order volume.</div>
-        <div class="actions"><button class="btn btn-ghost btn-sm">Investigate</button></div>
-      </div>
-      <div class="icard">
-        <span class="tag warn" style="width:fit-content">DUPLICATE CAUGHT</span>
-        <div class="headline">Bill #4821 matches a bill already paid</div>
-        <div class="why">Same supplier, same amount, 2 days apart — held for review before posting.</div>
-        <div class="actions"><button class="btn btn-ghost btn-sm">Review Bill</button></div>
-      </div>
-      <div class="icard">
-        <span class="tag info" style="width:fit-content">TAX</span>
-        <div class="headline">VAT return ready for review</div>
-        <div class="why">Q3 UAE VAT return calculated and reconciled against posted transactions.</div>
-        <div class="actions"><button class="btn btn-ghost btn-sm">Review Return</button></div>
-      </div>
-      <div class="icard">
-        <span class="tag warn" style="width:fit-content">RECONCILE</span>
-        <div class="headline">7 bank transactions unmatched</div>
-        <div class="why">Sitting in the bank feed for over 5 days without a matching ledger entry.</div>
-        <div class="actions"><button class="btn btn-ghost btn-sm">Reconcile</button></div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- 5. AI FINANCE TEAM -->
+<!-- 3. AI FINANCE TEAM -->
 <section class="on-navy" id="agents">
   <div class="wrap">
     <div class="sec-head">
@@ -632,157 +615,59 @@ const BODY_HTML_AFTER_HERO = `<!-- 2. LIVE PRODUCT PREVIEW / TRY THE DEMO -->
       <div class="agent-card"><div class="glyph">TX</div><h4>Tax Agent</h4><p>Tax readiness and transaction review.</p></div>
       <div class="agent-card"><div class="glyph">CFO</div><h4>CFO Agent</h4><p>Business-level financial intelligence.</p></div>
     </div>
-    <div class="control-strip"><b>AI recommends.</b> You approve. <b>Finloraq records.</b> Every agent action runs through your approval workflow — nothing is autonomous by default.</div>
   </div>
 </section>
 
-<!-- 6. WHAT-IF SIMULATOR -->
-<section class="canvas" id="whatif-full">
-  <div class="wrap">
-    <div class="sec-head">
-      <div class="eyebrow">What-if simulator</div>
-      <h2 style="margin-top:12px">Before you make a decision, see the financial impact.</h2>
-      <p>Model a scenario against your real numbers — a slower sales month, a longer payment cycle, new hires — before it happens.</p>
-    </div>
-    <div class="whatif">
-      <div class="whatif-controls">
-        <div class="slider-row">
-          <div class="top"><span>Sales</span><span class="v" id="wf-sales-v">-20%</span></div>
-          <input type="range" id="wf-sales" min="-50" max="20" value="-20">
-        </div>
-        <div class="slider-row">
-          <div class="top"><span>Customer payment time</span><span class="v" id="wf-days-v">+15 days</span></div>
-          <input type="range" id="wf-days" min="0" max="45" value="15">
-        </div>
-        <div class="slider-row">
-          <div class="top"><span>Hiring</span><span class="v" id="wf-hire-v">+5 employees</span></div>
-          <input type="range" id="wf-hire" min="0" max="15" value="5">
-        </div>
-        <div class="slider-row">
-          <div class="top"><span>Supplier costs</span><span class="v" id="wf-cost-v">+10%</span></div>
-          <input type="range" id="wf-cost" min="0" max="40" value="10">
-        </div>
-        <button class="btn btn-primary btn-block">Try a Scenario</button>
-      </div>
-      <div class="whatif-result">
-        <div class="wr-row"><span>Cash impact</span><span class="wv num" id="wf-cash" style="color:var(--danger)">↓ $42K</span></div>
-        <div class="wr-row"><span>Profit impact</span><span class="wv num" id="wf-profit" style="color:var(--danger)">↓ $18K</span></div>
-        <div class="wr-row"><span>Runway change</span><span class="wv num" id="wf-runway" style="color:var(--danger)">-1.7 months</span></div>
-        <div class="sim-note">SIMULATION — DOES NOT CHANGE YOUR ACCOUNTING RECORDS</div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- 7. ACCOUNTING FOUNDATION -->
+<!-- 4. FOUNDATION + TRUST -->
 <section class="on-navy" id="foundation">
   <div class="wrap">
     <div class="sec-head">
-      <div class="eyebrow on-navy">Accounting foundation</div>
-      <h2 style="margin-top:12px;color:#fff">Powerful intelligence. Built on real accounting.</h2>
-      <p>Every insight starts with a trusted financial foundation — not a forecast layered over guesswork.</p>
+      <div class="eyebrow on-navy">Why you can rely on it</div>
+      <h2 style="margin-top:12px;color:#fff">Real accounting underneath. Real controls around it.</h2>
+      <p>Every insight traces back to posted, double-entry transactions, and nothing reaches your books without a person approving it.</p>
     </div>
-    <div class="found-grid">
-      <div class="found-item">Double-entry accounting</div>
-      <div class="found-item">General ledger</div>
-      <div class="found-item">P&amp;L &amp; balance sheet</div>
-      <div class="found-item">Cash flow</div>
-      <div class="found-item">AR / AP</div>
-      <div class="found-item">Banking</div>
-      <div class="found-item">Tax</div>
-      <div class="found-item">Audit trail</div>
-      <div class="found-item">Multi-company</div>
-      <div class="found-item">Multi-currency</div>
-    </div>
-  </div>
-</section>
-
-<!-- 8. DOCUMENT -> ACTION -->
-<section class="canvas" id="document" style="background:var(--canvas-2);border-top:1px solid var(--line);border-bottom:1px solid var(--line)">
-  <div class="wrap">
-    <div class="sec-head">
-      <div class="eyebrow">Document intelligence</div>
-      <h2 style="margin-top:12px">Document → action</h2>
-      <p>Upload a supplier invoice and Finloraq carries it the rest of the way — reading, matching and drafting, with your approval at the end.</p>
-    </div>
-    <div class="flow">
-      <div class="flow-step">Upload invoice</div><div class="flow-arrow">→</div>
-      <div class="flow-step">AI reads it</div><div class="flow-arrow">→</div>
-      <div class="flow-step">Extracts supplier, amount, tax</div><div class="flow-arrow">→</div>
-      <div class="flow-step">Checks duplicate</div><div class="flow-arrow">→</div>
-      <div class="flow-step">Matches purchase order</div>
-    </div>
-    <div class="flow" style="margin-top:12px">
-      <div class="flow-step">Creates draft bill</div><div class="flow-arrow">→</div>
-      <div class="flow-step">Requests approval</div><div class="flow-arrow">→</div>
-      <div class="flow-step">Posts to accounting</div><div class="flow-arrow">→</div>
-      <div class="flow-step">Updates cash forecast</div>
-    </div>
-  </div>
-</section>
-
-<!-- 9. FINANCIAL HEALTH -->
-<section class="canvas" id="health">
-  <div class="wrap">
-    <div class="sec-head">
-      <div class="eyebrow">Financial health</div>
-      <h2 style="margin-top:12px">Know the health of your business.</h2>
-      <p>Not a mysterious score — every rating traces back to the transactions behind it.</p>
-    </div>
-    <div class="health-grid">
-      <div class="health-item"><span class="lbl">Cash</span><span class="status-badge good">Healthy</span></div>
-      <div class="health-item"><span class="lbl">Profitability</span><span class="status-badge good">Strong</span></div>
-      <div class="health-item"><span class="lbl">Receivables</span><span class="status-badge watch">Watch</span></div>
-      <div class="health-item"><span class="lbl">Expenses</span><span class="status-badge stable">Stable</span></div>
-      <div class="health-item"><span class="lbl">Tax readiness</span><span class="status-badge good">Ready</span></div>
-      <div class="health-item"><span class="lbl">Reconciliation</span><span class="status-badge watch">3 items</span></div>
-    </div>
-    <div class="why-box" style="margin-top:20px">
-      <div class="why-top"><div style="font-weight:700;font-size:14px">Why did Receivables move to "Watch"?</div></div>
-      <div class="why-panel">
-        <div class="why-row"><span>Invoices overdue &gt; 30 days</span><span class="amt num">4</span></div>
-        <div class="why-row"><span>Largest overdue balance</span><span class="amt num">$18,400 — Customer ABC</span></div>
-        <div class="why-row"><span>Average days to pay, last 90 days</span><span class="amt num" style="color:var(--ink)">34 days</span></div>
+    <div class="ft-grid">
+      <div class="ft-col">
+        <h5>The accounting core</h5>
+        <div class="found-grid">
+          <div class="found-item">Double-entry ledger</div>
+          <div class="found-item">P&amp;L &amp; balance sheet</div>
+          <div class="found-item">Cash flow</div>
+          <div class="found-item">AR / AP</div>
+          <div class="found-item">Banking &amp; reconciliation</div>
+          <div class="found-item">UAE VAT</div>
+          <div class="found-item">Multi-company</div>
+          <div class="found-item">Multi-currency</div>
+        </div>
+      </div>
+      <div class="ft-col" id="trust">
+        <h5>The controls</h5>
+        <ul class="ft-list">
+          <li><b>Human approval</b> — AI drafts; nothing posts until a person approves.</li>
+          <li><b>Immutable history</b> — posted records are reversed, never silently edited.</li>
+          <li><b>Full audit trail</b> — who changed what, and when.</li>
+          <li><b>Role-based access &amp; MFA</b> — each user sees only what their role allows.</li>
+          <li><b>Company isolation</b> — each company's data is separated at the database level.</li>
+        </ul>
       </div>
     </div>
   </div>
 </section>
 
-<!-- 10. SECURITY & TRUST -->
-<section class="on-navy" id="trust">
+<!-- 5. WHO IT'S FOR -->
+<section class="canvas aud-strip" id="audience">
   <div class="wrap">
-    <div class="sec-head">
-      <div class="eyebrow on-navy">Security &amp; trust</div>
-      <h2 style="margin-top:12px;color:#fff">Your finances deserve trust.</h2>
-    </div>
-    <div class="trust-grid">
-      <div class="trust-item"><div class="ic">●</div><div><h5>Secure authentication &amp; MFA</h5><p>Every sign-in is protected, with optional two-factor authentication per account.</p></div></div>
-      <div class="trust-item"><div class="ic">●</div><div><h5>Role-based permissions</h5><p>Every user sees and does exactly what their role allows.</p></div></div>
-      <div class="trust-item"><div class="ic">●</div><div><h5>Tenant isolation</h5><p>Each company's data is fully separated at the database level.</p></div></div>
-      <div class="trust-item"><div class="ic">●</div><div><h5>Full audit trails</h5><p>Every record change is logged — who, what and when.</p></div></div>
-      <div class="trust-item"><div class="ic">●</div><div><h5>Approval workflows</h5><p>AI-recommended actions post only after a human approves them.</p></div></div>
-      <div class="trust-item"><div class="ic">●</div><div><h5>Immutable posted transactions</h5><p>A posted, reconciled record can be reversed, never silently edited.</p></div></div>
+    <div class="aud-row">
+      <div class="aud-lead"><div class="eyebrow">Built for</div><h3>The people who run the numbers</h3></div>
+      <div class="aud-item"><b>Business owners</b><span>Understand the business without becoming an accountant.</span></div>
+      <div class="aud-item"><b>Finance teams</b><span>Less data entry, more judgment calls.</span></div>
+      <div class="aud-item"><b>Accountants</b><span>Close faster across every client company.</span></div>
+      <div class="aud-item"><b>Growing companies</b><span>Scale finance without the complexity.</span></div>
     </div>
   </div>
 </section>
 
-<!-- 11. WHO IT'S FOR -->
-<section class="canvas" id="audience">
-  <div class="wrap">
-    <div class="sec-head">
-      <div class="eyebrow">Who is Finloraq for?</div>
-      <h2 style="margin-top:12px">Built for the people who run the numbers.</h2>
-    </div>
-    <div class="aud-grid">
-      <div class="aud-card"><div class="eyebrow">Business owners</div><h4 style="font-size:16px;margin-top:2px">Understand your business</h4><p style="font-size:13.5px;color:var(--ink-muted);margin-top:8px">Without becoming an accounting expert.</p></div>
-      <div class="aud-card"><div class="eyebrow">Finance teams</div><h4 style="font-size:16px;margin-top:2px">Automate the repetitive work</h4><p style="font-size:13.5px;color:var(--ink-muted);margin-top:8px">Free up time for judgment calls, not data entry.</p></div>
-      <div class="aud-card"><div class="eyebrow">Accountants</div><h4 style="font-size:16px;margin-top:2px">Close faster</h4><p style="font-size:13.5px;color:var(--ink-muted);margin-top:8px">With better visibility into every client company.</p></div>
-      <div class="aud-card"><div class="eyebrow">Growing companies</div><h4 style="font-size:16px;margin-top:2px">Scale finance</h4><p style="font-size:13.5px;color:var(--ink-muted);margin-top:8px">Without unnecessary complexity along the way.</p></div>
-    </div>
-  </div>
-</section>
-
-<!-- 12. PRICING -->
+<!-- 6. PRICING -->
 <section class="canvas" style="background:var(--canvas-2);border-top:1px solid var(--line);border-bottom:1px solid var(--line)" id="pricing">
   <div class="wrap">
     <div class="sec-head">
@@ -808,6 +693,7 @@ const BODY_HTML_AFTER_HERO = `<!-- 2. LIVE PRODUCT PREVIEW / TRY THE DEMO -->
       </label>
       <p class="cur-note" id="fq-cur-note">Fixed prices in AED. You're charged exactly what you see.</p>
     </div>
+    <p class="swipe-hint" aria-hidden="true">Swipe to compare plans →</p>
     <div class="price-grid">
       <div class="plan">
         <div class="pname">Starter</div>
@@ -853,20 +739,15 @@ const BODY_HTML_AFTER_HERO = `<!-- 2. LIVE PRODUCT PREVIEW / TRY THE DEMO -->
   </div>
 </section>
 
-<!-- 13. FAQ -->
+<!-- 7. FAQ -->
 <section class="canvas" id="faq">
   <div class="wrap">
     <div class="sec-head" style="margin-bottom:8px"><div class="eyebrow">FAQ</div><h2 style="margin-top:12px">Questions, answered plainly.</h2></div>
     <div class="faq">
-      <details class="faq-item" open><summary class="faq-q">What is Finloraq?<svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></summary><div class="faq-a">An AI Finance Operating System — real double-entry accounting plus AI that explains what happened, why, and what to do next.</div></details>
-      <details class="faq-item"><summary class="faq-q">Is Finloraq accounting software?<svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></summary><div class="faq-a">Yes, at its core — general ledger, P&amp;L, balance sheet, AR/AP and tax are all built in. The AI layer sits on top of that foundation, not instead of it.</div></details>
-      <details class="faq-item"><summary class="faq-q">How does the AI work?<svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></summary><div class="faq-a">Six specialized agents (AP, AR, Cash, Close, Tax, CFO) monitor your books and recommend actions. They draft and flag — they don't post anything without your approval.</div></details>
+      <details class="faq-item" open><summary class="faq-q">What is Finloraq?<svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></summary><div class="faq-a">An AI Finance Operating System: full double-entry accounting software (ledger, P&amp;L, balance sheet, AR/AP, tax) with AI on top that explains what happened, why, and what to do next.</div></details>
       <details class="faq-item"><summary class="faq-q">Can AI change my accounting records?<svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></summary><div class="faq-a">No. AI recommends and drafts; a person approves before anything posts. Posted, reconciled records stay immutable.</div></details>
-      <details class="faq-item"><summary class="faq-q">What is Business Pulse?<svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></summary><div class="faq-a">A single view of the financial signals that matter most — cash, revenue, receivables, anomalies and a daily action list.</div></details>
-      <details class="faq-item"><summary class="faq-q">What is the What-If Simulator?<svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></summary><div class="faq-a">A modeling tool that shows the projected cash, profit and runway impact of a scenario — without changing any actual accounting record.</div></details>
       <details class="faq-item"><summary class="faq-q">Who is Finloraq for?<svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></summary><div class="faq-a">Business owners, finance teams, accountants and growing companies who want clarity without hiring a full finance department.</div></details>
-      <details class="faq-item"><summary class="faq-q">Can Finloraq support multiple companies?<svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></summary><div class="faq-a">Yes — one login can belong to multiple companies, useful for accountants and multi-entity businesses.</div></details>
-      <details class="faq-item"><summary class="faq-q">Can Finloraq support multiple currencies?<svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></summary><div class="faq-a">Yes, multi-currency is part of the core accounting foundation.</div></details>
+      <details class="faq-item"><summary class="faq-q">Does it handle multiple companies and currencies?<svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></summary><div class="faq-a">Yes. One login can manage several companies, and multi-currency is part of the core accounting.</div></details>
       <details class="faq-item"><summary class="faq-q">Is my data secure?<svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></summary><div class="faq-a">Data is encrypted, tenant-isolated per company, and every change is captured in an audit trail. We only publish compliance certifications once they're actually verified.</div></details>
       <details class="faq-item"><summary class="faq-q">Does Finloraq support UAE VAT?<svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></summary><div class="faq-a">Yes — the UAE VAT pack, including tax codes and readiness checks, is available today.</div></details>
       <details class="faq-item"><summary class="faq-q">What countries will be supported?<svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></summary><div class="faq-a">The UAE is live today. Multi-currency and multi-company work with any market; additional country-specific tax packs are on the roadmap.</div></details>
@@ -874,7 +755,7 @@ const BODY_HTML_AFTER_HERO = `<!-- 2. LIVE PRODUCT PREVIEW / TRY THE DEMO -->
   </div>
 </section>
 
-<!-- 14. FINAL CTA -->
+<!-- 8. FINAL CTA -->
 <section class="final-cta">
   <div class="wrap">
     <h2>Your business is moving.<br>Your finance platform should keep up.</h2>
@@ -892,7 +773,7 @@ const BODY_HTML_AFTER_HERO = `<!-- 2. LIVE PRODUCT PREVIEW / TRY THE DEMO -->
       <div class="brand-mark" style="color:#fff"><span class="dot"></span>FINLORAQ</div>
       <p style="margin-top:14px;font-size:13px;max-width:32ch;line-height:1.6">AI Finance Operating System — accounting foundation, AI intelligence, human-controlled automation.</p>
     </div>
-    <div><h6>Product</h6><ul><li><a href="#foundation">Accounting</a></li><li><a href="#pulse">Business Pulse</a></li><li><a href="#agents">AI Finance</a></li><li><a href="#agents">Finance Agents</a></li><li><a href="#whatif-full">What-If</a></li><li><a href="#demo">Forecasting</a></li></ul></div>
+    <div><h6>Product</h6><ul><li><a href="#foundation">Accounting</a></li><li><a href="#demo">Business Pulse</a></li><li><a href="#agents">AI Finance</a></li><li><a href="#agents">Finance Agents</a></li><li><a href="#demo">What-If</a></li><li><a href="#demo">Forecasting</a></li></ul></div>
     <div><h6>Solutions</h6><ul><li><a href="#audience">Business Owners</a></li><li><a href="#audience">Finance Teams</a></li><li><a href="#audience">Accountants</a></li><li><a href="#audience">Growing Companies</a></li></ul></div>
     <div><h6>Resources</h6><ul><li><a href="#">Documentation</a></li><li><a href="#">Help Center</a></li><li><a href="#">Blog</a></li><li><a href="#">Guides</a></li><li><a href="#">API</a></li></ul></div>
     <div><h6>Company</h6><ul><li><a href="#">About</a></li><li><a href="#">Contact</a></li><li><a href="#">Security</a></li><li><a href="#">Privacy</a></li><li><a href="#">Terms</a></li></ul></div>
@@ -917,6 +798,19 @@ export function MarketingHomePage() {
     navBtns.forEach(function(btn){
       btn.addEventListener('click', function(){ showPanel(btn.getAttribute('data-pulse-nav')); });
     });
+
+    // Old deep links (the page used to have separate Pulse / What-If sections):
+    // /#whatif-full and /#whatif open the demo on its What-If tab, /#pulse on the dashboard.
+    function openFromHash(){
+      var h = location.hash;
+      if (h === '#whatif-full' || h === '#whatif' || h === '#pulse') {
+        showPanel(h === '#pulse' ? 'dashboard' : 'whatif');
+        var demo = document.getElementById('demo');
+        if (demo) setTimeout(function(){ demo.scrollIntoView({block:'start'}); }, 0);
+      }
+    }
+    openFromHash();
+    window.addEventListener('hashchange', openFromHash);
 
     // AI Copilot canned answers
     var answers = {
@@ -962,8 +856,9 @@ export function MarketingHomePage() {
       document.getElementById('wf-hire-v').textContent = '+' + h + ' employees';
       document.getElementById('wf-cost-v').textContent = '+' + c + '%';
 
-      var cashImpact = (s * -0.9) + (d * -0.8) + (h * -2.2) + (c * -0.6);
-      var profitImpact = (s * -0.55) + (h * -1.1) + (c * -0.5);
+      // s is a % change in sales: a drop (negative s) must reduce cash and profit.
+      var cashImpact = (s * 0.9) + (d * -0.8) + (h * -2.2) + (c * -0.6);
+      var profitImpact = (s * 0.55) + (h * -1.1) + (c * -0.5);
       var runway = (cashImpact / 24);
 
       var cashEl = document.getElementById('wf-cash');
