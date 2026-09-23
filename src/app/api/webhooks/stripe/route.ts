@@ -67,12 +67,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ received: true, handled: false, note: "Event has no customer." });
   }
 
+  let linked: boolean;
   try {
-    await syncStripeCustomer(customerId, hintCompanyId);
+    linked = await syncStripeCustomer(customerId, hintCompanyId);
   } catch (err) {
     console.error(`[stripe webhook] ${event.type} ${event.id} sync failed:`, err);
     return NextResponse.json({ error: "Sync failed." }, { status: 500 });
   }
 
-  return NextResponse.json({ received: true, handled: true });
+  return NextResponse.json({ received: true, handled: linked, ...(linked ? {} : { note: "Customer is not linked to a Finloraq company; ignored." }) });
 }
