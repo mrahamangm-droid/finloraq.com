@@ -240,7 +240,7 @@ export async function hasActiveStripeSubscription(companyId: string): Promise<bo
  * Stripe subscriptions. No entitling subscription → back to the free
  * Starter plan.
  */
-export async function syncStripeCustomer(customerId: string, hintCompanyId?: string | null): Promise<void> {
+export async function syncStripeCustomer(customerId: string, hintCompanyId?: string | null): Promise<boolean> {
   let row = await prisma.subscription.findFirst({ where: { providerCustomerId: customerId } });
   if (!row) {
     let companyId = hintCompanyId ?? null;
@@ -248,9 +248,11 @@ export async function syncStripeCustomer(customerId: string, hintCompanyId?: str
       const customer = await stripe("GET", `/customers/${customerId}`);
       companyId = customer?.metadata?.companyId ?? null;
     }
-    if (!companyId) throw new Error(`Stripe customer ${customerId} is not linked to any company.`);
+    // Not a Finloraq customer (e.g. another product on the same Stripe
+    // account, or a dashboard test fixture) — nothing to sync, not an error.
+    if (!companyId) return false;
     row = await prisma.subscription.findUnique({ where: { companyId } });
-    if (!row) throw new Error(`No subscription row for company ${companyId}.`);
+    if (!row) return false;
   }
 
   const list = await stripe<{ data: any[] }>("GET", "/subscriptions", {
@@ -273,7 +275,7 @@ export async function syncStripeCustomer(customerId: string, hintCompanyId?: str
     row.provider !== "stripe" ||
     row.providerCustomerId !== customerId ||
     (row.currentPeriodEnd?.getTime() ?? null) !== (currentPeriodEnd?.getTime() ?? null);
-  if (!changed) return;
+  if (!changed) return true;
 
   await prisma.subscription.update({
     where: { id: row.id },
@@ -289,6 +291,7 @@ export async function syncStripeCustomer(customerId: string, hintCompanyId?: str
     newValue: { plan, status, provider: "stripe", stripeSubscriptionId: live?.id ?? null, mode: stripeMode() },
     source: "system",
   });
+  return true;
 }
 
 /**
