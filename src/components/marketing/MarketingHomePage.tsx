@@ -310,6 +310,7 @@ const STYLE = `
   #fm-root .plan.feat{border-color:var(--brand);box-shadow:0 0 0 1px var(--brand)}
   #fm-root .plan .pname{font-weight:800;font-size:15px}
   #fm-root .plan .pprice{font-family:var(--font-mono);font-size:24px;font-weight:700}
+  #fm-root .plan .pusd{font-size:12px;color:var(--ink-muted);margin-top:2px}
   #fm-root .plan .pprice small{font-family:var(--font-body);font-size:12px;font-weight:600;color:var(--ink-muted)}
   #fm-root .plan ul{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px;font-size:12.5px;color:var(--ink-muted);flex:1}
   #fm-root .plan li{display:flex;gap:7px}
@@ -760,12 +761,12 @@ const BODY_HTML_AFTER_HERO = `<!-- 2. LIVE PRODUCT PREVIEW / TRY THE DEMO -->
     <div class="sec-head">
       <div class="eyebrow">Pricing</div>
       <h2 style="margin-top:12px">Simple plans that grow with you.</h2>
-      <p>Start free. Upgrade when you need more people, more AI or more automation. Prices in USD, billed monthly through Stripe, cancel anytime.</p>
+      <p>Start free. Upgrade when you need more people, more AI or more automation. Billed monthly, cancel anytime. Prices include VAT where it applies; outside the UAE you pay the US$ price.</p>
     </div>
     <div class="price-grid">
       <div class="plan">
         <div class="pname">Starter</div>
-        <div class="pprice num">$0<small>/mo</small></div>
+        <div class="pprice num">Free</div><div class="pusd">Free forever · no card needed</div>
         <ul>
           <li>✓ Double-entry accounting &amp; reports</li><li>✓ Invoices, bills &amp; expenses</li><li>✓ UAE VAT tax codes</li><li>✓ 2 users · 20 AI actions/mo</li>
         </ul>
@@ -773,7 +774,7 @@ const BODY_HTML_AFTER_HERO = `<!-- 2. LIVE PRODUCT PREVIEW / TRY THE DEMO -->
       </div>
       <div class="plan">
         <div class="pname">Growth</div>
-        <div class="pprice num">$49<small>/mo</small></div>
+        <div class="pprice num">AED 179<small>/mo</small></div><div class="pusd">US$49/mo outside the UAE</div>
         <ul>
           <li>✓ Everything in Starter</li><li>✓ Receipt &amp; invoice reading (AI)</li><li>✓ E-invoicing</li><li>✓ Bank reconciliation</li><li>✓ 5 users · 200 AI actions/mo</li>
         </ul>
@@ -781,7 +782,7 @@ const BODY_HTML_AFTER_HERO = `<!-- 2. LIVE PRODUCT PREVIEW / TRY THE DEMO -->
       </div>
       <div class="plan feat">
         <div class="pname">Professional</div>
-        <div class="pprice num">$149<small>/mo</small></div>
+        <div class="pprice num">AED 549<small>/mo</small></div><div class="pusd">US$149/mo outside the UAE</div>
         <ul>
           <li>✓ Everything in Growth</li><li>✓ Cash-flow intelligence</li><li>✓ Projects &amp; cost centres</li><li>✓ Voice commands &amp; API access</li><li>✓ 15 users · 1,000 AI actions/mo</li>
         </ul>
@@ -789,7 +790,7 @@ const BODY_HTML_AFTER_HERO = `<!-- 2. LIVE PRODUCT PREVIEW / TRY THE DEMO -->
       </div>
       <div class="plan">
         <div class="pname">AI CFO</div>
-        <div class="pprice num">$299<small>/mo</small></div>
+        <div class="pprice num">AED 1,099<small>/mo</small></div><div class="pusd">US$299/mo outside the UAE</div>
         <ul>
           <li>✓ Everything in Professional</li><li>✓ Multi-company</li><li>✓ Priority support</li><li>✓ 30 users · 5,000 AI actions/mo</li>
         </ul>
