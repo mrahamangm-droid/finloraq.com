@@ -5,6 +5,8 @@ const REPORTS = [
   { href: "/accounting/reports/trial-balance", name: "Trial Balance", description: "Every account's debit/credit balance from posted entries." },
   { href: "/accounting/reports/profit-and-loss", name: "Profit & Loss", description: "Revenue and expenses for the current month." },
   { href: "/accounting/reports/balance-sheet", name: "Balance Sheet", description: "Assets, liabilities and equity as of today." },
+  { href: "/reports/ledger?period=monthly", name: "Ledger — Monthly", description: "Every posted entry per account for a month, with opening, running and closing balances." },
+  { href: "/reports/ledger?period=yearly", name: "Ledger — Yearly", description: "Month-by-month debits, credits and closing balance per account for a full year." },
   { href: "/reports/ar-aging", name: "AR Aging", description: "Outstanding customer invoices by days overdue." },
   { href: "/reports/ap-aging", name: "AP Aging", description: "Outstanding supplier bills by days overdue." },
   { href: "/taxes", name: "VAT Return", description: "Output tax vs input tax for the period." },
