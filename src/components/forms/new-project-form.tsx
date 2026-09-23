@@ -39,7 +39,7 @@ export function NewProjectForm({ customers }: { customers: { id: string; name: s
   }
 
   return (
-    <form onSubmit={submit} className="grid grid-cols-5 gap-3 rounded-lg border border-border bg-card p-4">
+    <form onSubmit={submit} className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5 rounded-lg border border-border bg-card p-4">
       <input required placeholder="Project name" value={name} onChange={(e) => setName(e.target.value)} className="rounded-md border border-border bg-background px-3 py-2 text-sm" />
       <input required placeholder="Code" value={code} onChange={(e) => setCode(e.target.value)} className="rounded-md border border-border bg-background px-3 py-2 text-sm" />
       <select value={customerId} onChange={(e) => setCustomerId(e.target.value)} className="rounded-md border border-border bg-background px-3 py-2 text-sm">
@@ -50,7 +50,7 @@ export function NewProjectForm({ customers }: { customers: { id: string; name: s
       <button type="submit" disabled={loading} className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
         {loading ? "Adding…" : "Add project"}
       </button>
-      {error && <p className="col-span-5 text-sm text-destructive">{error}</p>}
+      {error && <p className="col-span-full text-sm text-destructive">{error}</p>}
     </form>
   );
 }
