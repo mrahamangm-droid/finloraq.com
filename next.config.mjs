@@ -7,6 +7,22 @@ const nextConfig = {
     // external since it loads its query engine binary at runtime.
     serverComponentsExternalPackages: ["@prisma/client"],
   },
+  // One public address. Once CANONICAL_HOST is set in Vercel (e.g.
+  // "finloraq.com", only after that domain is live), visits to the old
+  // finloraq-app.vercel.app address are sent there permanently. Stripe keeps
+  // posting to /api/webhooks/* on the old host, so those are never redirected.
+  async redirects() {
+    const canonical = process.env.CANONICAL_HOST;
+    if (!canonical) return [];
+    return [
+      {
+        source: "/:path((?!api/webhooks/).*)",
+        has: [{ type: "host", value: "finloraq-app.vercel.app" }],
+        destination: `https://${canonical}/:path`,
+        permanent: true,
+      },
+    ];
+  },
   async headers() {
     return [
       {
