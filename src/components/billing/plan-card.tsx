@@ -4,8 +4,25 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check } from "lucide-react";
 import type { PlanDefinition } from "@/lib/billing/plans";
+import {
+  BILLING_CURRENCIES,
+  BILLING_CURRENCY_LABELS,
+  CURRENCY_COOKIE,
+  formatMoney,
+  type BillingCurrency,
+} from "@/lib/billing/currency";
 
-export function PlanCard({ def, isCurrent, canEdit }: { def: PlanDefinition; isCurrent: boolean; canEdit: boolean }) {
+export function PlanCard({
+  def,
+  isCurrent,
+  canEdit,
+  currency = "usd",
+}: {
+  def: PlanDefinition;
+  isCurrent: boolean;
+  canEdit: boolean;
+  currency?: BillingCurrency;
+}) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -18,7 +35,7 @@ export function PlanCard({ def, isCurrent, canEdit }: { def: PlanDefinition; isC
     const res = await fetch("/api/billing/change-plan", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ plan: def.plan }),
+      body: JSON.stringify({ plan: def.plan, currency }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
@@ -50,10 +67,10 @@ export function PlanCard({ def, isCurrent, canEdit }: { def: PlanDefinition; isC
         {isCurrent && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">Current</span>}
       </div>
       <div className="mb-2 text-2xl font-bold text-card-foreground">
-        {isEnterprise ? "Custom" : def.monthlyPriceUsd === 0 ? "Free" : `AED ${def.monthlyPriceAed.toLocaleString("en-US")}`}
+        {isEnterprise ? "Custom" : def.monthlyPriceUsd === 0 ? "Free" : formatMoney(def.prices[currency], currency)}
         {!isEnterprise && def.monthlyPriceUsd > 0 && <span className="text-sm font-normal text-muted-foreground">/mo</span>}
         {!isEnterprise && def.monthlyPriceUsd > 0 && (
-          <div className="text-xs font-normal text-muted-foreground">US${def.monthlyPriceUsd}/mo outside the UAE · incl. VAT</div>
+          <div className="text-xs font-normal text-muted-foreground">Billed in {currency.toUpperCase()} · incl. VAT where applicable</div>
         )}
       </div>
       <p className="mb-3 text-xs text-muted-foreground">{def.description}</p>
@@ -117,5 +134,30 @@ export function ManageBillingButton() {
       </button>
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
+  );
+}
+
+/** Picks the currency new subscriptions are charged in. Saved in a cookie shared with the homepage switcher. */
+export function CurrencyPicker({ value }: { value: BillingCurrency }) {
+  const router = useRouter();
+  return (
+    <label className="flex items-center gap-2 text-xs text-muted-foreground">
+      Currency
+      <select
+        value={value}
+        onChange={(e) => {
+          document.cookie = `${CURRENCY_COOKIE}=${e.target.value.toUpperCase()}; Max-Age=31536000; Path=/; SameSite=Lax`;
+          router.refresh();
+        }}
+        className="rounded-md border border-border bg-card px-2 py-1 text-xs text-card-foreground"
+        aria-label="Billing currency"
+      >
+        {BILLING_CURRENCIES.map((c) => (
+          <option key={c} value={c}>
+            {c.toUpperCase()} — {BILLING_CURRENCY_LABELS[c]}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
