@@ -1,3 +1,4 @@
+import { withApiErrors } from "@/lib/api";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireTenantContext } from "@/lib/tenant";
@@ -13,7 +14,7 @@ const schema = z.object({ transcript: z.string().min(1).max(2000) });
  * separately POST to /api/voice/confirm to actually execute. This route
  * never has side effects itself.
  */
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   const { active, userId } = await requireTenantContext();
   await requirePermission(active.id, "ai_copilot", "CREATE");
 
@@ -31,3 +32,5 @@ export async function POST(req: Request) {
 
   return NextResponse.json(result);
 }
+
+export const POST = withApiErrors(handlePOST);
