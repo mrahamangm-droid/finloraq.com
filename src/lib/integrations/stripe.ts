@@ -41,6 +41,16 @@ export function isStripeConfigured(): boolean {
   return Boolean(process.env.STRIPE_SECRET_KEY);
 }
 
+/**
+ * Stripe Tax is switched on only once the seller's UAE VAT registration is
+ * added in Stripe (Dashboard → Tax → Registrations) and STRIPE_AUTOMATIC_TAX
+ * is set to "true". Until then no VAT is charged; because prices are
+ * VAT-inclusive the customer pays the same total either way.
+ */
+export function isStripeTaxEnabled(): boolean {
+  return process.env.STRIPE_AUTOMATIC_TAX === "true";
+}
+
 export function stripeMode(): "test" | "live" | null {
   return stripeModeFromKey(process.env.STRIPE_SECRET_KEY);
 }
@@ -78,14 +88,24 @@ async function ensurePlanPriceWithProduct(plan: SubscriptionPlan): Promise<{ pri
   if (def.monthlyPriceUsd <= 0) throw new Error(`${def.label} is not a self-serve paid plan.`);
   const lookupKey = planLookupKey(plan);
   const unitAmount = Math.round(def.monthlyPriceUsd * 100);
+  const aedAmount = Math.round(def.monthlyPriceAed * 100);
 
   const existing = await stripe<{ data: any[] }>("GET", "/prices", {
     lookup_keys: [lookupKey],
     active: true,
-    expand: ["data.product"],
+    expand: ["data.product", "data.currency_options"],
   });
   const current = existing.data[0];
-  if (current && current.unit_amount === unitAmount && current.currency === "usd" && current.recurring?.interval === "month") {
+  const aedOption = current?.currency_options?.aed;
+  if (
+    current &&
+    current.unit_amount === unitAmount &&
+    current.currency === "usd" &&
+    current.recurring?.interval === "month" &&
+    current.tax_behavior === "inclusive" &&
+    aedOption?.unit_amount === aedAmount &&
+    aedOption?.tax_behavior === "inclusive"
+  ) {
     return { priceId: current.id, productId: typeof current.product === "string" ? current.product : current.product.id };
   }
 
@@ -104,6 +124,10 @@ async function ensurePlanPriceWithProduct(plan: SubscriptionPlan): Promise<{ pri
     product: productId,
     unit_amount: unitAmount,
     currency: "usd",
+    // VAT-inclusive in both currencies (UAE displayed-price rule; Checkout
+    // also needs tax_behavior per currency to localise once Stripe Tax is on).
+    tax_behavior: "inclusive",
+    currency_options: { aed: { unit_amount: aedAmount, tax_behavior: "inclusive" } },
     recurring: { interval: "month" },
     lookup_key: lookupKey,
     transfer_lookup_key: true,
@@ -198,6 +222,11 @@ export async function createCheckoutSession(input: {
     client_reference_id: input.companyId,
     line_items: [{ price: priceId, quantity: 1 }],
     allow_promotion_codes: true,
+    // Business customers can add their TRN so invoices support input-VAT recovery.
+    tax_id_collection: { enabled: true },
+    customer_update: isStripeTaxEnabled() ? { name: "auto", address: "auto" } : { name: "auto" },
+    billing_address_collection: isStripeTaxEnabled() ? "required" : "auto",
+    ...(isStripeTaxEnabled() ? { automatic_tax: { enabled: true } } : {}),
     success_url: `${input.origin}/billing?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${input.origin}/billing?checkout=cancelled`,
     metadata: { companyId: input.companyId, plan: input.plan, userId: input.userId },
