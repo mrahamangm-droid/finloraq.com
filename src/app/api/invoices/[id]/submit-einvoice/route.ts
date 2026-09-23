@@ -1,3 +1,4 @@
+import { withApiErrors } from "@/lib/api";
 import { NextResponse } from "next/server";
 import { requireTenantContext } from "@/lib/tenant";
 import { requirePermission } from "@/lib/rbac";
@@ -5,7 +6,7 @@ import { getEInvoicingAdapter } from "@/lib/integrations/einvoicing";
 import { prisma } from "@/lib/db";
 import { planDefinition } from "@/lib/billing/plans";
 
-export async function POST(_req: Request, { params }: { params: { id: string } }) {
+async function handlePOST(_req: Request, { params }: { params: { id: string } }) {
   const { active } = await requireTenantContext();
   await requirePermission(active.id, "invoices", "EXPORT"); // submitting externally is treated as an export-level action
 
@@ -24,3 +25,5 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     return NextResponse.json({ error: err instanceof Error ? err.message : "Submission failed." }, { status: 400 });
   }
 }
+
+export const POST = withApiErrors(handlePOST);
