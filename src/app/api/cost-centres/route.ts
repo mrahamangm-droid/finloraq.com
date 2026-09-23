@@ -1,3 +1,4 @@
+import { withApiErrors } from "@/lib/api";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireTenantContext } from "@/lib/tenant";
@@ -5,7 +6,7 @@ import { createCostCentre } from "@/lib/costCentres";
 
 const schema = z.object({ name: z.string().min(1), code: z.string().min(1) });
 
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   const { active, userId } = await requireTenantContext();
   const parsed = schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
@@ -22,3 +23,5 @@ export async function POST(req: Request) {
 
   return NextResponse.json({ id: costCentre.id });
 }
+
+export const POST = withApiErrors(handlePOST);
