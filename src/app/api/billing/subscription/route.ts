@@ -1,3 +1,4 @@
+import { withApiErrors } from "@/lib/api";
 import { NextResponse } from "next/server";
 import { requireTenantContext } from "@/lib/tenant";
 import { getBillingSnapshot } from "@/lib/billing/subscription";
@@ -7,8 +8,10 @@ import { getBillingSnapshot } from "@/lib/billing/subscription";
 // (it's what a Staff member sees on the Billing page too); only actually
 // CHANGING the plan requires settings:EDIT, enforced in
 // /api/billing/change-plan.
-export async function GET() {
+async function handleGET() {
   const { active } = await requireTenantContext();
   const snapshot = await getBillingSnapshot(active.companyId);
   return NextResponse.json(snapshot);
 }
+
+export const GET = withApiErrors(handleGET);
