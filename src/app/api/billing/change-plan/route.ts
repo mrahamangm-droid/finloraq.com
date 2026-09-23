@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { BILLING_CURRENCIES } from "@/lib/billing/currency";
 import { requireTenantContext } from "@/lib/tenant";
 import { requirePermission } from "@/lib/rbac";
 import { changePlan } from "@/lib/billing/subscription";
@@ -12,6 +13,7 @@ import {
 
 const schema = z.object({
   plan: z.enum(["STARTER", "GROWTH", "PROFESSIONAL", "AI_CFO", "ENTERPRISE"]),
+  currency: z.enum(BILLING_CURRENCIES).optional(),
 });
 
 function appOrigin(req: Request): string {
@@ -56,6 +58,7 @@ export async function POST(req: Request) {
           userId,
           plan: parsed.data.plan,
           origin,
+          currency: parsed.data.currency,
         });
         return NextResponse.json({ redirectUrl });
       }
