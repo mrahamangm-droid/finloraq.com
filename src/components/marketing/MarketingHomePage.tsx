@@ -29,7 +29,6 @@
 import { useEffect } from "react";
 import { PLANS } from "@/lib/billing/plans";
 import { CURRENCY_COOKIE, DISPLAY_CURRENCIES, formatMoney, isBillingCurrency, roundApprox } from "@/lib/billing/currency";
-import { HowFinloraqWorks } from "./how-it-works/HowFinloraqWorks";
 
 const STYLE = `
   #fm-root{
@@ -320,6 +319,23 @@ const STYLE = `
   #fm-root .trust-item p{color:var(--on-navy-muted);font-size:12.5px;line-height:1.5}
 
   /* ---------- Audience ---------- */
+  /* Merged "Why Finloraq" section */
+  #fm-root section.why{padding-block:72px}
+  #fm-root .why-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+  #fm-root .why-card{background:var(--navy-2);border:1px solid var(--navy-line);border-radius:var(--r-lg);padding:22px;scroll-margin-top:90px}
+  #fm-root .why-card h4{color:#fff;font-size:16px}
+  #fm-root .why-card p{color:var(--on-navy-muted);font-size:13.5px;margin-top:8px;line-height:1.55}
+  #fm-root .why-card .ft-list{margin-top:12px;gap:10px}
+  #fm-root .why-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}
+  #fm-root .why-tags span{font-size:12px;font-weight:700;color:#fff;background:rgba(255,255,255,.06);border:1px solid var(--navy-line);border-radius:999px;padding:5px 10px}
+  #fm-root .why-aud{display:flex;flex-wrap:wrap;align-items:center;gap:10px 22px;margin-top:22px;padding-top:20px;border-top:1px solid var(--navy-line);font-size:13.5px;color:var(--on-navy-muted);scroll-margin-top:90px}
+  #fm-root .why-aud b{color:#fff}
+  #fm-root .why-aud-lead{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#9C93F7;font-weight:700}
+  @media (max-width:900px){ #fm-root .why-grid{grid-template-columns:1fr} }
+  @media (max-width:720px){ #fm-root section.why{padding-block:56px} #fm-root .why-aud{flex-direction:column;align-items:flex-start;gap:8px} }
+  #fm-root .hero-more{display:inline-block;margin-top:18px;font-size:14px;font-weight:600;color:#C9C3FF;text-decoration:none}
+  #fm-root .hero-more:hover{text-decoration:underline}
+  #fm-root .sec-head p a{color:var(--brand)}
   #fm-root .aud-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
   /* Compact audience strip */
   #fm-root section.aud-strip{padding-block:40px;border-bottom:1px solid var(--line)}
@@ -394,12 +410,11 @@ const BODY_HTML = `<header class="nav">
   <div class="wrap nav-row">
     <div class="brand-mark"><span class="dot"></span>FINLORAQ</div>
     <nav class="links">
-      <a href="#how-it-works">How it works</a>
-      <a href="#demo">Products</a>
-      <a href="#audience">Solutions</a>
-      <a href="#agents">AI Finance</a>
-      <a href="#foundation">Resources</a>
+      <a href="/how-it-works">How it works</a>
+      <a href="#demo">Demo</a>
+      <a href="#why">Why Finloraq</a>
       <a href="#pricing">Pricing</a>
+      <a href="#faq">FAQ</a>
     </nav>
     <div class="nav-right">
       <a class="btn btn-ghost btn-sm" href="/login">Sign In</a>
@@ -407,12 +422,11 @@ const BODY_HTML = `<header class="nav">
       <details class="mnav">
         <summary aria-label="Open menu"><span></span><span></span><span></span></summary>
         <nav class="mnav-panel" aria-label="Main menu">
-          <a href="#how-it-works">How it works</a>
-          <a href="#demo">Products</a>
-          <a href="#audience">Solutions</a>
-          <a href="#agents">AI Finance</a>
-          <a href="#foundation">Resources</a>
+          <a href="/how-it-works">How it works</a>
+          <a href="#demo">Demo</a>
+          <a href="#why">Why Finloraq</a>
           <a href="#pricing">Pricing</a>
+          <a href="#faq">FAQ</a>
           <a href="/ai-accounting">AI Accounting</a>
           <a href="/ai-cfo">AI CFO</a>
           <a href="/cash-flow-forecasting">Cash Flow Forecasting</a>
@@ -437,6 +451,7 @@ const BODY_HTML = `<header class="nav">
       <a class="btn btn-primary" href="/register">Start Free</a>
       <a class="btn btn-ghost on-navy" href="#demo">Explore the Demo</a>
     </div>
+    <a class="hero-more" href="/how-it-works">See how Finloraq works →</a>
     <div class="trust-line">
       <span>Accounting foundation</span><span class="sep"></span><span>AI intelligence</span><span class="sep"></span><span>Human-controlled automation</span>
     </div>
@@ -445,8 +460,8 @@ const BODY_HTML = `<header class="nav">
 
 `;
 
-// Everything after the hero. The "How Finloraq works" section is rendered
-// between the two halves as a React component (see HowFinloraqWorks).
+// Everything after the hero. The 3D "How Finloraq works" walkthrough lives
+// on its own page (/how-it-works) to keep this page short.
 const BODY_HTML_AFTER_HERO = `<!-- 2. LIVE PRODUCT PREVIEW / TRY THE DEMO -->
 <section class="canvas" id="demo" style="background:var(--canvas-2);border-bottom:1px solid var(--line)">
   <div class="wrap">
@@ -599,70 +614,40 @@ const BODY_HTML_AFTER_HERO = `<!-- 2. LIVE PRODUCT PREVIEW / TRY THE DEMO -->
   </div>
 </section>
 
-<!-- 3. AI FINANCE TEAM -->
-<section class="on-navy" id="agents">
+<!-- 3. WHY FINLORAQ — AI team, accounting core, controls, audience -->
+<section class="on-navy why" id="why">
   <div class="wrap">
     <div class="sec-head">
-      <div class="eyebrow on-navy">Your finance team, always watching</div>
-      <h2 style="margin-top:12px;color:#fff">Six agents. One team.</h2>
+      <div class="eyebrow on-navy">Why Finloraq</div>
+      <h2 style="margin-top:12px;color:#fff">AI that does the work. Accounting you can trust.</h2>
       <p>AI recommends. You approve. Finloraq records. Nothing posts to your books without a human decision.</p>
     </div>
-    <div class="agent-grid">
-      <div class="agent-card"><div class="glyph">AP</div><h4>AP Agent</h4><p>Bills, duplicates, approvals and supplier costs.</p></div>
-      <div class="agent-card"><div class="glyph">AR</div><h4>AR Agent</h4><p>Receivables, overdue invoices and collections.</p></div>
-      <div class="agent-card"><div class="glyph">CA</div><h4>Cash Agent</h4><p>Cash flow, forecasts and upcoming pressure.</p></div>
-      <div class="agent-card"><div class="glyph">CL</div><h4>Close Agent</h4><p>Month-end close and reconciliation.</p></div>
-      <div class="agent-card"><div class="glyph">TX</div><h4>Tax Agent</h4><p>Tax readiness and transaction review.</p></div>
-      <div class="agent-card"><div class="glyph">CFO</div><h4>CFO Agent</h4><p>Business-level financial intelligence.</p></div>
-    </div>
-  </div>
-</section>
-
-<!-- 4. FOUNDATION + TRUST -->
-<section class="on-navy" id="foundation">
-  <div class="wrap">
-    <div class="sec-head">
-      <div class="eyebrow on-navy">Why you can rely on it</div>
-      <h2 style="margin-top:12px;color:#fff">Real accounting underneath. Real controls around it.</h2>
-      <p>Every insight traces back to posted, double-entry transactions, and nothing reaches your books without a person approving it.</p>
-    </div>
-    <div class="ft-grid">
-      <div class="ft-col">
-        <h5>The accounting core</h5>
-        <div class="found-grid">
-          <div class="found-item">Double-entry ledger</div>
-          <div class="found-item">P&amp;L &amp; balance sheet</div>
-          <div class="found-item">Cash flow</div>
-          <div class="found-item">AR / AP</div>
-          <div class="found-item">Banking &amp; reconciliation</div>
-          <div class="found-item">UAE VAT</div>
-          <div class="found-item">Multi-company</div>
-          <div class="found-item">Multi-currency</div>
-        </div>
+    <div class="why-grid">
+      <div class="why-card" id="agents">
+        <h4>Six AI agents, one finance team</h4>
+        <p>Always watching your bills, receivables, cash, close, tax and the big picture.</p>
+        <div class="why-tags"><span>AP</span><span>AR</span><span>Cash</span><span>Close</span><span>Tax</span><span>CFO</span></div>
       </div>
-      <div class="ft-col" id="trust">
-        <h5>The controls</h5>
+      <div class="why-card" id="foundation">
+        <h4>Real accounting underneath</h4>
+        <p>Every insight traces back to posted, double-entry transactions.</p>
+        <div class="why-tags"><span>Double-entry ledger</span><span>P&amp;L &amp; balance sheet</span><span>AR / AP</span><span>Bank reconciliation</span><span>UAE VAT</span><span>Multi-company &amp; currency</span></div>
+      </div>
+      <div class="why-card" id="trust">
+        <h4>You stay in control</h4>
         <ul class="ft-list">
-          <li><b>Human approval</b> — AI drafts; nothing posts until a person approves.</li>
-          <li><b>Immutable history</b> — posted records are reversed, never silently edited.</li>
-          <li><b>Full audit trail</b> — who changed what, and when.</li>
-          <li><b>Role-based access &amp; MFA</b> — each user sees only what their role allows.</li>
-          <li><b>Company isolation</b> — each company's data is separated at the database level.</li>
+          <li><b>Human approval</b> before anything posts</li>
+          <li><b>Immutable history</b> and a full audit trail</li>
+          <li><b>Roles, MFA</b> and per-company data isolation</li>
         </ul>
       </div>
     </div>
-  </div>
-</section>
-
-<!-- 5. WHO IT'S FOR -->
-<section class="canvas aud-strip" id="audience">
-  <div class="wrap">
-    <div class="aud-row">
-      <div class="aud-lead"><div class="eyebrow">Built for</div><h3>The people who run the numbers</h3></div>
-      <div class="aud-item"><b>Business owners</b><span>Understand the business without becoming an accountant.</span></div>
-      <div class="aud-item"><b>Finance teams</b><span>Less data entry, more judgment calls.</span></div>
-      <div class="aud-item"><b>Accountants</b><span>Close faster across every client company.</span></div>
-      <div class="aud-item"><b>Growing companies</b><span>Scale finance without the complexity.</span></div>
+    <div class="why-aud" id="audience">
+      <span class="why-aud-lead">Built for</span>
+      <span><b>Business owners</b> who want clarity</span>
+      <span><b>Finance teams</b> tired of data entry</span>
+      <span><b>Accountants</b> closing many companies</span>
+      <span><b>Growing companies</b> scaling finance</span>
     </div>
   </div>
 </section>
@@ -742,15 +727,12 @@ const BODY_HTML_AFTER_HERO = `<!-- 2. LIVE PRODUCT PREVIEW / TRY THE DEMO -->
 <!-- 7. FAQ -->
 <section class="canvas" id="faq">
   <div class="wrap">
-    <div class="sec-head" style="margin-bottom:8px"><div class="eyebrow">FAQ</div><h2 style="margin-top:12px">Questions, answered plainly.</h2></div>
+    <div class="sec-head" style="margin-bottom:8px"><div class="eyebrow">FAQ</div><h2 style="margin-top:12px">Questions, answered plainly.</h2><p>More in our <a href="/guides">guides</a>, or email <a href="mailto:hello@finloraq.com">hello@finloraq.com</a>.</p></div>
     <div class="faq">
       <details class="faq-item" open><summary class="faq-q">What is Finloraq?<svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></summary><div class="faq-a">An AI Finance Operating System: full double-entry accounting software (ledger, P&amp;L, balance sheet, AR/AP, tax) with AI on top that explains what happened, why, and what to do next.</div></details>
       <details class="faq-item"><summary class="faq-q">Can AI change my accounting records?<svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></summary><div class="faq-a">No. AI recommends and drafts; a person approves before anything posts. Posted, reconciled records stay immutable.</div></details>
-      <details class="faq-item"><summary class="faq-q">Who is Finloraq for?<svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></summary><div class="faq-a">Business owners, finance teams, accountants and growing companies who want clarity without hiring a full finance department.</div></details>
-      <details class="faq-item"><summary class="faq-q">Does it handle multiple companies and currencies?<svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></summary><div class="faq-a">Yes. One login can manage several companies, and multi-currency is part of the core accounting.</div></details>
       <details class="faq-item"><summary class="faq-q">Is my data secure?<svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></summary><div class="faq-a">Data is encrypted, tenant-isolated per company, and every change is captured in an audit trail. We only publish compliance certifications once they're actually verified.</div></details>
       <details class="faq-item"><summary class="faq-q">Does Finloraq support UAE VAT?<svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></summary><div class="faq-a">Yes — the UAE VAT pack, including tax codes and readiness checks, is available today.</div></details>
-      <details class="faq-item"><summary class="faq-q">What countries will be supported?<svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></summary><div class="faq-a">The UAE is live today. Multi-currency and multi-company work with any market; additional country-specific tax packs are on the roadmap.</div></details>
     </div>
   </div>
 </section>
@@ -773,10 +755,10 @@ const BODY_HTML_AFTER_HERO = `<!-- 2. LIVE PRODUCT PREVIEW / TRY THE DEMO -->
       <div class="brand-mark" style="color:#fff"><span class="dot"></span>FINLORAQ</div>
       <p style="margin-top:14px;font-size:13px;max-width:32ch;line-height:1.6">AI Finance Operating System — accounting foundation, AI intelligence, human-controlled automation.</p>
     </div>
-    <div><h6>Product</h6><ul><li><a href="#foundation">Accounting</a></li><li><a href="#demo">Business Pulse</a></li><li><a href="#agents">AI Finance</a></li><li><a href="#agents">Finance Agents</a></li><li><a href="#demo">What-If</a></li><li><a href="#demo">Forecasting</a></li></ul></div>
-    <div><h6>Solutions</h6><ul><li><a href="#audience">Business Owners</a></li><li><a href="#audience">Finance Teams</a></li><li><a href="#audience">Accountants</a></li><li><a href="#audience">Growing Companies</a></li></ul></div>
-    <div><h6>Resources</h6><ul><li><a href="#">Documentation</a></li><li><a href="#">Help Center</a></li><li><a href="#">Blog</a></li><li><a href="#">Guides</a></li><li><a href="#">API</a></li></ul></div>
-    <div><h6>Company</h6><ul><li><a href="#">About</a></li><li><a href="#">Contact</a></li><li><a href="#">Security</a></li><li><a href="#">Privacy</a></li><li><a href="#">Terms</a></li></ul></div>
+    <div><h6>Product</h6><ul><li><a href="/how-it-works">How it works</a></li><li><a href="#demo">Business Pulse</a></li><li><a href="/ai-accounting">AI Accounting</a></li><li><a href="/cash-flow-forecasting">Cash Flow Forecasting</a></li><li><a href="#agents">Finance Agents</a></li></ul></div>
+    <div><h6>Solutions</h6><ul><li><a href="/ai-cfo">AI CFO</a></li><li><a href="#audience">Business Owners</a></li><li><a href="#audience">Finance Teams</a></li><li><a href="#audience">Accountants</a></li></ul></div>
+    <div><h6>Resources</h6><ul><li><a href="/guides">Guides</a></li><li><a href="#faq">FAQ</a></li><li><a href="mailto:hello@finloraq.com">Help</a></li></ul></div>
+    <div><h6>Company</h6><ul><li><a href="mailto:hello@finloraq.com">About</a></li><li><a href="mailto:hello@finloraq.com">Contact</a></li><li><a href="#trust">Security</a></li></ul></div>
   </div>
   <div class="wrap foot-bottom"><span>© Finloraq</span><span>Demo content shown throughout is illustrative and does not represent a real customer.</span></div>
 </footer>`;
@@ -991,7 +973,6 @@ export function MarketingHomePage() {
         {/* display:contents keeps the wrappers out of layout, so the sticky
             nav and every #fm-root selector behave exactly as before */}
         <div style={{ display: "contents" }} dangerouslySetInnerHTML={{ __html: BODY_HTML }} />
-        <HowFinloraqWorks />
         <div style={{ display: "contents" }} dangerouslySetInnerHTML={{ __html: BODY_HTML_AFTER_HERO }} />
       </div>
     </>

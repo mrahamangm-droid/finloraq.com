@@ -33,6 +33,9 @@ export function MarketingHeader({ currentPath }: { currentPath: string }) {
           FINLORAQ
         </Link>
         <nav className="links">
+          <Link href="/how-it-works" aria-current={currentPath === "/how-it-works" ? "page" : undefined}>
+            How it works
+          </Link>
           <Link href="/ai-accounting" aria-current={currentPath === "/ai-accounting" ? "page" : undefined}>
             AI Accounting
           </Link>
@@ -67,7 +70,9 @@ export function MarketingHeader({ currentPath }: { currentPath: string }) {
             </summary>
             <nav className="mnav-panel" aria-label="Main menu">
               <a href="/">Home</a>
-              <a href="/#how-it-works">How it works</a>
+              <a href="/how-it-works" aria-current={currentPath === "/how-it-works" ? "page" : undefined}>
+                How it works
+              </a>
               {[
                 { href: "/ai-accounting", label: "AI Accounting" },
                 { href: "/ai-cfo", label: "AI CFO" },
@@ -120,7 +125,7 @@ export function MarketingFooter() {
               <Link href="/#foundation">Accounting</Link>
             </li>
             <li>
-              <Link href="/#pulse">Business Pulse</Link>
+              <Link href="/#demo">Business Pulse</Link>
             </li>
             {productRoutes.map((r) => (
               <li key={r.path}>
