@@ -108,7 +108,7 @@ export default function DocumentsPage() {
           <div className="text-xs uppercase text-muted-foreground">
             Extracted (confidence: {fields.confidence}) — edit anything before saving
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-xs font-medium text-card-foreground">Vendor</label>
               <input value={fields.vendorName ?? ""} onChange={(e) => setFields({ ...fields, vendorName: e.target.value })} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm" />
@@ -125,7 +125,7 @@ export default function DocumentsPage() {
               <label className="mb-1 block text-xs font-medium text-card-foreground">Tax amount</label>
               <input type="number" step="0.01" value={fields.taxAmount ?? ""} onChange={(e) => setFields({ ...fields, taxAmount: parseFloat(e.target.value) || null })} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm" />
             </div>
-            <div className="col-span-2">
+            <div className="sm:col-span-2">
               <label className="mb-1 block text-xs font-medium text-card-foreground">Description</label>
               <input value={fields.description ?? ""} onChange={(e) => setFields({ ...fields, description: e.target.value })} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm" />
             </div>
