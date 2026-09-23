@@ -3,7 +3,9 @@ import { can } from "@/lib/rbac";
 import { getBillingSnapshot } from "@/lib/billing/subscription";
 import { isPaymentConfigured } from "@/lib/integrations/payment";
 import { reconcileStripeMode, stripeMode, syncFromCheckoutSession } from "@/lib/integrations/stripe";
-import { ManageBillingButton, PlanCard } from "@/components/billing/plan-card";
+import { cookies, headers } from "next/headers";
+import { CurrencyPicker, ManageBillingButton, PlanCard } from "@/components/billing/plan-card";
+import { CURRENCY_COOKIE, billingCurrencyForCountry, isBillingCurrency, type BillingCurrency } from "@/lib/billing/currency";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +36,11 @@ export default async function BillingPage({
     // Drops a plan cached from the other Stripe mode (test → live switch).
     await reconcileStripeMode(active.companyId).catch(() => undefined);
   }
+
+  const saved = cookies().get(CURRENCY_COOKIE)?.value?.toLowerCase();
+  const currency: BillingCurrency = isBillingCurrency(saved)
+    ? saved
+    : billingCurrencyForCountry(headers().get("x-vercel-ip-country"));
 
   const mode = stripeMode();
   const [snapshot, canEdit] = await Promise.all([
@@ -108,7 +115,10 @@ export default async function BillingPage({
       </div>
 
       <div>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Plans</h2>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Plans</h2>
+          <CurrencyPicker value={currency} />
+        </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           {snapshot.allPlans.map((p) => (
             <PlanCard
@@ -116,6 +126,7 @@ export default async function BillingPage({
               def={p}
               isCurrent={p.plan === snapshot.subscription.plan}
               canEdit={canEdit}
+              currency={currency}
             />
           ))}
         </div>
