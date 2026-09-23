@@ -2,6 +2,7 @@
 
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { signIn } from "next-auth/react";
 
 export default function LoginPage() {
@@ -143,6 +144,29 @@ function LoginForm() {
             </button>
           )}
         </form>
+
+        {!needsMfa && (
+          <div className="mt-6 space-y-2 border-t border-border pt-4 text-center text-sm text-muted-foreground">
+            <p>
+              Don&apos;t have an account?{" "}
+              <Link
+                href={rawCallback ? `/register?callbackUrl=${encodeURIComponent(callbackUrl)}` : "/register"}
+                className="font-medium text-primary hover:underline"
+              >
+                Create one
+              </Link>
+            </p>
+            <p className="text-xs">
+              Forgot your password?{" "}
+              <a
+                href="mailto:hello@finloraq.com?subject=Password%20reset%20request"
+                className="text-primary hover:underline"
+              >
+                Contact support
+              </a>
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
