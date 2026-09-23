@@ -279,6 +279,11 @@ export function mountHowItWorks(root: HTMLElement): () => void {
         onEnd: () => { /* hold on the final frame; Replay / Play resume */ },
         onCardClick: (kind) => playSample(CARD_SAMPLE[kind], kind),
         onContextLost: () => { root.classList.remove("hiw--3d"); scene = null; },
+        onCalm: () => {
+          // too slow to animate on this device: behave like reduced motion from here on
+          root.classList.add("hiw--calm");
+          if (pauseBtn) pauseBtn.hidden = true;
+        },
       });
       if (reduced) {
         // no autoplay: show the full route for the first sample, frozen

@@ -139,6 +139,8 @@ export interface SceneCallbacks {
   onEnd?: () => void;
   onCardClick?: (kind: InputKind) => void;
   onContextLost?: () => void;
+  /** The device couldn't hold a usable frame rate even at the lowest resolution; the scene now shows a still frame. */
+  onCalm?: () => void;
 }
 
 const COL = {
@@ -174,9 +176,12 @@ export class FlowScene {
   private running = false;
   private visible = false;
   private paused = false;
-  private readonly reduced: boolean;
+  /** Reduced motion — set by the user's OS preference, or by `adapt()` on devices too slow to animate smoothly. */
+  private reduced: boolean;
   private last = 0;
   private frameTimes: number[] = [];
+  private frameTimeSum = 0;
+  private calmStrikes = 0;
 
   // story
   private t = 0;
@@ -828,11 +833,12 @@ export class FlowScene {
     this.last = performance.now();
     const tick = (now: number) => {
       if (!this.running) return;
-      const dt = Math.min(0.05, (now - this.last) / 1000);
+      const raw = (now - this.last) / 1000;
+      const dt = Math.min(0.05, raw);
       this.last = now;
       this.advance(dt);
       this.renderFrame(now / 1000, dt);
-      this.adapt(dt);
+      this.adapt(Math.min(raw, 0.5)); // real frame time (a >0.5 s gap = tab switch / long pause, not the GPU)
       this.raf = requestAnimationFrame(tick);
     };
     this.raf = requestAnimationFrame(tick);
@@ -876,17 +882,37 @@ export class FlowScene {
     this.cb.onTick?.(this.t);
   }
 
-  /** Drop resolution when frames are consistently slow. */
+  /**
+   * Keep the section responsive on weak phones. Every ~1 s of wall time
+   * (or 60 frames) look at the average frame time and, if it's slow, step
+   * down: resolution (to 0.75×) → fewer particles → as a last resort a
+   * still, fully-labelled final frame (same as reduced motion), so the page
+   * never stays janky while the visitor scrolls past it.
+   */
   private adapt(dt: number) {
     this.frameTimes.push(dt);
-    if (this.frameTimes.length < 90) return;
-    const avg = this.frameTimes.reduce((a, b) => a + b, 0) / this.frameTimes.length;
+    this.frameTimeSum += dt;
+    if (this.frameTimes.length < 60 && this.frameTimeSum < 1) return;
+    const avg = this.frameTimeSum / this.frameTimes.length;
     this.frameTimes = [];
-    if (avg > 1 / 42 && this.dpr > 1) {
-      this.dpr = Math.max(1, this.dpr - 0.25);
+    this.frameTimeSum = 0;
+    if (avg <= 1 / 42) { this.calmStrikes = 0; return; }
+    if (avg > 1 / 12 && this.dpr > 0.75) {
+      // very slow device: go straight to the cheapest settings
+      this.dpr = 0.75;
+      this.dust.length = Math.min(this.dust.length, 40);
       this.resize();
-    } else if (avg > 1 / 30 && this.dust.length > 40) {
+    } else if (this.dpr > 0.75) {
+      this.dpr = Math.max(0.75, this.dpr - (avg > 1 / 20 ? 0.5 : 0.25));
+      this.resize();
+    } else if (this.dust.length > 40) {
       this.dust.length = 40;
+    } else if (avg > 1 / 24 && ++this.calmStrikes >= 2) {
+      this.reduced = true;
+      this.t = T.end - 0.05;
+      this.stop();
+      this.invalidate();
+      this.cb.onCalm?.();
     }
   }
 
