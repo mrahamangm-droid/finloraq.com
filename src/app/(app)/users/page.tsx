@@ -72,66 +72,68 @@ export default async function UsersPage() {
         <div className="border-b border-border px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Members
         </div>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
-              <th className="px-4 py-2 font-medium">Name</th>
-              <th className="px-4 py-2 font-medium">Email</th>
-              <th className="px-4 py-2 font-medium">Role</th>
-              <th className="px-4 py-2 font-medium">Status</th>
-              <th className="px-4 py-2 font-medium"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {members.map((m) => (
-              <tr key={m.id} className="border-b border-border last:border-0">
-                <td className="px-4 py-2 text-card-foreground">{m.user.name}</td>
-                <td className="px-4 py-2 text-card-foreground">{m.user.email}</td>
-                <td className="px-4 py-2">
-                  {canEdit ? (
-                    <form action={changeMemberRoleAction} className="inline-flex items-center gap-1.5">
-                      <input type="hidden" name="membershipId" value={m.id} />
-                      <select
-                        name="role"
-                        defaultValue={m.role}
-                        disabled={!m.isActive}
-                        className="rounded-md border border-border bg-background px-2 py-1 text-xs disabled:opacity-50"
-                      >
-                        {ROLES.map((r) => (
-                          <option key={r} value={r}>{r.replace("_", " ")}</option>
-                        ))}
-                      </select>
-                      {m.isActive && (
-                        <button type="submit" className="rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:bg-muted">
-                          Save
-                        </button>
-                      )}
-                    </form>
-                  ) : (
-                    <span className="text-card-foreground">{m.role.replace("_", " ")}</span>
-                  )}
-                </td>
-                <td className="px-4 py-2">
-                  {m.isActive ? (
-                    <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800 dark:bg-green-950/40 dark:text-green-400">Active</span>
-                  ) : (
-                    <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">Deactivated</span>
-                  )}
-                </td>
-                <td className="px-4 py-2 text-right">
-                  {canDelete && m.isActive && m.id !== active.id && (
-                    <form action={deactivateMemberAction}>
-                      <input type="hidden" name="membershipId" value={m.id} />
-                      <button type="submit" className="text-xs font-medium text-destructive hover:underline">
-                        Deactivate
-                      </button>
-                    </form>
-                  )}
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
+                <th className="px-4 py-2 font-medium">Name</th>
+                <th className="px-4 py-2 font-medium">Email</th>
+                <th className="px-4 py-2 font-medium">Role</th>
+                <th className="px-4 py-2 font-medium">Status</th>
+                <th className="px-4 py-2 font-medium"></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {members.map((m) => (
+                <tr key={m.id} className="border-b border-border last:border-0">
+                  <td className="px-4 py-2 text-card-foreground">{m.user.name}</td>
+                  <td className="px-4 py-2 text-card-foreground">{m.user.email}</td>
+                  <td className="px-4 py-2">
+                    {canEdit ? (
+                      <form action={changeMemberRoleAction} className="inline-flex items-center gap-1.5">
+                        <input type="hidden" name="membershipId" value={m.id} />
+                        <select
+                          name="role"
+                          defaultValue={m.role}
+                          disabled={!m.isActive}
+                          className="rounded-md border border-border bg-background px-2 py-1 text-xs disabled:opacity-50"
+                        >
+                          {ROLES.map((r) => (
+                            <option key={r} value={r}>{r.replace("_", " ")}</option>
+                          ))}
+                        </select>
+                        {m.isActive && (
+                          <button type="submit" className="rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:bg-muted">
+                            Save
+                          </button>
+                        )}
+                      </form>
+                    ) : (
+                      <span className="text-card-foreground">{m.role.replace("_", " ")}</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2">
+                    {m.isActive ? (
+                      <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800 dark:bg-green-950/40 dark:text-green-400">Active</span>
+                    ) : (
+                      <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">Deactivated</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2 text-right">
+                    {canDelete && m.isActive && m.id !== active.id && (
+                      <form action={deactivateMemberAction}>
+                        <input type="hidden" name="membershipId" value={m.id} />
+                        <button type="submit" className="text-xs font-medium text-destructive hover:underline">
+                          Deactivate
+                        </button>
+                      </form>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {invitations.length > 0 && (
