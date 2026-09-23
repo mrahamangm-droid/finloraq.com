@@ -62,7 +62,7 @@ export const PLANS: Record<SubscriptionPlan, PlanDefinition> = {
   AI_CFO: {
     plan: "AI_CFO",
     label: "AI-CFO",
-    monthlyPriceUsd: 349,
+    monthlyPriceUsd: 299,
     seats: 30,
     aiUsageLimitPerMonth: 5000,
     features: { voiceCommands: true, documentExtraction: true, eInvoicing: true, multiCompany: true, apiAccess: true },
