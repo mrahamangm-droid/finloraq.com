@@ -20,46 +20,48 @@ export default async function TrialBalancePage() {
       </div>
 
       <div className="overflow-hidden rounded-lg border border-border bg-card">
-        <table className="w-full text-sm">
-          <thead className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
-            <tr>
-              <th className="px-4 py-2">Code</th>
-              <th className="px-4 py-2">Account</th>
-              <th className="px-4 py-2">Type</th>
-              <th className="px-4 py-2 text-right">Debit</th>
-              <th className="px-4 py-2 text-right">Credit</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.length === 0 && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
-                  No posted journal entries yet — the trial balance is legitimately empty.
-                </td>
+                <th className="px-4 py-2">Code</th>
+                <th className="px-4 py-2">Account</th>
+                <th className="px-4 py-2">Type</th>
+                <th className="px-4 py-2 text-right">Debit</th>
+                <th className="px-4 py-2 text-right">Credit</th>
               </tr>
+            </thead>
+            <tbody>
+              {rows.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
+                    No posted journal entries yet — the trial balance is legitimately empty.
+                  </td>
+                </tr>
+              )}
+              {rows.map((r) => (
+                <tr key={r.accountCode} className="border-b border-border last:border-0">
+                  <td className="px-4 py-2 font-mono text-xs text-muted-foreground">{r.accountCode}</td>
+                  <td className="px-4 py-2 text-card-foreground">{r.accountName}</td>
+                  <td className="px-4 py-2 text-muted-foreground">{r.type}</td>
+                  <td className="px-4 py-2 text-right text-card-foreground">{r.debit.toFixed(2)}</td>
+                  <td className="px-4 py-2 text-right text-card-foreground">{r.credit.toFixed(2)}</td>
+                </tr>
+              ))}
+            </tbody>
+            {rows.length > 0 && (
+              <tfoot>
+                <tr className="border-t-2 border-border font-medium">
+                  <td colSpan={3} className="px-4 py-2 text-card-foreground">
+                    Total
+                  </td>
+                  <td className="px-4 py-2 text-right text-card-foreground">{totalDebit.toFixed(2)}</td>
+                  <td className="px-4 py-2 text-right text-card-foreground">{totalCredit.toFixed(2)}</td>
+                </tr>
+              </tfoot>
             )}
-            {rows.map((r) => (
-              <tr key={r.accountCode} className="border-b border-border last:border-0">
-                <td className="px-4 py-2 font-mono text-xs text-muted-foreground">{r.accountCode}</td>
-                <td className="px-4 py-2 text-card-foreground">{r.accountName}</td>
-                <td className="px-4 py-2 text-muted-foreground">{r.type}</td>
-                <td className="px-4 py-2 text-right text-card-foreground">{r.debit.toFixed(2)}</td>
-                <td className="px-4 py-2 text-right text-card-foreground">{r.credit.toFixed(2)}</td>
-              </tr>
-            ))}
-          </tbody>
-          {rows.length > 0 && (
-            <tfoot>
-              <tr className="border-t-2 border-border font-medium">
-                <td colSpan={3} className="px-4 py-2 text-card-foreground">
-                  Total
-                </td>
-                <td className="px-4 py-2 text-right text-card-foreground">{totalDebit.toFixed(2)}</td>
-                <td className="px-4 py-2 text-right text-card-foreground">{totalCredit.toFixed(2)}</td>
-              </tr>
-            </tfoot>
-          )}
-        </table>
+          </table>
+        </div>
       </div>
 
       {rows.length > 0 && !balanced && (
