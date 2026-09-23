@@ -1,3 +1,4 @@
+import { withApiErrors } from "@/lib/api";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireTenantContext } from "@/lib/tenant";
@@ -8,7 +9,7 @@ const schema = z.object({
   plan: z.enum(["STARTER", "GROWTH", "PROFESSIONAL", "AI_CFO", "ENTERPRISE"]),
 });
 
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   const { active, userId } = await requireTenantContext();
   await requirePermission(active.id, "settings", "EDIT");
 
@@ -31,3 +32,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: err instanceof Error ? err.message : "Could not change plan." }, { status: 400 });
   }
 }
+
+export const POST = withApiErrors(handlePOST);
