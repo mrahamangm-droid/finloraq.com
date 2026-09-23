@@ -93,33 +93,35 @@ export default async function AuditPage({
       </form>
 
       <div className="overflow-x-auto rounded-lg border border-border bg-card">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
-              <th className="px-4 py-2 font-medium">When</th>
-              <th className="px-4 py-2 font-medium">Action</th>
-              <th className="px-4 py-2 font-medium">Entity</th>
-              <th className="px-4 py-2 font-medium">By</th>
-              <th className="px-4 py-2 font-medium">Source</th>
-            </tr>
-          </thead>
-          <tbody>
-            {events.map((e) => (
-              <tr key={e.id} className="border-b border-border last:border-0 align-top">
-                <td className="whitespace-nowrap px-4 py-2 text-xs text-muted-foreground">{e.createdAt.toISOString().replace("T", " ").slice(0, 19)}</td>
-                <td className="px-4 py-2 font-mono text-xs text-card-foreground">{e.action}</td>
-                <td className="px-4 py-2 text-xs text-card-foreground">{e.entityType} · {e.entityId.slice(0, 12)}</td>
-                <td className="px-4 py-2 text-xs text-card-foreground">{e.user?.name ?? "system"}</td>
-                <td className="px-4 py-2">
-                  <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">{e.source}</span>
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
+                <th className="px-4 py-2 font-medium">When</th>
+                <th className="px-4 py-2 font-medium">Action</th>
+                <th className="px-4 py-2 font-medium">Entity</th>
+                <th className="px-4 py-2 font-medium">By</th>
+                <th className="px-4 py-2 font-medium">Source</th>
               </tr>
-            ))}
-            {events.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-6 text-center text-sm text-muted-foreground">No events match these filters.</td></tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {events.map((e) => (
+                <tr key={e.id} className="border-b border-border last:border-0 align-top">
+                  <td className="whitespace-nowrap px-4 py-2 text-xs text-muted-foreground">{e.createdAt.toISOString().replace("T", " ").slice(0, 19)}</td>
+                  <td className="px-4 py-2 font-mono text-xs text-card-foreground">{e.action}</td>
+                  <td className="px-4 py-2 text-xs text-card-foreground">{e.entityType} · {e.entityId.slice(0, 12)}</td>
+                  <td className="px-4 py-2 text-xs text-card-foreground">{e.user?.name ?? "system"}</td>
+                  <td className="px-4 py-2">
+                    <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">{e.source}</span>
+                  </td>
+                </tr>
+              ))}
+              {events.length === 0 && (
+                <tr><td colSpan={5} className="px-4 py-6 text-center text-sm text-muted-foreground">No events match these filters.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {totalPages > 1 && (
