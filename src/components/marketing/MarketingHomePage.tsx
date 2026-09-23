@@ -160,7 +160,7 @@ const STYLE = `
 
   /* ---------- Live Product Preview / demo ---------- */
   #fm-root .pulse-demo{display:grid;grid-template-columns:220px 1fr;gap:0;border:1px solid var(--line);border-radius:var(--r-lg);overflow:hidden;background:var(--canvas);box-shadow:var(--shadow-md)}
-  @media (max-width:820px){ #fm-root .pulse-demo{grid-template-columns:1fr} }
+  @media (max-width:820px){ #fm-root .pulse-demo{grid-template-columns:minmax(0,1fr)} }
   #fm-root .demo-nav{background:var(--canvas-2);border-right:1px solid var(--line);padding:14px}
   @media (max-width:820px){ #fm-root .demo-nav{border-right:none;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;gap:4px} }
   #fm-root .demo-nav .demo-tag{font-size:10px;font-weight:800;letter-spacing:.08em;color:var(--ink-subtle);padding:6px 8px;margin-bottom:10px}
@@ -172,6 +172,23 @@ const STYLE = `
   #fm-root .demo-body{padding:26px;min-height:360px}
   #fm-root .demo-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
   @media (max-width:820px){ #fm-root .demo-grid{grid-template-columns:repeat(2,1fr)} }
+  /* Small phones: let the demo shrink instead of being clipped, and give it room. */
+  #fm-root .demo-body, #fm-root .demo-grid > *, #fm-root .demo-panel{min-width:0}
+  @media (max-width:480px){
+    #fm-root .demo-body{padding:16px}
+    #fm-root .demo-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+    #fm-root .stile{padding:12px}
+    #fm-root .stile .val{font-size:clamp(16px,5vw,21px);overflow-wrap:anywhere}
+    #fm-root .demo-table{font-size:12px}
+    #fm-root .demo-table th, #fm-root .demo-table td{padding:8px 6px}
+    #fm-root .demo-grid .stile{padding:12px}
+  }
+  @media (max-width:820px){
+    /* wide demo tables scroll sideways inside their card instead of being cut off */
+    #fm-root .demo-table{display:block;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;white-space:nowrap}
+    #fm-root .demo-body svg, #fm-root .demo-body img, #fm-root .demo-body canvas{max-width:100%;height:auto}
+    #fm-root .demo-panel{overflow-wrap:anywhere}
+  }
   #fm-root .stile{border:1px solid var(--line);border-radius:var(--r-md);padding:14px}
   #fm-root .stile .lbl{font-size:11.5px;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.05em}
   #fm-root .stile .val{font-family:var(--font-mono);font-size:21px;font-weight:700;margin-top:6px}
@@ -318,7 +335,7 @@ const STYLE = `
   #fm-root .cur-pick select:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
   #fm-root .cur-note{margin:0;font-size:12.5px;color:var(--ink-muted)}
   #fm-root .cur-note a{text-decoration:underline}
-  @media (max-width:560px){ #fm-root .cur-pick{width:100%;justify-content:space-between} #fm-root .cur-pick select{flex:1;max-width:260px} }
+  @media (max-width:560px){ #fm-root .cur-pick{width:100%;justify-content:space-between;min-width:0} #fm-root .cur-pick span{flex:0 0 auto} #fm-root .cur-pick select{flex:1 1 0;min-width:0;max-width:260px;width:100%;text-overflow:ellipsis} }
   #fm-root .plan .pusd{font-size:12px;color:var(--ink-muted);margin-top:2px}
   #fm-root .plan .pprice small{font-family:var(--font-body);font-size:12px;font-weight:600;color:var(--ink-muted)}
   #fm-root .plan ul{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px;font-size:12.5px;color:var(--ink-muted);flex:1}
@@ -346,6 +363,7 @@ const STYLE = `
   #fm-root .foot-grid h6{color:#fff;font-size:12px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:14px}
   #fm-root .foot-grid ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px;font-size:13.5px}
   #fm-root .foot-grid a:hover{color:#fff}
+  @media (max-width:820px){ #fm-root .foot-grid ul{gap:2px} #fm-root .foot-grid ul a{display:inline-flex;align-items:center;min-height:40px} }
   #fm-root .foot-bottom{border-top:1px solid var(--navy-line);padding:20px 0;font-size:12.5px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
 `;
 

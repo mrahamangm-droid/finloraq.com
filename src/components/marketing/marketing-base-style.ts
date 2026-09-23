@@ -169,6 +169,7 @@ export const MARKETING_BASE_STYLE = `
   #fm-root .compare .yes{color:var(--success);font-weight:700}
   #fm-root .compare .no{color:var(--ink-subtle)}
   #fm-root .compare-wrap{overflow-x:auto}
+  @media (max-width:600px){ #fm-root .compare{font-size:13px} #fm-root .compare th, #fm-root .compare td{padding:10px 8px} #fm-root .compare-wrap{-webkit-overflow-scrolling:touch;margin-inline:-16px;padding-inline:16px} }
 
   #fm-root .step-list{margin-top:36px;display:flex;flex-direction:column;gap:0}
   #fm-root .step{display:grid;grid-template-columns:44px 1fr;gap:18px;padding-block:22px;border-top:1px solid var(--line)}
