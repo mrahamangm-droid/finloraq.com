@@ -20,12 +20,18 @@ export function PlanCard({ def, isCurrent, canEdit }: { def: PlanDefinition; isC
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ plan: def.plan }),
     });
-    setLoading(false);
+    const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
+      setLoading(false);
       setError(data.error ?? "Could not change plan.");
       return;
     }
+    if (typeof data.redirectUrl === "string") {
+      // Stripe Checkout / Customer Portal — keep the button in its loading state while we leave.
+      window.location.assign(data.redirectUrl);
+      return;
+    }
+    setLoading(false);
     router.refresh();
   }
 
@@ -75,6 +81,38 @@ export function PlanCard({ def, isCurrent, canEdit }: { def: PlanDefinition; isC
           </button>
         )
       )}
+    </div>
+  );
+}
+
+/** Opens the Stripe Customer Portal (payment method, invoices, cancel). */
+export function ManageBillingButton() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function open() {
+    setLoading(true);
+    setError(null);
+    const res = await fetch("/api/billing/portal", { method: "POST" });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || typeof data.redirectUrl !== "string") {
+      setLoading(false);
+      setError(data.error ?? "Could not open billing portal.");
+      return;
+    }
+    window.location.assign(data.redirectUrl);
+  }
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <button
+        onClick={open}
+        disabled={loading}
+        className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted disabled:opacity-50"
+      >
+        {loading ? "Opening…" : "Manage billing"}
+      </button>
+      {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   );
 }
