@@ -46,6 +46,8 @@ export const config = {
     // src/lib/integrations/email.ts, the WhatsApp/Stripe webhook routes).
     // Without this exclusion, withAuth would 401 every provider callback
     // before it ever reached that verification logic.
-    "/api/((?!auth|webhooks).)*",
+    // /api/public/* is public by design (pricing/currency context for the
+    // marketing site — no user data).
+    "/api/((?!auth|webhooks|public).)*",
   ],
 };
