@@ -142,10 +142,9 @@ these steps is safe — everything is idempotent.
      `customer.subscription.paused`, `customer.subscription.resumed`, `invoice.paid`,
      `invoice.payment_failed`
    - Copy the endpoint's **Signing secret** (`whsec_…`).
-3. Settings → Billing → **Customer portal** → click **Save** once (Stripe refuses portal
-   sessions until the portal config has been saved in that mode). To let customers switch
-   plans there, enable "Customers can switch plans" and add the Finloraq products — they
-   appear after the first checkout for each plan.
+3. Customer portal: nothing to do. The app creates and maintains its own portal
+   configuration via the API (invoices, card updates, cancel at period end, switching
+   between Growth / Professional / AI-CFO), tagged `metadata.finloraq=1`.
 4. Vercel → Project → Settings → Environment Variables (Production): set
    `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`, then **Redeploy**.
 5. Verify: `POST /api/webhooks/stripe` without a signature now returns **400** (not 501);
