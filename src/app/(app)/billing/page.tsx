@@ -2,7 +2,7 @@ import { requireTenantContext } from "@/lib/tenant";
 import { can } from "@/lib/rbac";
 import { getBillingSnapshot } from "@/lib/billing/subscription";
 import { isPaymentConfigured } from "@/lib/integrations/payment";
-import { stripeMode, syncFromCheckoutSession } from "@/lib/integrations/stripe";
+import { reconcileStripeMode, stripeMode, syncFromCheckoutSession } from "@/lib/integrations/stripe";
 import { ManageBillingButton, PlanCard } from "@/components/billing/plan-card";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +28,11 @@ export default async function BillingPage({
     }
   } else if (searchParams?.checkout === "cancelled") {
     checkoutNotice = { tone: "warn", text: "Checkout cancelled — no charge was made." };
+  }
+
+  if (isPaymentConfigured() && !searchParams?.session_id) {
+    // Drops a plan cached from the other Stripe mode (test → live switch).
+    await reconcileStripeMode(active.companyId).catch(() => undefined);
   }
 
   const mode = stripeMode();
