@@ -151,7 +151,14 @@ these steps is safe — everything is idempotent.
    Billing page says "Stripe TEST mode"; upgrade to Growth with card `4242 4242 4242 4242`,
    any future expiry/CVC → you return to Billing with "Payment received" and plan = Growth;
    Stripe → Webhooks shows 200 deliveries; Audit Log shows `billing.stripe_synced`.
-6. Going live later: repeat steps 1–4 with Live mode on (`sk_live_…`, a new live webhook
+6. Currency and VAT: every paid plan is one Stripe Price in USD with an AED option
+   (AED 179 / 549 / 1,099 vs US$49 / 149 / 299), both VAT-inclusive. Checkout shows AED to
+   UAE buyers and USD to everyone else automatically, and collects the buyer's TRN.
+   Once the selling entity has a UAE VAT registration (mandatory above AED 375,000 of
+   taxable supplies a year, voluntary from AED 187,500): add it in Stripe → Tax →
+   Registrations, set `STRIPE_AUTOMATIC_TAX=true` in Vercel and redeploy. Stripe then
+   carves the 5% VAT out of the same totals and puts it on the invoices.
+7. Going live later: repeat steps 1–4 with Live mode on (`sk_live_…`, a new live webhook
    endpoint and its own `whsec_…`). Test-mode customer ids are replaced automatically.
 
 ## 4. Point the domain
