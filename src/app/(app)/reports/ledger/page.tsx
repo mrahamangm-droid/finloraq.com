@@ -8,6 +8,21 @@ type SearchParams = { period?: string; value?: string; account?: string; detail?
 const fmt = (d: { toFixed: (n: number) => string }) => d.toFixed(2);
 const day = (d: Date) => d.toISOString().slice(0, 10);
 
+/** Two years back and one year forward around the selected "YYYY-MM". */
+function monthOptions(selected: string) {
+  const year = parseInt(selected.slice(0, 4), 10);
+  const month = parseInt(selected.slice(5, 7), 10) - 1;
+  const options: { value: string; label: string }[] = [];
+  for (let i = 12; i >= -24; i--) {
+    const d = new Date(Date.UTC(year, month + i, 1));
+    options.push({
+      value: `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`,
+      label: d.toLocaleString("en-US", { month: "long", year: "numeric", timeZone: "UTC" }),
+    });
+  }
+  return options;
+}
+
 export default async function LedgerPage({ searchParams }: { searchParams: SearchParams }) {
   const { active } = await requireTenantContext();
   const range = ledgerPeriodRange(searchParams.period, searchParams.value);
@@ -69,7 +84,13 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
         <label className="flex flex-col gap-1">
           <span className="text-xs text-muted-foreground">{range.period === "monthly" ? "Month" : "Year"}</span>
           {range.period === "monthly" ? (
-            <input type="month" name="value" defaultValue={range.value} className="rounded-md border border-border bg-background px-2 py-1" />
+            // A <select> rather than <input type="month">: Firefox and older
+            // Safari render type="month" as a plain text box.
+            <select name="value" defaultValue={range.value} className="rounded-md border border-border bg-background px-2 py-1">
+              {monthOptions(range.value).map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
           ) : (
             <input type="number" name="value" min={1900} max={9999} defaultValue={range.value} className="w-24 rounded-md border border-border bg-background px-2 py-1" />
           )}
