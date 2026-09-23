@@ -70,6 +70,10 @@ async function stripe<T = any>(method: "GET" | "POST", path: string, params?: Re
 
 /** Finds (or creates) the active monthly Price for a paid plan. */
 export async function ensurePlanPrice(plan: SubscriptionPlan): Promise<string> {
+  return (await ensurePlanPriceWithProduct(plan)).priceId;
+}
+
+async function ensurePlanPriceWithProduct(plan: SubscriptionPlan): Promise<{ priceId: string; productId: string }> {
   const def = planDefinition(plan);
   if (def.monthlyPriceUsd <= 0) throw new Error(`${def.label} is not a self-serve paid plan.`);
   const lookupKey = planLookupKey(plan);
@@ -82,7 +86,7 @@ export async function ensurePlanPrice(plan: SubscriptionPlan): Promise<string> {
   });
   const current = existing.data[0];
   if (current && current.unit_amount === unitAmount && current.currency === "usd" && current.recurring?.interval === "month") {
-    return current.id;
+    return { priceId: current.id, productId: typeof current.product === "string" ? current.product : current.product.id };
   }
 
   // Reuse the product if a (now stale-priced) price exists; otherwise create it.
@@ -106,7 +110,48 @@ export async function ensurePlanPrice(plan: SubscriptionPlan): Promise<string> {
     nickname: `${def.label} — monthly`,
     metadata: { plan },
   });
-  return price.id;
+  return { priceId: price.id, productId: productId as string };
+}
+
+const SELF_SERVE_PLANS: SubscriptionPlan[] = ["GROWTH", "PROFESSIONAL", "AI_CFO"];
+
+/**
+ * Makes sure a Customer Portal configuration exists that allows invoice
+ * history, card updates, cancel-at-period-end and switching between the
+ * Finloraq plans — so nothing has to be configured by hand in the Stripe
+ * dashboard. Tagged metadata.finloraq=1; updated when plan prices change.
+ */
+async function ensurePortalConfiguration(): Promise<string> {
+  const plans = await Promise.all(SELF_SERVE_PLANS.map((p) => ensurePlanPriceWithProduct(p)));
+  const priceKey = plans.map((p) => p.priceId).join(",");
+  const features = {
+    invoice_history: { enabled: true },
+    payment_method_update: { enabled: true },
+    customer_update: { enabled: true, allowed_updates: ["email", "address", "tax_id"] },
+    subscription_cancel: { enabled: true, mode: "at_period_end" },
+    subscription_update: {
+      enabled: true,
+      default_allowed_updates: ["price", "promotion_code"],
+      proration_behavior: "create_prorations",
+      products: plans.map((p) => ({ product: p.productId, prices: [p.priceId] })),
+    },
+  };
+
+  const list = await stripe<{ data: any[] }>("GET", "/billing_portal/configurations", { active: true, limit: 100 });
+  const ours = list.data.find((c) => c.metadata?.finloraq === "1");
+  if (ours) {
+    if (ours.metadata?.prices !== priceKey) {
+      await stripe("POST", `/billing_portal/configurations/${ours.id}`, { features, metadata: { finloraq: "1", prices: priceKey } });
+    }
+    return ours.id;
+  }
+
+  const created = await stripe("POST", "/billing_portal/configurations", {
+    business_profile: { headline: "Manage your Finloraq subscription" },
+    features,
+    metadata: { finloraq: "1", prices: priceKey },
+  });
+  return created.id;
 }
 
 /** Returns a valid Stripe customer for the company, creating one (and saving its id) if needed. */
@@ -175,9 +220,11 @@ export async function createCheckoutSession(input: {
 export async function createPortalSession(companyId: string, returnUrl: string): Promise<string> {
   const sub = await prisma.subscription.findUniqueOrThrow({ where: { companyId } });
   if (!sub.providerCustomerId) throw new Error("This company has no Stripe billing account yet — choose a paid plan first.");
+  const configuration = await ensurePortalConfiguration();
   const session = await stripe("POST", "/billing_portal/sessions", {
     customer: sub.providerCustomerId,
     return_url: returnUrl,
+    configuration,
   });
   return session.url as string;
 }
