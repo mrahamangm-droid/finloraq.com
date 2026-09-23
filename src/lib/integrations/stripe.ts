@@ -229,8 +229,40 @@ export async function createPortalSession(companyId: string, returnUrl: string):
   return session.url as string;
 }
 
+/**
+ * If the company's saved Stripe customer doesn't exist under the current
+ * key (e.g. it was created in test mode and the app is now on a live key,
+ * or it was deleted), the cached plan no longer reflects anything Stripe
+ * is billing — reset it to the free Starter plan so the user can check
+ * out again under the current mode.
+ */
+export async function reconcileStripeMode(companyId: string): Promise<void> {
+  const sub = await prisma.subscription.findUniqueOrThrow({ where: { companyId } });
+  if (sub.provider !== "stripe" || !sub.providerCustomerId) return;
+  try {
+    const c = await stripe("GET", `/customers/${sub.providerCustomerId}`);
+    if (!c.deleted) return;
+  } catch (err) {
+    if (!(err instanceof StripeApiError) || err.status !== 404) throw err;
+  }
+  await prisma.subscription.update({
+    where: { id: sub.id },
+    data: { plan: "STARTER", status: "ACTIVE", provider: null, providerCustomerId: null, currentPeriodEnd: null },
+  });
+  await recordAuditEvent({
+    companyId,
+    action: "billing.stripe_mode_reset",
+    entityType: "Subscription",
+    entityId: sub.id,
+    previousValue: { plan: sub.plan, status: sub.status, providerCustomerId: sub.providerCustomerId },
+    newValue: { plan: "STARTER", reason: "Saved Stripe customer not found under the current key", mode: stripeMode() },
+    source: "system",
+  });
+}
+
 /** True when the company currently has a paid, Stripe-managed subscription (plan changes then go through the portal). */
 export async function hasActiveStripeSubscription(companyId: string): Promise<boolean> {
+  await reconcileStripeMode(companyId);
   const sub = await prisma.subscription.findUniqueOrThrow({ where: { companyId } });
   return sub.provider === "stripe" && sub.plan !== "STARTER" && sub.status !== "CANCELED" && Boolean(sub.providerCustomerId);
 }
