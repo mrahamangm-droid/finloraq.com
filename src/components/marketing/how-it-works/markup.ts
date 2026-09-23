@@ -128,7 +128,7 @@ export const HIW_STYLE = `
 .hiw .hiw-canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:pan-y}
 .hiw .hiw-labels{position:absolute;inset:0;pointer-events:none;overflow:hidden;contain:strict}
 .hiw .hiw-hud{position:absolute;top:14px;left:14px;right:14px;display:flex;justify-content:space-between;align-items:flex-start;gap:10px;pointer-events:none;z-index:3}
-.hiw .hiw-badge{pointer-events:auto;font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#F3C77A;background:rgba(224,163,64,.12);border:1px solid rgba(224,163,64,.3);padding:5px 10px;border-radius:999px;backdrop-filter:blur(6px)}
+.hiw .hiw-badge{pointer-events:auto;font-size:11.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#F3C77A;background:rgba(224,163,64,.12);border:1px solid rgba(224,163,64,.3);padding:5px 10px;border-radius:999px;backdrop-filter:blur(6px)}
 .hiw .hiw-ctrls{display:flex;gap:6px;pointer-events:auto}
 .hiw .hiw-ctrl{font:inherit;font-size:12px;font-weight:700;color:var(--h-ink);background:var(--h-glass);border:1px solid var(--h-line);padding:7px 12px;border-radius:999px;cursor:pointer;backdrop-filter:blur(8px);transition:border-color .2s,background-color .2s}
 .hiw .hiw-ctrl:hover{border-color:rgba(167,156,255,.5)}
@@ -203,7 +203,7 @@ export const HIW_STYLE = `
 .hiw .hiw-trace-h{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
 .hiw .hiw-trace-k{display:block;font-size:11.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--h-subtle)}
 .hiw .hiw-trace-h b{display:block;margin-top:4px;font-size:18px;color:#fff;overflow-wrap:anywhere}
-.hiw .hiw-trace-badge{flex:none;font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:4px 10px;border-radius:999px;color:#F3C77A;background:rgba(224,163,64,.12);border:1px solid rgba(224,163,64,.3)}
+.hiw .hiw-trace-badge{flex:none;font-size:11.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:4px 10px;border-radius:999px;color:#F3C77A;background:rgba(224,163,64,.12);border:1px solid rgba(224,163,64,.3)}
 .hiw .hiw-trace-badge.is-local{color:var(--h-teal-2);background:rgba(47,188,169,.12);border-color:rgba(47,188,169,.35)}
 .hiw .hiw-trace-note{margin:8px 0 0;font-size:13px;color:var(--h-muted)}
 .hiw .hiw-steps{list-style:none;margin:16px 0 0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -211,7 +211,7 @@ export const HIW_STYLE = `
 .hiw .hiw-step.is-on{opacity:1;border-color:rgba(47,188,169,.35);background:rgba(47,188,169,.05)}
 .hiw .hiw-step.is-now{border-color:rgba(127,227,212,.75);box-shadow:0 0 0 3px rgba(47,188,169,.12)}
 .hiw .hiw-step-h{display:flex;align-items:center;gap:8px;font-size:11.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--h-muted)}
-.hiw .hiw-step-n{display:grid;place-items:center;width:18px;height:18px;border-radius:50%;font-size:10.5px;background:rgba(139,130,255,.18);color:var(--h-indigo-2)}
+.hiw .hiw-step-n{display:grid;place-items:center;width:18px;height:18px;border-radius:50%;font-size:11.5px;background:rgba(139,130,255,.18);color:var(--h-indigo-2)}
 .hiw .hiw-step.is-on .hiw-step-n{background:var(--h-teal);color:#04201C}
 .hiw .hiw-step-b{margin-top:8px;font-size:13.5px;color:var(--h-ink);line-height:1.5}
 .hiw .hiw-step:not(.is-on) .hiw-step-b{visibility:hidden}
@@ -227,7 +227,7 @@ export const HIW_STYLE = `
 .hiw .hiw-je td{padding:3px 0;border-bottom:1px solid rgba(167,156,255,.1);vertical-align:top}
 .hiw .hiw-je td.n{text-align:right;font-family:var(--font-mono, ui-monospace, monospace);white-space:nowrap;padding-left:10px;color:var(--h-ink)}
 .hiw .hiw-je td.n.p{color:var(--h-subtle);font-family:inherit;font-style:italic}
-.hiw .hiw-je th{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--h-subtle);text-align:right;padding-bottom:3px}
+.hiw .hiw-je th{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--h-subtle);text-align:right;padding-bottom:3px}
 .hiw .hiw-je th:first-child{text-align:left}
 .hiw .hiw-step[data-hiw-step="1"],.hiw .hiw-step[data-hiw-step="3"]{grid-row:span 2}
 .hiw .hiw-trace-f{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px;flex-wrap:wrap}
