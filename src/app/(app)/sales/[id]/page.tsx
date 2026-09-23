@@ -31,28 +31,30 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
       </div>
 
       <div className="rounded-lg border border-border bg-card">
-        <table className="w-full text-sm">
-          <thead className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
-            <tr>
-              <th className="px-3 py-2">Description</th>
-              <th className="px-3 py-2 text-right">Qty</th>
-              <th className="px-3 py-2 text-right">Unit price</th>
-              <th className="px-3 py-2">Tax</th>
-              <th className="px-3 py-2 text-right">Line total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {invoice.lines.map((l) => (
-              <tr key={l.id} className="border-b border-border last:border-0">
-                <td className="px-3 py-2 text-card-foreground">{l.description}</td>
-                <td className="px-3 py-2 text-right text-muted-foreground">{l.quantity.toString()}</td>
-                <td className="px-3 py-2 text-right text-muted-foreground">{l.unitPrice.toFixed(2)}</td>
-                <td className="px-3 py-2 text-muted-foreground">{l.taxCode?.name ?? "—"}</td>
-                <td className="px-3 py-2 text-right text-card-foreground">{l.lineTotal.toFixed(2)}</td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
+              <tr>
+                <th className="px-3 py-2">Description</th>
+                <th className="px-3 py-2 text-right">Qty</th>
+                <th className="px-3 py-2 text-right">Unit price</th>
+                <th className="px-3 py-2">Tax</th>
+                <th className="px-3 py-2 text-right">Line total</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {invoice.lines.map((l) => (
+                <tr key={l.id} className="border-b border-border last:border-0">
+                  <td className="px-3 py-2 text-card-foreground">{l.description}</td>
+                  <td className="px-3 py-2 text-right text-muted-foreground">{l.quantity.toString()}</td>
+                  <td className="px-3 py-2 text-right text-muted-foreground">{l.unitPrice.toFixed(2)}</td>
+                  <td className="px-3 py-2 text-muted-foreground">{l.taxCode?.name ?? "—"}</td>
+                  <td className="px-3 py-2 text-right text-card-foreground">{l.lineTotal.toFixed(2)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
         <div className="space-y-1 border-t border-border px-3 py-2 text-right text-sm">
           <div className="text-muted-foreground">Subtotal {invoice.subtotal.toFixed(2)}</div>
           <div className="text-muted-foreground">Tax {invoice.taxTotal.toFixed(2)}</div>
