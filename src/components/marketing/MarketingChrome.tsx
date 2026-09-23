@@ -57,6 +57,38 @@ export function MarketingHeader({ currentPath }: { currentPath: string }) {
           <Link className="btn btn-primary btn-sm" href="/register">
             Start Free
           </Link>
+          {/* Mobile menu. Plain <a> (full page loads) so the <details> is
+              always closed on the next page without any client JS. */}
+          <details className="mnav">
+            <summary aria-label="Menu">
+              <span />
+              <span />
+              <span />
+            </summary>
+            <nav className="mnav-panel" aria-label="Main menu">
+              <a href="/">Home</a>
+              <a href="/#how-it-works">How it works</a>
+              {[
+                { href: "/ai-accounting", label: "AI Accounting" },
+                { href: "/ai-cfo", label: "AI CFO" },
+                { href: "/cash-flow-forecasting", label: "Cash Flow Forecasting" },
+                { href: "/guides", label: "Guides" },
+              ].map((l) => (
+                <a key={l.href} href={l.href} aria-current={currentPath === l.href ? "page" : undefined}>
+                  {l.label}
+                </a>
+              ))}
+              <a href="/#pricing">Pricing</a>
+              <div className="mnav-cta">
+                <a className="btn btn-ghost" href="/login">
+                  Sign In
+                </a>
+                <a className="btn btn-primary" href="/register">
+                  Start Free
+                </a>
+              </div>
+            </nav>
+          </details>
         </div>
       </div>
     </header>
