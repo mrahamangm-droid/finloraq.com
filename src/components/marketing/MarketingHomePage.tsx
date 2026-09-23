@@ -27,6 +27,8 @@
 // it as idiomatic React components if this page grows real product
 // logic beyond a marketing demo.
 import { useEffect } from "react";
+import { PLANS } from "@/lib/billing/plans";
+import { CURRENCY_COOKIE, DISPLAY_CURRENCIES, formatMoney, isBillingCurrency, roundApprox } from "@/lib/billing/currency";
 import { HowFinloraqWorks } from "./how-it-works/HowFinloraqWorks";
 
 const STYLE = `
@@ -310,6 +312,13 @@ const STYLE = `
   #fm-root .plan.feat{border-color:var(--brand);box-shadow:0 0 0 1px var(--brand)}
   #fm-root .plan .pname{font-weight:800;font-size:15px}
   #fm-root .plan .pprice{font-family:var(--font-mono);font-size:24px;font-weight:700}
+  #fm-root .cur-bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;margin:-8px 0 28px}
+  #fm-root .cur-pick{display:inline-flex;align-items:center;gap:10px;font-size:13px;font-weight:600;color:var(--ink-muted)}
+  #fm-root .cur-pick select{font:inherit;font-size:14px;font-weight:700;color:var(--ink);background:var(--canvas);border:1px solid var(--line-strong);border-radius:var(--r-md);padding:9px 34px 9px 12px;min-height:44px;cursor:pointer;appearance:none;-webkit-appearance:none;background-image:linear-gradient(45deg,transparent 50%,currentColor 50%),linear-gradient(135deg,currentColor 50%,transparent 50%);background-position:calc(100% - 17px) 55%,calc(100% - 12px) 55%;background-size:5px 5px;background-repeat:no-repeat}
+  #fm-root .cur-pick select:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+  #fm-root .cur-note{margin:0;font-size:12.5px;color:var(--ink-muted)}
+  #fm-root .cur-note a{text-decoration:underline}
+  @media (max-width:560px){ #fm-root .cur-pick{width:100%;justify-content:space-between} #fm-root .cur-pick select{flex:1;max-width:260px} }
   #fm-root .plan .pusd{font-size:12px;color:var(--ink-muted);margin-top:2px}
   #fm-root .plan .pprice small{font-family:var(--font-body);font-size:12px;font-weight:600;color:var(--ink-muted)}
   #fm-root .plan ul{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px;font-size:12.5px;color:var(--ink-muted);flex:1}
@@ -761,7 +770,25 @@ const BODY_HTML_AFTER_HERO = `<!-- 2. LIVE PRODUCT PREVIEW / TRY THE DEMO -->
     <div class="sec-head">
       <div class="eyebrow">Pricing</div>
       <h2 style="margin-top:12px">Simple plans that grow with you.</h2>
-      <p>Start free. Upgrade when you need more people, more AI or more automation. Billed monthly, cancel anytime. Prices include VAT where it applies; outside the UAE you pay the US$ price.</p>
+      <p>Start free. Upgrade when you need more people, more AI or more automation. Billed monthly, cancel anytime. Prices include VAT where it applies.</p>
+    </div>
+    <div class="cur-bar">
+      <label class="cur-pick"><span>Show prices in</span>
+        <select id="fq-cur" aria-label="Currency">
+          <optgroup label="Billed in this currency">
+            <option value="USD">US$ · US dollar</option>
+            <option value="AED" selected>AED · UAE dirham</option>
+            <option value="SAR">SAR · Saudi riyal</option>
+            <option value="QAR">QAR · Qatari riyal</option>
+            <option value="EUR">€ · Euro</option>
+            <option value="GBP">£ · British pound</option>
+            <option value="CAD">C$ · Canadian dollar</option>
+            <option value="AUD">A$ · Australian dollar</option>
+          </optgroup>
+          <optgroup label="Estimate only · billed in US$" id="fq-cur-est"></optgroup>
+        </select>
+      </label>
+      <p class="cur-note" id="fq-cur-note">Fixed prices in AED. You're charged exactly what you see.</p>
     </div>
     <div class="price-grid">
       <div class="plan">
@@ -774,7 +801,7 @@ const BODY_HTML_AFTER_HERO = `<!-- 2. LIVE PRODUCT PREVIEW / TRY THE DEMO -->
       </div>
       <div class="plan">
         <div class="pname">Growth</div>
-        <div class="pprice num">AED 179<small>/mo</small></div><div class="pusd">US$49/mo outside the UAE</div>
+        <div class="pprice num" data-plan="GROWTH">AED 179<small>/mo</small></div><div class="pusd" data-plan-note="GROWTH">Billed monthly in AED</div>
         <ul>
           <li>✓ Everything in Starter</li><li>✓ Receipt &amp; invoice reading (AI)</li><li>✓ E-invoicing</li><li>✓ Bank reconciliation</li><li>✓ 5 users · 200 AI actions/mo</li>
         </ul>
@@ -782,7 +809,7 @@ const BODY_HTML_AFTER_HERO = `<!-- 2. LIVE PRODUCT PREVIEW / TRY THE DEMO -->
       </div>
       <div class="plan feat">
         <div class="pname">Professional</div>
-        <div class="pprice num">AED 549<small>/mo</small></div><div class="pusd">US$149/mo outside the UAE</div>
+        <div class="pprice num" data-plan="PROFESSIONAL">AED 549<small>/mo</small></div><div class="pusd" data-plan-note="PROFESSIONAL">Billed monthly in AED</div>
         <ul>
           <li>✓ Everything in Growth</li><li>✓ Cash-flow intelligence</li><li>✓ Projects &amp; cost centres</li><li>✓ Voice commands &amp; API access</li><li>✓ 15 users · 1,000 AI actions/mo</li>
         </ul>
@@ -790,7 +817,7 @@ const BODY_HTML_AFTER_HERO = `<!-- 2. LIVE PRODUCT PREVIEW / TRY THE DEMO -->
       </div>
       <div class="plan">
         <div class="pname">AI CFO</div>
-        <div class="pprice num">AED 1,099<small>/mo</small></div><div class="pusd">US$299/mo outside the UAE</div>
+        <div class="pprice num" data-plan="AI_CFO">AED 1,099<small>/mo</small></div><div class="pusd" data-plan-note="AI_CFO">Billed monthly in AED</div>
         <ul>
           <li>✓ Everything in Professional</li><li>✓ Multi-company</li><li>✓ Priority support</li><li>✓ 30 users · 5,000 AI actions/mo</li>
         </ul>
@@ -952,6 +979,70 @@ export function MarketingHomePage() {
     } catch (e) {
       // progressive enhancement only — the page reads fine without JS
     }
+  }, []);
+
+  // Pricing currency switcher. Billing currencies show the fixed price
+  // Stripe charges; other currencies show a clearly-marked estimate of the
+  // US$ price at today's rate. The choice is saved in a cookie the in-app
+  // Billing page also reads, so checkout charges the currency picked here.
+  useEffect(() => {
+    const select = document.getElementById("fq-cur");
+    const note = document.getElementById("fq-cur-note");
+    const estGroup = document.getElementById("fq-cur-est");
+    if (!select || !note) return;
+    let rates = {};
+    let ratesSource = null;
+    const readCookie = () => (document.cookie.match(new RegExp("(?:^|; )" + CURRENCY_COOKIE + "=([^;]+)")) || [])[1];
+    const render = (code) => {
+      const lower = code.toLowerCase();
+      const billable = isBillingCurrency(lower);
+      const rate = rates[code];
+      if (!billable && !rate) return render("USD");
+      select.value = code;
+      document.querySelectorAll("#fm-root [data-plan]").forEach((el) => {
+        const def = PLANS[el.getAttribute("data-plan")];
+        const noteEl = document.querySelector('#fm-root [data-plan-note="' + def.plan + '"]');
+        if (billable) {
+          el.innerHTML = formatMoney(def.prices[lower], code) + "<small>/mo</small>";
+          if (noteEl) noteEl.textContent = "Billed monthly in " + (code === "USD" ? "US$" : code);
+        } else {
+          el.innerHTML = formatMoney(roundApprox(def.monthlyPriceUsd * rate), code, { approx: true }) + "<small>/mo</small>";
+          if (noteEl) noteEl.textContent = "Estimate · billed as US$" + def.monthlyPriceUsd + "/mo";
+        }
+      });
+      if (billable) {
+        note.textContent = "Fixed prices in " + code + ". You're charged exactly what you see.";
+      } else {
+        note.innerHTML = "Estimate at today's rate — you're billed in US$, and your bank may convert at its own rate. " +
+          (ratesSource ? 'Rates by <a href="' + ratesSource.url + '" target="_blank" rel="noopener">' + ratesSource.name + "</a>." : "");
+      }
+    };
+    const save = (code) => { document.cookie = CURRENCY_COOKIE + "=" + code + "; Max-Age=31536000; Path=/; SameSite=Lax"; };
+    const onChange = () => { save(select.value); render(select.value); };
+    select.addEventListener("change", onChange);
+    const saved = readCookie();
+    if (saved && isBillingCurrency(saved.toLowerCase())) render(saved);
+    let cancelled = false;
+    fetch("/api/public/pricing")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((ctx) => {
+        if (cancelled || !ctx) return;
+        rates = ctx.rates || {};
+        ratesSource = ctx.ratesSource || null;
+        if (estGroup) {
+          estGroup.innerHTML = "";
+          Object.keys(DISPLAY_CURRENCIES).filter((c) => rates[c]).forEach((c) => {
+            const o = document.createElement("option");
+            o.value = c; o.textContent = c + " · " + DISPLAY_CURRENCIES[c];
+            estGroup.appendChild(o);
+          });
+          estGroup.hidden = !estGroup.children.length;
+        }
+        const pick = saved || ctx.suggested || "AED";
+        render(isBillingCurrency(pick.toLowerCase()) || rates[pick] ? pick : "USD");
+      })
+      .catch(() => { if (!saved) render("AED"); });
+    return () => { cancelled = true; select.removeEventListener("change", onChange); };
   }, []);
 
   // Mobile menu: close it after a link is tapped (same-page #anchors don't
