@@ -47,4 +47,17 @@ describe("plan catalog", () => {
       }
     }
   });
+
+  it("AED prices track USD at the 3.6725 peg (within 3%) and use a psychological ...9 ending", () => {
+    for (const plan of PLAN_ORDER) {
+      const def = planDefinition(plan);
+      if (def.monthlyPriceUsd === 0) {
+        expect(def.monthlyPriceAed).toBe(0);
+        continue;
+      }
+      const implied = def.monthlyPriceUsd * 3.6725;
+      expect(Math.abs(def.monthlyPriceAed - implied) / implied).toBeLessThan(0.03);
+      expect(def.monthlyPriceAed % 10).toBe(9);
+    }
+  });
 });

@@ -7,15 +7,18 @@ import type { SubscriptionPlan } from "@prisma/client";
  * usage-limit checks in the AI copilot/extraction, the upgrade flow) reads
  * from here rather than hardcoding a number anywhere else.
  *
- * Prices are listed in USD/month for simplicity; a real deployment would
- * likely price per-region (AED for the UAE market) via Stripe Prices
- * rather than a literal number in code — that's a follow-up once a real
- * payment provider is wired in (see src/lib/integrations/payment.ts).
+ * Each paid plan has a USD price (default, everyone outside the UAE) and an
+ * AED price (UAE customers). Both are VAT-inclusive: UAE law requires
+ * displayed prices to include VAT, and inclusive pricing stays correct
+ * whether or not the seller is VAT-registered (if it is, Stripe Tax carves
+ * the 5% out of the same total). See src/lib/integrations/stripe.ts.
  */
 export interface PlanDefinition {
   plan: SubscriptionPlan;
   label: string;
   monthlyPriceUsd: number;
+  /** Price for UAE customers, in AED. Stripe Checkout shows it automatically to UAE buyers; everyone else pays USD. */
+  monthlyPriceAed: number;
   seats: number;
   /** AI Copilot questions + document extractions combined, per calendar month. null = unlimited. */
   aiUsageLimitPerMonth: number | null;
@@ -36,6 +39,7 @@ export const PLANS: Record<SubscriptionPlan, PlanDefinition> = {
     plan: "STARTER",
     label: "Starter",
     monthlyPriceUsd: 0,
+    monthlyPriceAed: 0,
     seats: 2,
     aiUsageLimitPerMonth: 20,
     features: { voiceCommands: false, documentExtraction: false, eInvoicing: false, multiCompany: false, apiAccess: false },
@@ -45,6 +49,7 @@ export const PLANS: Record<SubscriptionPlan, PlanDefinition> = {
     plan: "GROWTH",
     label: "Growth",
     monthlyPriceUsd: 49,
+    monthlyPriceAed: 179,
     seats: 5,
     aiUsageLimitPerMonth: 200,
     features: { voiceCommands: false, documentExtraction: true, eInvoicing: true, multiCompany: false, apiAccess: false },
@@ -54,6 +59,7 @@ export const PLANS: Record<SubscriptionPlan, PlanDefinition> = {
     plan: "PROFESSIONAL",
     label: "Professional",
     monthlyPriceUsd: 149,
+    monthlyPriceAed: 549,
     seats: 15,
     aiUsageLimitPerMonth: 1000,
     features: { voiceCommands: true, documentExtraction: true, eInvoicing: true, multiCompany: false, apiAccess: true },
@@ -63,6 +69,7 @@ export const PLANS: Record<SubscriptionPlan, PlanDefinition> = {
     plan: "AI_CFO",
     label: "AI-CFO",
     monthlyPriceUsd: 299,
+    monthlyPriceAed: 1099,
     seats: 30,
     aiUsageLimitPerMonth: 5000,
     features: { voiceCommands: true, documentExtraction: true, eInvoicing: true, multiCompany: true, apiAccess: true },
@@ -72,6 +79,7 @@ export const PLANS: Record<SubscriptionPlan, PlanDefinition> = {
     plan: "ENTERPRISE",
     label: "Enterprise",
     monthlyPriceUsd: 0, // custom — "Contact us" in the UI
+    monthlyPriceAed: 0,
     seats: 999,
     aiUsageLimitPerMonth: null,
     features: { voiceCommands: true, documentExtraction: true, eInvoicing: true, multiCompany: true, apiAccess: true },
