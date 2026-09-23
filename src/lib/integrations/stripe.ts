@@ -2,6 +2,7 @@ import type { SubscriptionPlan } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { recordAuditEvent } from "@/lib/audit";
 import { planDefinition } from "@/lib/billing/plans";
+import { BILLING_CURRENCIES, type BillingCurrency } from "@/lib/billing/currency";
 import {
   STRIPE_API_VERSION,
   encodeStripeForm,
@@ -87,8 +88,8 @@ async function ensurePlanPriceWithProduct(plan: SubscriptionPlan): Promise<{ pri
   const def = planDefinition(plan);
   if (def.monthlyPriceUsd <= 0) throw new Error(`${def.label} is not a self-serve paid plan.`);
   const lookupKey = planLookupKey(plan);
-  const unitAmount = Math.round(def.monthlyPriceUsd * 100);
-  const aedAmount = Math.round(def.monthlyPriceAed * 100);
+  const unitAmount = Math.round(def.prices.usd * 100);
+  const others = BILLING_CURRENCIES.filter((c) => c !== "usd");
 
   const existing = await stripe<{ data: any[] }>("GET", "/prices", {
     lookup_keys: [lookupKey],
@@ -96,15 +97,17 @@ async function ensurePlanPriceWithProduct(plan: SubscriptionPlan): Promise<{ pri
     expand: ["data.product", "data.currency_options"],
   });
   const current = existing.data[0];
-  const aedOption = current?.currency_options?.aed;
+  const optionsMatch = others.every((c) => {
+    const o = current?.currency_options?.[c];
+    return o?.unit_amount === Math.round(def.prices[c] * 100) && o?.tax_behavior === "inclusive";
+  });
   if (
     current &&
     current.unit_amount === unitAmount &&
     current.currency === "usd" &&
     current.recurring?.interval === "month" &&
     current.tax_behavior === "inclusive" &&
-    aedOption?.unit_amount === aedAmount &&
-    aedOption?.tax_behavior === "inclusive"
+    optionsMatch
   ) {
     return { priceId: current.id, productId: typeof current.product === "string" ? current.product : current.product.id };
   }
@@ -127,7 +130,9 @@ async function ensurePlanPriceWithProduct(plan: SubscriptionPlan): Promise<{ pri
     // VAT-inclusive in both currencies (UAE displayed-price rule; Checkout
     // also needs tax_behavior per currency to localise once Stripe Tax is on).
     tax_behavior: "inclusive",
-    currency_options: { aed: { unit_amount: aedAmount, tax_behavior: "inclusive" } },
+    currency_options: Object.fromEntries(
+      others.map((c) => [c, { unit_amount: Math.round(def.prices[c] * 100), tax_behavior: "inclusive" }])
+    ),
     recurring: { interval: "month" },
     lookup_key: lookupKey,
     transfer_lookup_key: true,
@@ -206,6 +211,8 @@ export async function createCheckoutSession(input: {
   userId: string;
   plan: SubscriptionPlan;
   origin: string;
+  /** Currency the customer chose on the pricing/billing page. Omitted → Stripe picks from their location. */
+  currency?: BillingCurrency;
 }): Promise<string> {
   const [company, user] = await Promise.all([
     prisma.company.findUniqueOrThrow({ where: { id: input.companyId } }),
@@ -219,6 +226,7 @@ export async function createCheckoutSession(input: {
   const session = await stripe("POST", "/checkout/sessions", {
     mode: "subscription",
     customer: customerId,
+    ...(input.currency ? { currency: input.currency } : {}),
     client_reference_id: input.companyId,
     line_items: [{ price: priceId, quantity: 1 }],
     allow_promotion_codes: true,
@@ -239,7 +247,7 @@ export async function createCheckoutSession(input: {
     action: "billing.checkout_started",
     entityType: "Subscription",
     entityId: session.id,
-    newValue: { plan: input.plan, mode: stripeMode() },
+    newValue: { plan: input.plan, currency: input.currency ?? "auto", mode: stripeMode() },
     source: "web",
   });
 
