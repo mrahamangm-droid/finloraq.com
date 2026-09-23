@@ -1,3 +1,4 @@
+import { withApiErrors } from "@/lib/api";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireTenantContext } from "@/lib/tenant";
@@ -6,7 +7,7 @@ import { InvalidLineError } from "@/lib/ledger";
 
 const schema = z.object({ amount: z.number().positive(), date: z.string().optional() });
 
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+async function handlePOST(req: Request, { params }: { params: { id: string } }) {
   const { active, userId } = await requireTenantContext();
   const parsed = schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
@@ -30,3 +31,5 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     throw err;
   }
 }
+
+export const POST = withApiErrors(handlePOST);
