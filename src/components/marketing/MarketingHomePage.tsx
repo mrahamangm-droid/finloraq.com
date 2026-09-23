@@ -760,42 +760,38 @@ const BODY_HTML_AFTER_HERO = `<!-- 2. LIVE PRODUCT PREVIEW / TRY THE DEMO -->
     <div class="sec-head">
       <div class="eyebrow">Pricing</div>
       <h2 style="margin-top:12px">Simple plans that grow with you.</h2>
-      <p>Final pricing may vary by region and company size — this is a starting guide.</p>
-    </div>
-    <div class="price-toggle">
-      <button class="active" data-billing="monthly">Monthly</button>
-      <button data-billing="annual">Annual — save ~15%</button>
+      <p>Start free. Upgrade when you need more people, more AI or more automation. Prices in USD, billed monthly through Stripe, cancel anytime.</p>
     </div>
     <div class="price-grid">
       <div class="plan">
         <div class="pname">Starter</div>
-        <div class="pprice num" data-m="29" data-a="25">$29<small>/mo</small></div>
+        <div class="pprice num">$0<small>/mo</small></div>
         <ul>
-          <li>✓ Core accounting</li><li>✓ 1 company</li><li>✓ Invoicing &amp; bills</li>
+          <li>✓ Double-entry accounting &amp; reports</li><li>✓ Invoices, bills &amp; expenses</li><li>✓ UAE VAT tax codes</li><li>✓ 2 users · 20 AI actions/mo</li>
         </ul>
         <a class="btn btn-ghost btn-block" href="/register">Start Free</a>
       </div>
       <div class="plan">
         <div class="pname">Growth</div>
-        <div class="pprice num" data-m="79" data-a="67">$79<small>/mo</small></div>
+        <div class="pprice num">$49<small>/mo</small></div>
         <ul>
-          <li>✓ Everything in Starter</li><li>✓ Business Pulse</li><li>✓ Bank feeds &amp; reconciliation</li>
+          <li>✓ Everything in Starter</li><li>✓ Receipt &amp; invoice reading (AI)</li><li>✓ E-invoicing</li><li>✓ Bank reconciliation</li><li>✓ 5 users · 200 AI actions/mo</li>
         </ul>
         <a class="btn btn-ghost btn-block" href="/register">Start Free</a>
       </div>
       <div class="plan feat">
         <div class="pname">Professional</div>
-        <div class="pprice num" data-m="149" data-a="127">$149<small>/mo</small></div>
+        <div class="pprice num">$149<small>/mo</small></div>
         <ul>
-          <li>✓ Everything in Growth</li><li>✓ AI Finance Agents</li><li>✓ What-If Simulator</li>
+          <li>✓ Everything in Growth</li><li>✓ Cash-flow intelligence</li><li>✓ Projects &amp; cost centres</li><li>✓ Voice commands &amp; API access</li><li>✓ 15 users · 1,000 AI actions/mo</li>
         </ul>
         <a class="btn btn-primary btn-block" href="/register">Start Free</a>
       </div>
       <div class="plan">
         <div class="pname">AI CFO</div>
-        <div class="pprice num" data-m="299" data-a="254">$299<small>/mo</small></div>
+        <div class="pprice num">$299<small>/mo</small></div>
         <ul>
-          <li>✓ Everything in Professional</li><li>✓ CFO Agent</li><li>✓ Multi-company consolidation</li>
+          <li>✓ Everything in Professional</li><li>✓ Multi-company</li><li>✓ Priority support</li><li>✓ 30 users · 5,000 AI actions/mo</li>
         </ul>
         <a class="btn btn-ghost btn-block" href="/register">Start Free</a>
       </div>
@@ -803,7 +799,7 @@ const BODY_HTML_AFTER_HERO = `<!-- 2. LIVE PRODUCT PREVIEW / TRY THE DEMO -->
         <div class="pname">Enterprise</div>
         <div class="pprice">Talk to us</div>
         <ul>
-          <li>✓ Custom limits</li><li>✓ Dedicated support</li><li>✓ Advanced security review</li>
+          <li>✓ Custom users &amp; limits</li><li>✓ Unlimited AI actions</li><li>✓ Dedicated support</li><li>✓ Advanced security review</li>
         </ul>
         <a class="btn btn-ghost btn-block" href="mailto:hello@finloraq.com">Contact Sales</a>
       </div>
