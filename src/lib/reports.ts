@@ -321,8 +321,8 @@ export function ledgerPeriodRange(
   let year = now.getUTCFullYear();
   let monthIndex = now.getUTCMonth();
   if (m) {
-    const y = parseInt(m[1], 10);
-    const mo = parseInt(m[2], 10);
+    const y = parseInt(m[1] ?? "", 10);
+    const mo = parseInt(m[2] ?? "", 10);
     if (y >= 1900 && mo >= 1 && mo <= 12) {
       year = y;
       monthIndex = mo - 1;
@@ -444,8 +444,9 @@ export function buildLedger(
       const debit = roundMoney(sum(inMonth.map((e) => e.debit)));
       const credit = roundMoney(sum(inMonth.map((e) => e.credit)));
       monthRunning = roundMoney(monthRunning.plus(debit.minus(credit).times(sign)));
-      const [y, mo] = key.split("-").map((n) => parseInt(n, 10));
-      return { month: key, label: `${MONTH_NAMES[mo - 1].slice(0, 3)} ${y}`, debit, credit, closing: monthRunning };
+      const y = key.slice(0, 4);
+      const monthName = MONTH_NAMES[parseInt(key.slice(5, 7), 10) - 1] ?? "";
+      return { month: key, label: `${monthName.slice(0, 3)} ${y}`, debit, credit, closing: monthRunning };
     });
 
     sections.push({

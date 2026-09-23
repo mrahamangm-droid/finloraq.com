@@ -62,6 +62,11 @@ describe("buildLedger", () => {
   const line = (accountId: string, date: string, n: string, debit: number, credit: number) => ({
     accountId, date: new Date(date), entryNumber: n, memo: null, description: null, debit, credit,
   });
+  const at = <T,>(items: T[], i: number): T => {
+    const item = items[i];
+    if (item === undefined) throw new Error(`missing item ${i}`);
+    return item;
+  };
   const { from, to } = ledgerPeriodRange("yearly", "2026");
   const sections = buildLedger(
     accounts,
@@ -79,19 +84,19 @@ describe("buildLedger", () => {
     expect(sections.map((s) => s.accountCode)).toEqual(["1000", "4000"]);
   });
   it("carries opening, running and closing balances in date order", () => {
-    const bank = sections[0];
+    const bank = at(sections, 0);
     expect(bank.opening.toNumber()).toBe(100);
     expect(bank.entries.map((e) => e.balance.toNumber())).toEqual([150, 120]);
     expect(bank.closing.toNumber()).toBe(120);
   });
   it("shows credit-natural accounts as positive", () => {
-    expect(sections[1].closing.toNumber()).toBe(50);
+    expect(at(sections, 1).closing.toNumber()).toBe(50);
   });
   it("rolls up all twelve months", () => {
-    const bank = sections[0];
+    const bank = at(sections, 0);
     expect(bank.months).toHaveLength(12);
-    expect(bank.months[0].closing.toNumber()).toBe(150);
-    expect(bank.months[1].credit.toNumber()).toBe(30);
-    expect(bank.months[11].closing.toNumber()).toBe(120);
+    expect(at(bank.months, 0).closing.toNumber()).toBe(150);
+    expect(at(bank.months, 1).credit.toNumber()).toBe(30);
+    expect(at(bank.months, 11).closing.toNumber()).toBe(120);
   });
 });
