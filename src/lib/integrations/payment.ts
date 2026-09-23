@@ -9,10 +9,10 @@ import type { PaymentAdapter, PaymentChargeResult } from "@/lib/integrations/typ
  * Subscription row behave exactly as they would with a real provider —
  * only the "did money actually move" fact differs, and it's never hidden.
  *
- * TODO(production): implement a real adapter (Stripe Checkout/PaymentIntents
- * is the natural fit given `STRIPE_SECRET_KEY`/`STRIPE_WEBHOOK_SECRET` are
- * already in .env.example) behind this same interface, selected by
- * isPaymentConfigured() the same way AiProvider/EInvoicingAdapter are.
+ * When STRIPE_SECRET_KEY is set, paid plan changes bypass this adapter
+ * entirely and go through real Stripe Checkout / Customer Portal
+ * (src/lib/integrations/stripe.ts, wired in /api/billing/change-plan);
+ * this simulated path is only used while Stripe is unconfigured.
  */
 class DevPaymentAdapter implements PaymentAdapter {
   readonly provider = "dev-simulated";
