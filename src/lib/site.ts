@@ -5,4 +5,4 @@
 // stylesheet import into files that aren't part of the rendered component
 // tree.
 export const SITE_URL =
-  process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || "https://app.finloraq.com";
+  process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || "https://finloraq.com";
