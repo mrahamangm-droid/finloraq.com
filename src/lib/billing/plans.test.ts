@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { PLANS, PLAN_ORDER, planDefinition, isCustomPricedPlan } from "./plans";
+import { BILLING_CURRENCIES, REFERENCE_USD_RATES } from "./currency";
 
 describe("plan catalog", () => {
   it("every plan in PLAN_ORDER has a definition", () => {
@@ -48,16 +49,28 @@ describe("plan catalog", () => {
     }
   });
 
-  it("AED prices track USD at the 3.6725 peg (within 3%) and use a psychological ...9 ending", () => {
+  it("every fixed price tracks its US$ price at the reference rate (within 6%), and usd === monthlyPriceUsd", () => {
     for (const plan of PLAN_ORDER) {
       const def = planDefinition(plan);
-      if (def.monthlyPriceUsd === 0) {
-        expect(def.monthlyPriceAed).toBe(0);
-        continue;
+      expect(def.prices.usd).toBe(def.monthlyPriceUsd);
+      for (const cur of BILLING_CURRENCIES) {
+        if (def.monthlyPriceUsd === 0) {
+          expect(def.prices[cur]).toBe(0);
+          continue;
+        }
+        const implied = def.monthlyPriceUsd * REFERENCE_USD_RATES[cur];
+        expect(Math.abs(def.prices[cur] - implied) / implied).toBeLessThan(0.06);
+        expect(Number.isInteger(def.prices[cur])).toBe(true);
       }
-      const implied = def.monthlyPriceUsd * 3.6725;
-      expect(Math.abs(def.monthlyPriceAed - implied) / implied).toBeLessThan(0.03);
-      expect(def.monthlyPriceAed % 10).toBe(9);
+    }
+  });
+
+  it("prices never go down as plans go up, in any currency", () => {
+    const paid = PLAN_ORDER.filter((p) => planDefinition(p).monthlyPriceUsd > 0);
+    for (const cur of BILLING_CURRENCIES) {
+      for (let i = 1; i < paid.length; i++) {
+        expect(planDefinition(paid[i]!).prices[cur]).toBeGreaterThan(planDefinition(paid[i - 1]!).prices[cur]);
+      }
     }
   });
 });
