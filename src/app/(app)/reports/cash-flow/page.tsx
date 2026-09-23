@@ -20,7 +20,7 @@ export default async function CashFlowPage() {
         <div className="mt-1 text-2xl font-semibold text-card-foreground">{forecast.currentCash.toFixed(2)}</div>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         {forecast.buckets.map((b) => (
           <div key={b.days} className="rounded-lg border border-border bg-card p-4">
             <div className="text-xs uppercase text-muted-foreground">Next {b.days} days</div>
@@ -45,27 +45,29 @@ export default async function CashFlowPage() {
         <div className="border-b border-border px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Customer Payment Behavior
         </div>
-        <table className="w-full text-sm">
-          <thead className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
-            <tr>
-              <th className="px-4 py-2">Customer</th>
-              <th className="px-4 py-2 text-right">Avg. days late</th>
-              <th className="px-4 py-2 text-right">Paid invoices</th>
-            </tr>
-          </thead>
-          <tbody>
-            {behavior.length === 0 && (
-              <tr><td colSpan={3} className="px-4 py-8 text-center text-muted-foreground">No paid invoices with payment history yet.</td></tr>
-            )}
-            {behavior.map((b) => (
-              <tr key={b.customerId} className="border-b border-border last:border-0">
-                <td className="px-4 py-2 text-card-foreground">{b.customerName}</td>
-                <td className={`px-4 py-2 text-right ${b.avgDaysLate > 0 ? "text-destructive" : "text-success"}`}>{b.avgDaysLate}</td>
-                <td className="px-4 py-2 text-right text-muted-foreground">{b.invoiceCount}</td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
+              <tr>
+                <th className="px-4 py-2">Customer</th>
+                <th className="px-4 py-2 text-right">Avg. days late</th>
+                <th className="px-4 py-2 text-right">Paid invoices</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {behavior.length === 0 && (
+                <tr><td colSpan={3} className="px-4 py-8 text-center text-muted-foreground">No paid invoices with payment history yet.</td></tr>
+              )}
+              {behavior.map((b) => (
+                <tr key={b.customerId} className="border-b border-border last:border-0">
+                  <td className="px-4 py-2 text-card-foreground">{b.customerName}</td>
+                  <td className={`px-4 py-2 text-right ${b.avgDaysLate > 0 ? "text-destructive" : "text-success"}`}>{b.avgDaysLate}</td>
+                  <td className="px-4 py-2 text-right text-muted-foreground">{b.invoiceCount}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
