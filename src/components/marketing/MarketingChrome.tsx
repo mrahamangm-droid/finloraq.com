@@ -182,13 +182,20 @@ export function MarketingFooter() {
             <li>
               <a href="mailto:hello@finloraq.com">Contact</a>
             </li>
+            <li>
+              <Link href="/privacy">Privacy Policy</Link>
+            </li>
+            <li>
+              <Link href="/terms">Terms of Service</Link>
+            </li>
           </ul>
         </div>
       </div>
       <div className="wrap foot-bottom">
         <span>
           © {new Date().getFullYear()} Finloraq — PAPPLE WORLD FZE LLC | RAK, UAE |{" "}
-          <a href="mailto:support@finloraq.com">support@finloraq.com</a>
+          <a href="mailto:support@finloraq.com">support@finloraq.com</a> ·{" "}
+          <Link href="/privacy">Privacy</Link> · <Link href="/terms">Terms</Link>
         </span>
         <span>Demo content shown throughout is illustrative and does not represent a real customer.</span>
       </div>

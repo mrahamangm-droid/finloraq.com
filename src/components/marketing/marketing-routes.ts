@@ -88,6 +88,26 @@ export const MARKETING_ROUTES: MarketingRoute[] = [
     priority: 0.6,
     footerGroup: "resources",
   },
+  {
+    path: "/privacy",
+    title: "Privacy Policy",
+    navLabel: "Privacy Policy",
+    description:
+      "How Finloraq collects, uses, shares and protects your data — including what happens when AI providers process your financial information.",
+    lastModified: "2026-09-24",
+    changeFrequency: "yearly",
+    priority: 0.3,
+  },
+  {
+    path: "/terms",
+    title: "Terms of Service",
+    navLabel: "Terms of Service",
+    description:
+      "The terms that govern your use of Finloraq — accounts, subscriptions and billing, your data, AI features, and everyone's responsibilities.",
+    lastModified: "2026-09-24",
+    changeFrequency: "yearly",
+    priority: 0.3,
+  },
 ];
 
 export function getMarketingRoute(path: string): MarketingRoute | undefined {
