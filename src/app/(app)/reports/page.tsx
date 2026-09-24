@@ -21,7 +21,7 @@ export default async function ReportsPage() {
         <p className="text-sm text-muted-foreground">{active.company.name}</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {REPORTS.map((r) => (
           <Link key={r.href} href={r.href} className="rounded-lg border border-border bg-card p-4 hover:bg-muted/30">
             <div className="font-medium text-card-foreground">{r.name}</div>

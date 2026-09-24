@@ -18,7 +18,7 @@ export default async function ProjectDetailPage({ params }: { params: { id: stri
         <p className="font-mono text-sm text-muted-foreground">{p.project.code}</p>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="rounded-lg border border-border bg-card p-4">
           <div className="text-xs uppercase text-muted-foreground">Revenue</div>
           <div className="mt-1 text-xl font-semibold text-card-foreground">{p.revenue.toFixed(2)}</div>

@@ -26,18 +26,20 @@ export default async function TaxesPage() {
         <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
           VAT Return — {from.toISOString().slice(0, 10)} to {to.toISOString().slice(0, 10)}
         </h2>
-        <table className="w-full text-sm">
-          <tbody>
-            <tr>
-              <td className="py-1 text-card-foreground">Output tax (on sales)</td>
-              <td className="py-1 text-right text-card-foreground">{vat.outputTax.toFixed(2)}</td>
-            </tr>
-            <tr>
-              <td className="py-1 text-card-foreground">Input tax (on purchases)</td>
-              <td className="py-1 text-right text-card-foreground">{vat.inputTax.toFixed(2)}</td>
-            </tr>
-          </tbody>
-        </table>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <tbody>
+              <tr>
+                <td className="py-1 text-card-foreground">Output tax (on sales)</td>
+                <td className="py-1 text-right text-card-foreground">{vat.outputTax.toFixed(2)}</td>
+              </tr>
+              <tr>
+                <td className="py-1 text-card-foreground">Input tax (on purchases)</td>
+                <td className="py-1 text-right text-card-foreground">{vat.inputTax.toFixed(2)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
         <div className="mt-2 flex justify-between border-t border-border pt-2 text-sm font-semibold text-foreground">
           <span>{vat.netPayable.isNegative() ? "Net refund due" : "Net payable"}</span>
           <span>{vat.netPayable.abs().toFixed(2)}</span>
@@ -48,18 +50,20 @@ export default async function TaxesPage() {
         <div className="border-b border-border px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Tax Codes
         </div>
-        <table className="w-full text-sm">
-          <tbody>
-            {taxCodes.map((t) => (
-              <tr key={t.id} className="border-b border-border last:border-0">
-                <td className="px-4 py-2 font-mono text-xs text-muted-foreground">{t.code}</td>
-                <td className="px-4 py-2 text-card-foreground">{t.name}</td>
-                <td className="px-4 py-2 text-muted-foreground">{t.treatment}</td>
-                <td className="px-4 py-2 text-right text-card-foreground">{t.rate.times(100).toFixed(2)}%</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <tbody>
+              {taxCodes.map((t) => (
+                <tr key={t.id} className="border-b border-border last:border-0">
+                  <td className="px-4 py-2 font-mono text-xs text-muted-foreground">{t.code}</td>
+                  <td className="px-4 py-2 text-card-foreground">{t.name}</td>
+                  <td className="px-4 py-2 text-muted-foreground">{t.treatment}</td>
+                  <td className="px-4 py-2 text-right text-card-foreground">{t.rate.times(100).toFixed(2)}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <p className="text-xs text-muted-foreground">

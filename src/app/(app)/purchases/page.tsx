@@ -33,37 +33,39 @@ export default async function PurchasesPage() {
       </div>
 
       <div className="overflow-hidden rounded-lg border border-border bg-card">
-        <table className="w-full text-sm">
-          <thead className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
-            <tr>
-              <th className="px-4 py-2">Bill #</th>
-              <th className="px-4 py-2">Supplier</th>
-              <th className="px-4 py-2">Issue date</th>
-              <th className="px-4 py-2">Due date</th>
-              <th className="px-4 py-2 text-right">Total</th>
-              <th className="px-4 py-2">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {bills.length === 0 && (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">No bills yet.</td></tr>
-            )}
-            {bills.map((b) => (
-              <tr key={b.id} className="border-b border-border last:border-0 hover:bg-muted/30">
-                <td className="px-4 py-2">
-                  <Link href={`/purchases/${b.id}`} className="font-mono text-xs text-primary">{b.billNumber}</Link>
-                </td>
-                <td className="px-4 py-2 text-card-foreground">{b.supplier.name}</td>
-                <td className="px-4 py-2 text-muted-foreground">{b.issueDate.toISOString().slice(0, 10)}</td>
-                <td className="px-4 py-2 text-muted-foreground">{b.dueDate.toISOString().slice(0, 10)}</td>
-                <td className="px-4 py-2 text-right text-card-foreground">{b.total.toFixed(2)} {b.currency}</td>
-                <td className="px-4 py-2">
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusColor(b.status)}`}>{b.status}</span>
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
+              <tr>
+                <th className="px-4 py-2">Bill #</th>
+                <th className="px-4 py-2">Supplier</th>
+                <th className="px-4 py-2">Issue date</th>
+                <th className="px-4 py-2">Due date</th>
+                <th className="px-4 py-2 text-right">Total</th>
+                <th className="px-4 py-2">Status</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {bills.length === 0 && (
+                <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">No bills yet.</td></tr>
+              )}
+              {bills.map((b) => (
+                <tr key={b.id} className="border-b border-border last:border-0 hover:bg-muted/30">
+                  <td className="px-4 py-2">
+                    <Link href={`/purchases/${b.id}`} className="font-mono text-xs text-primary">{b.billNumber}</Link>
+                  </td>
+                  <td className="px-4 py-2 text-card-foreground">{b.supplier.name}</td>
+                  <td className="px-4 py-2 text-muted-foreground">{b.issueDate.toISOString().slice(0, 10)}</td>
+                  <td className="px-4 py-2 text-muted-foreground">{b.dueDate.toISOString().slice(0, 10)}</td>
+                  <td className="px-4 py-2 text-right text-card-foreground">{b.total.toFixed(2)} {b.currency}</td>
+                  <td className="px-4 py-2">
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusColor(b.status)}`}>{b.status}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

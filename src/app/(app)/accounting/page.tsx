@@ -55,19 +55,21 @@ export default async function ChartOfAccountsPage() {
             <div className="border-b border-border px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               {type}
             </div>
-            <table className="w-full text-sm">
-              <tbody>
-                {rows.map((a) => (
-                  <tr key={a.id} className="border-b border-border last:border-0">
-                    <td className="w-24 px-4 py-2 text-muted-foreground">{a.code}</td>
-                    <td className="px-4 py-2 text-card-foreground">{a.name}</td>
-                    <td className="px-4 py-2 text-right text-xs text-muted-foreground">
-                      {a.isSystem ? "System" : ""}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <tbody>
+                  {rows.map((a) => (
+                    <tr key={a.id} className="border-b border-border last:border-0">
+                      <td className="w-24 px-4 py-2 text-muted-foreground">{a.code}</td>
+                      <td className="px-4 py-2 text-card-foreground">{a.name}</td>
+                      <td className="px-4 py-2 text-right text-xs text-muted-foreground">
+                        {a.isSystem ? "System" : ""}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         );
       })}
