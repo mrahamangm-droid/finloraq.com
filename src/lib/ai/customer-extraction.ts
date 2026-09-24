@@ -8,6 +8,7 @@ import { enforceAiUsageLimit, recordAiUsage } from "@/lib/billing/usage";
 import { planDefinition } from "@/lib/billing/plans";
 import { parseCsv, rowsToTableText } from "@/lib/files/csv";
 import { parseXlsxRows } from "@/lib/files/xlsx-lite";
+import { detectSourceKind } from "@/lib/files/source-kind";
 import { findCustomerMatches, type CustomerMatchCandidate } from "@/lib/customers/matching";
 import { createCustomer, updateCustomerFromReview } from "@/lib/parties";
 
@@ -27,8 +28,8 @@ import { createCustomer, updateCustomerFromReview } from "@/lib/parties";
  * it's many), and (c) it tries to match each record to an existing
  * Customer rather than just reading vendor/amount fields. The upload
  * picker itself doesn't filter by file type at all (see
- * FileIntelligencePanel) — detectSourceKind() below is the single place
- * that decides what's readable, and it always fails with a specific,
+ * FileIntelligencePanel) — detectSourceKind() (@/lib/files/source-kind) is
+ * the single place that decides what's readable, and it always fails with a specific,
  * actionable reason (convert to PDF, convert to JPEG/PNG, etc.) rather
  * than a generic "unsupported" for formats we know about but can't parse
  * yet (old .xls, Word/PowerPoint, zip archives, HEIC/TIFF/BMP/SVG images).
@@ -89,77 +90,10 @@ const RECORD_SYSTEM_PROMPT =
 const MAX_TABLE_ROWS = 300;
 const MAX_TEXT_CHARS = 15000;
 
-type SourceKind = CustomerDocumentExtraction["sourceType"];
-
-// Anthropic's vision API only accepts these four image media types. Any
-// other image/* mimeType (heic, tiff, bmp, svg, ...) would otherwise reach
-// completeWithFile() and fail as a raw, confusing "Anthropic API error 400"
-// — so it's rejected here instead, with a specific, actionable message.
-const SUPPORTED_IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/gif", "image/webp"]);
-const SUPPORTED_IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "gif", "webp"]);
-const UNSUPPORTED_IMAGE_EXTENSIONS = new Set(["heic", "heif", "bmp", "tif", "tiff", "svg"]);
-
-function detectSourceKind(fileName: string, mimeType: string): SourceKind {
-  const ext = fileName.toLowerCase().split(".").pop() ?? "";
-
-  if (mimeType.startsWith("image/")) {
-    if (SUPPORTED_IMAGE_MIME_TYPES.has(mimeType)) return "image";
-    throw new Error(
-      `"${fileName}" is a ${mimeType} image, which Finloraq can't read yet — please convert it to JPEG or PNG and upload that instead.`
-    );
-  }
-  // Some upload paths (drag-and-drop from certain sources, a generic
-  // "application/octet-stream") don't set a useful mimeType — fall back to
-  // the extension so a plain .jpg/.png still works, and still give a clear
-  // message for image formats we know we can't read rather than letting an
-  // unrecognized mimeType fall through to the generic error below.
-  if (SUPPORTED_IMAGE_EXTENSIONS.has(ext)) return "image";
-  if (UNSUPPORTED_IMAGE_EXTENSIONS.has(ext)) {
-    throw new Error(
-      `"${fileName}" is a .${ext} image, which Finloraq can't read yet — please convert it to JPEG or PNG and upload that instead.`
-    );
-  }
-
-  if (mimeType === "application/pdf" || ext === "pdf") return "pdf";
-  if (mimeType === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" || ext === "xlsx") return "xlsx";
-  if (mimeType === "text/csv" || ext === "csv") return "csv";
-  if (mimeType === "application/vnd.ms-excel" || ext === "xls") {
-    throw new Error(
-      'The old .xls binary format isn\'t supported yet — please re-save/export "' + fileName + '" as .xlsx or .csv and upload that instead.'
-    );
-  }
-  if (
-    ext === "doc" ||
-    ext === "docx" ||
-    ext === "ppt" ||
-    ext === "pptx" ||
-    mimeType === "application/msword" ||
-    mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
-    mimeType === "application/vnd.ms-powerpoint" ||
-    mimeType === "application/vnd.openxmlformats-officedocument.presentationml.presentation"
-  ) {
-    throw new Error(
-      `Word and PowerPoint files aren't supported yet — please export "${fileName}" as a PDF (File → Export or Print to PDF) and upload that instead.`
-    );
-  }
-  if (ext === "zip" || mimeType === "application/zip" || mimeType === "application/x-zip-compressed") {
-    throw new Error(`"${fileName}" is a zip archive — please upload the individual files inside it instead, one at a time.`);
-  }
-  if (
-    mimeType.startsWith("text/") ||
-    mimeType === "message/rfc822" ||
-    mimeType === "application/json" ||
-    ext === "txt" ||
-    ext === "eml" ||
-    ext === "md" ||
-    ext === "json"
-  ) {
-    return "text";
-  }
-  throw new Error(
-    `Unsupported file type for "${fileName}" (${mimeType || "unknown"}). Upload a PDF, an image (JPG/PNG/GIF/WebP), an Excel file (.xlsx), a CSV, or a plain-text/email/JSON export.`
-  );
-}
+// detectSourceKind() moved to @/lib/files/source-kind so the expense
+// Documents pipeline (src/lib/ai/extraction.ts) can share the exact same
+// format detection and error messages instead of maintaining a second,
+// possibly-drifting copy of this list.
 
 function parseRecordsResponse(raw: string): Omit<ExtractedCustomerRecord, "matches">[] {
   const parsed: unknown = JSON.parse(stripCodeFence(raw));
