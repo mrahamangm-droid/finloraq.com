@@ -647,7 +647,17 @@ enum DocumentStatus {
   MATCHED
   DRAFTED
   LINKED
+  IGNORED
   FAILED
+}
+
+/// EXPENSE is the original expense/bill-receipt pipeline (src/lib/ai/extraction.ts).
+/// CUSTOMER_RECORD is Customer File Intelligence (src/lib/ai/customer-extraction.ts) —
+/// same Document table, same dedupe-by-hash behavior, just a different
+/// review queue and a different shape of extractedData.
+enum DocumentKind {
+  EXPENSE
+  CUSTOMER_RECORD
 }
 
 model Document {
@@ -659,14 +669,16 @@ model Document {
   mimeType       String
   sizeBytes      Int
   status         DocumentStatus @default(UPLOADED)
+  kind           DocumentKind   @default(EXPENSE)
   extractedData  Json?
-  relatedEntity  String? // e.g. "Bill:cuid..."
+  relatedEntity  String? // e.g. "Bill:cuid..." or "Customer:cuid..."
   uploadedBy     String
   createdAt      DateTime       @default(now())
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([companyId, status])
+  @@index([companyId, kind, status])
   @@index([hash])
 }
 
