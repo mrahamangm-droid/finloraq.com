@@ -75,10 +75,15 @@ export function MfaPanel() {
 
   function copySecret() {
     if (!setup) return;
-    navigator.clipboard?.writeText(setup.secret).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
+    // Some browsers (Safari, Firefox, non-HTTPS pages) block or lack the
+    // clipboard API; the secret stays visible on screen to copy by hand.
+    navigator.clipboard
+      ?.writeText(setup.secret)
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      })
+      .catch(() => {});
   }
 
   if (!status) {
