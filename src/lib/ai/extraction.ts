@@ -59,7 +59,12 @@ export async function extractDocument(params: {
 
   const hash = crypto.createHash("sha256").update(params.imageBase64).digest("hex");
 
-  const duplicate = await prisma.document.findFirst({ where: { companyId: params.companyId, hash } });
+  // Scoped to this pipeline's own kind: the same file could legitimately
+  // be uploaded once here (as an expense/receipt) and once through
+  // Customer File Intelligence (src/lib/ai/customer-extraction.ts) to
+  // detect the customer on it — those are different reviews, not a
+  // duplicate of each other.
+  const duplicate = await prisma.document.findFirst({ where: { companyId: params.companyId, kind: "EXPENSE", hash } });
   if (duplicate) {
     throw new Error(`This exact file was already uploaded (document ${duplicate.id}, ${duplicate.status}).`);
   }
@@ -67,6 +72,7 @@ export async function extractDocument(params: {
   const document = await prisma.document.create({
     data: {
       companyId: params.companyId,
+      kind: "EXPENSE",
       fileName: params.fileName,
       // No object storage configured yet (OBJECT_STORAGE_* in .env.example
       // is unused) — storageKey is a placeholder until that lands; the raw
