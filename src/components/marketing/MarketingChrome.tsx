@@ -24,8 +24,17 @@ const RESOURCES_LINKS = [
   { href: "/#faq", label: "FAQ" },
 ];
 
+// The homepage's webfonts (same URL as MarketingHomePage.tsx, already allowed
+// by the CSP in next.config.mjs). Rendered with the header so every landing
+// page gets them without each route remembering to add it.
+const FONTS_HREF =
+  "https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@600;700;800&family=Public+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap";
+
 export function MarketingHeader({ currentPath }: { currentPath: string }) {
   return (
+    <>
+    {/* eslint-disable-next-line @next/next/no-page-custom-font */}
+    <link rel="stylesheet" href={FONTS_HREF} />
     <header className="nav">
       <div className="wrap nav-row">
         <Link href="/" className="brand-mark">
@@ -97,6 +106,7 @@ export function MarketingHeader({ currentPath }: { currentPath: string }) {
         </div>
       </div>
     </header>
+    </>
   );
 }
 
