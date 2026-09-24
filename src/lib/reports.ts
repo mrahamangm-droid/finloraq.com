@@ -111,6 +111,37 @@ export async function profitAndLoss(companyId: string, from: Date, to: Date) {
   };
 }
 
+/**
+ * Income, expenses and net profit for each slice of a period (months of a
+ * year, weeks of a month, …) from one query, for the trend tables.
+ */
+export async function profitAndLossSeries(companyId: string, buckets: { from: Date; to: Date }[]) {
+  if (buckets.length === 0) return [];
+  const first = buckets[0]!.from;
+  const last = buckets[buckets.length - 1]!.to;
+  const lines = await prisma.journalLine.findMany({
+    where: {
+      account: { companyId, type: { in: ["REVENUE", "EXPENSE"] } },
+      journalEntry: { companyId, status: "POSTED", date: { gte: first, lte: last } },
+    },
+    select: { debit: true, credit: true, account: { select: { type: true } }, journalEntry: { select: { date: true } } },
+  });
+  const totals = buckets.map(() => ({ income: money(0), expense: money(0) }));
+  for (const l of lines) {
+    const t = l.journalEntry.date.getTime();
+    const i = buckets.findIndex((b) => t >= b.from.getTime() && t <= b.to.getTime());
+    const bucket = totals[i];
+    if (!bucket) continue;
+    if (l.account.type === "REVENUE") bucket.income = bucket.income.plus(l.credit.toString()).minus(l.debit.toString());
+    else bucket.expense = bucket.expense.plus(l.debit.toString()).minus(l.credit.toString());
+  }
+  return totals.map((t) => ({
+    income: roundMoney(t.income),
+    expense: roundMoney(t.expense),
+    net: roundMoney(t.income.minus(t.expense)),
+  }));
+}
+
 export interface AgingRow {
   id: string;
   number: string;

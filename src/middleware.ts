@@ -40,6 +40,7 @@ export const config = {
     "/taxes/:path*",
     "/reports/:path*",
     "/documents/:path*",
+    "/import/:path*",
     "/users/:path*",
     "/settings/:path*",
     "/audit/:path*",

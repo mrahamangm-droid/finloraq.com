@@ -2,6 +2,8 @@ import Link from "next/link";
 import { requireTenantContext } from "@/lib/tenant";
 import { getFormatter } from "@/lib/customization/server";
 import { prisma } from "@/lib/db";
+import { pickerProps, resolvePeriod, type PeriodParams } from "@/lib/periods";
+import { PeriodPicker } from "@/components/periods/period-picker";
 
 function statusColor(status: string) {
   if (status === "PAID") return "bg-success/10 text-success";
@@ -10,16 +12,18 @@ function statusColor(status: string) {
   return "bg-primary/10 text-primary";
 }
 
-export default async function PurchasesPage() {
+export default async function PurchasesPage({ searchParams = {} }: { searchParams?: PeriodParams }) {
   const { active, userId } = await requireTenantContext();
   const fmt = await getFormatter(userId);
+  const filtered = Boolean(searchParams.period);
+  const period = resolvePeriod(searchParams);
 
   // Same cap-not-paginate tradeoff as the Sales list (see its comment).
   const bills = await prisma.bill.findMany({
-    where: { companyId: active.companyId },
+    where: { companyId: active.companyId, ...(filtered ? { issueDate: { gte: period.from, lte: period.to } } : {}) },
     orderBy: { issueDate: "desc" },
     include: { supplier: true },
-    take: 200,
+    take: filtered ? 1000 : 200,
   });
 
   return (
@@ -33,6 +37,8 @@ export default async function PurchasesPage() {
           New Bill
         </Link>
       </div>
+
+      <PeriodPicker {...pickerProps(period)} showingAll={!filtered} clearable={filtered} />
 
       <div className="overflow-hidden rounded-lg border border-border bg-card">
         <div className="overflow-x-auto">
@@ -49,7 +55,7 @@ export default async function PurchasesPage() {
             </thead>
             <tbody>
               {bills.length === 0 && (
-                <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">No bills yet.</td></tr>
+                <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">{filtered ? `No bills in ${period.label}.` : "No bills yet."}</td></tr>
               )}
               {bills.map((b) => (
                 <tr key={b.id} className="border-b border-border last:border-0 hover:bg-muted/30">
@@ -66,6 +72,15 @@ export default async function PurchasesPage() {
                 </tr>
               ))}
             </tbody>
+            {filtered && bills.length > 0 && (
+              <tfoot className="border-t border-border font-medium">
+                <tr>
+                  <td className="px-4 py-2" colSpan={4}>Total · {period.label} · {bills.length} bills</td>
+                  <td className="px-4 py-2 text-right tabular-nums">{fmt.money(bills.reduce((a, x) => a + x.total.toNumber(), 0))}</td>
+                  <td />
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
       </div>

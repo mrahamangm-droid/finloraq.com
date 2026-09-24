@@ -1,11 +1,15 @@
 import { requireTenantContext } from "@/lib/tenant";
 import { getFormatter } from "@/lib/customization/server";
 import { trialBalance } from "@/lib/reports";
+import { pickerProps, resolvePeriod, type PeriodParams } from "@/lib/periods";
+import { PeriodPicker } from "@/components/periods/period-picker";
 
-export default async function TrialBalancePage() {
+export default async function TrialBalancePage({ searchParams = {} }: { searchParams?: PeriodParams }) {
   const { active, userId } = await requireTenantContext();
   const fmt = await getFormatter(userId);
-  const asOf = new Date();
+  const now = new Date();
+  const period = resolvePeriod(searchParams, now);
+  const asOf = period.to < now ? period.to : now;
   const rows = await trialBalance(active.companyId, asOf);
 
   const totalDebit = rows.reduce((a, r) => a + r.debit.toNumber(), 0);
@@ -20,6 +24,8 @@ export default async function TrialBalancePage() {
           {active.company.name} · as of {fmt.date(asOf)}
         </p>
       </div>
+
+      <PeriodPicker {...pickerProps(period)} allow={["day", "week", "month", "quarter", "year"]} />
 
       <div className="overflow-hidden rounded-lg border border-border bg-card">
         <div className="overflow-x-auto">

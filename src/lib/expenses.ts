@@ -62,11 +62,11 @@ export async function approveExpense(params: {
   });
 }
 
-export async function listRecentExpenses(companyId: string) {
+export async function listRecentExpenses(companyId: string, range?: { from: Date; to: Date }) {
   return prisma.journalEntry.findMany({
-    where: { companyId, sourceType: "EXPENSE" },
+    where: { companyId, sourceType: "EXPENSE", ...(range ? { date: { gte: range.from, lte: range.to } } : {}) },
     orderBy: { date: "desc" },
-    take: 50,
+    take: range ? 500 : 50,
     include: { lines: { include: { account: true } } },
   });
 }

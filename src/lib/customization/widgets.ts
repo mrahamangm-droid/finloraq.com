@@ -6,6 +6,8 @@ export type WidgetSize = "sm" | "lg";
 export const WIDGETS = [
   { id: "cash", label: "Cash (Bank)", size: "sm" },
   { id: "profit", label: "Net profit", size: "sm" },
+  { id: "revenue", label: "Income", size: "sm" },
+  { id: "expenses", label: "Expenses", size: "sm" },
   { id: "receivables", label: "Receivables outstanding", size: "sm" },
   { id: "payables", label: "Payables outstanding", size: "sm" },
   { id: "customers", label: "Customers", size: "sm" },
@@ -23,7 +25,7 @@ export interface WidgetSetting { id: WidgetId; visible: boolean }
 
 /** New users see these; everything else is one click away in "Customize". */
 const DEFAULT_VISIBLE = new Set<WidgetId>([
-  "cash", "profit", "receivables", "payables", "customers", "suppliers", "openInvoices", "draftJournals", "quickActions", "reports",
+  "cash", "profit", "revenue", "expenses", "receivables", "payables", "customers", "suppliers", "openInvoices", "draftJournals", "quickActions", "reports",
 ]);
 
 export const RANGES = {

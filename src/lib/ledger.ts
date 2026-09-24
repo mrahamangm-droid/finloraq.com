@@ -133,7 +133,26 @@ async function findOpenPeriod(tx: Prisma.TransactionClient, companyId: string, d
     where: { companyId, startDate: { lte: date }, endDate: { gte: date } },
   });
   if (!period) {
-    throw new InvalidLineError(`No accounting period exists for ${date.toISOString().slice(0, 10)}.`);
+    // Periods are monthly and created on demand: onboarding only opens the
+    // signup month, so without this every later month — and any imported
+    // history from earlier years — would be rejected. A period an admin has
+    // LOCKED still blocks postings below; only a missing one is created.
+    const y = date.getUTCFullYear();
+    const m = date.getUTCMonth();
+    const name = `${y}-${String(m + 1).padStart(2, "0")}`;
+    return tx.accountingPeriod.upsert({
+      where: { companyId_name: { companyId, name } },
+      create: {
+        companyId,
+        name,
+        startDate: new Date(Date.UTC(y, m, 1)),
+        endDate: new Date(Date.UTC(y, m + 1, 1) - 1),
+      },
+      update: {},
+    }).then((p) => {
+      if (p.status === "LOCKED") throw new PeriodLockedError(p.name);
+      return p;
+    });
   }
   if (period.status === "LOCKED") {
     throw new PeriodLockedError(period.name);

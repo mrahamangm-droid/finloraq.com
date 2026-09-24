@@ -487,6 +487,8 @@ model Invoice {
   journalEntryId String?
   /// Values for the company's custom invoice fields, keyed by field key.
   customFields Json?
+  /// Fingerprint of the spreadsheet row this invoice was imported from (Import past data) — stops double imports.
+  importRef   String?
   createdAt   DateTime      @default(now())
 
   company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -495,6 +497,7 @@ model Invoice {
   lines    InvoiceLine[]
 
   @@unique([companyId, invoiceNumber])
+  @@unique([companyId, importRef])
   @@index([companyId, status])
 }
 
@@ -534,6 +537,8 @@ model Bill {
   total       Decimal    @db.Decimal(18, 2)
   status      BillStatus @default(DRAFT)
   journalEntryId String?
+  /// Fingerprint of the spreadsheet row this bill was imported from — stops double imports.
+  importRef   String?
   createdAt   DateTime   @default(now())
 
   company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -542,6 +547,7 @@ model Bill {
   lines    BillLine[]
 
   @@unique([companyId, billNumber])
+  @@unique([companyId, importRef])
   @@index([companyId, status])
 }
 

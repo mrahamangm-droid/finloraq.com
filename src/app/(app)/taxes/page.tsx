@@ -2,13 +2,14 @@ import { requireTenantContext } from "@/lib/tenant";
 import { getFormatter } from "@/lib/customization/server";
 import { prisma } from "@/lib/db";
 import { vatReturn } from "@/lib/reports";
+import { pickerProps, resolvePeriod, type PeriodParams } from "@/lib/periods";
+import { PeriodPicker } from "@/components/periods/period-picker";
 
-export default async function TaxesPage() {
+export default async function TaxesPage({ searchParams = {} }: { searchParams?: PeriodParams }) {
   const { active, userId } = await requireTenantContext();
   const fmt = await getFormatter(userId);
-  const now = new Date();
-  const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-  const to = now;
+  const period = resolvePeriod(searchParams, new Date(), "quarter");
+  const { from, to } = period;
 
   const [taxCodes, vat] = await Promise.all([
     prisma.taxCode.findMany({ where: { companyId: active.companyId }, orderBy: { code: "asc" } }),
@@ -24,9 +25,11 @@ export default async function TaxesPage() {
         </p>
       </div>
 
+      <PeriodPicker {...pickerProps(period)} />
+
       <div className="rounded-lg border border-border bg-card p-4">
         <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          VAT Return — {from.toISOString().slice(0, 10)} to {to.toISOString().slice(0, 10)}
+          VAT Return — {period.label} ({fmt.date(from)} to {fmt.date(to)})
         </h2>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">

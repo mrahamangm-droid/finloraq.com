@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, BookOpen, ShoppingCart, Receipt, Wallet, Landmark, Users, Truck,
-  FolderKanban, Percent, Bot, FileBarChart, FileText, UserCog, Settings, ScrollText, CreditCard,
+  FolderKanban, Percent, Bot, FileBarChart, FileText, UserCog, Settings, ScrollText, CreditCard, FileUp,
 } from "lucide-react";
 
 // Main navigation per the product spec (section 19): Dashboard, Accounting,
@@ -22,6 +22,7 @@ export const NAV = [
   { href: "/ai-copilot", label: "AI Copilot", icon: Bot },
   { href: "/reports", label: "Reports", icon: FileBarChart },
   { href: "/documents", label: "Documents", icon: FileText },
+  { href: "/import", label: "Import data", icon: FileUp },
   { href: "/users", label: "Users", icon: UserCog },
   { href: "/billing", label: "Billing", icon: CreditCard },
   { href: "/settings", label: "Settings", icon: Settings },
