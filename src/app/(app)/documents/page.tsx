@@ -23,6 +23,7 @@ export default function DocumentsPage() {
 
   async function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-selecting the same file after an error
     if (!file) return;
 
     setLoading(true);
@@ -35,7 +36,7 @@ export default function DocumentsPage() {
     const res = await fetch("/api/documents/extract", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fileName: file.name, imageBase64: base64, mimeType: file.type }),
+      body: JSON.stringify({ fileName: file.name, fileBase64: base64, mimeType: file.type || "application/octet-stream" }),
     });
 
     setLoading(false);
@@ -84,8 +85,8 @@ export default function DocumentsPage() {
       <div>
         <h1 className="text-xl font-semibold text-foreground">Documents — AI Extraction</h1>
         <p className="text-sm text-muted-foreground">
-          Upload a photo or scan of a receipt or bill. Review the extracted fields below before
-          creating a draft expense — nothing posts automatically.
+          Upload a photo or scan, a PDF, or an Excel/CSV export of a receipt or bill. Review the
+          extracted fields below before creating a draft expense — nothing posts automatically.
         </p>
       </div>
 
@@ -94,9 +95,9 @@ export default function DocumentsPage() {
         className="flex w-full flex-col items-center gap-2 rounded-lg border border-dashed border-border p-8 text-muted-foreground hover:bg-muted/30"
       >
         <Upload className="h-6 w-6" />
-        <span className="text-sm">Click to upload an image (JPG/PNG) of a receipt or bill</span>
+        <span className="text-sm">Click to upload a receipt or bill (photo, PDF, or Excel/CSV)</span>
       </button>
-      <input ref={fileInput} type="file" accept="image/*" className="hidden" onChange={onFileChange} />
+      <input ref={fileInput} type="file" className="hidden" onChange={onFileChange} />
 
       {loading && <p className="text-sm text-muted-foreground">Working…</p>}
       {error && (
