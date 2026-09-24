@@ -74,7 +74,7 @@ export function DashboardCustomizer({ widgets, range, catalog, ranges }: Props) 
 
             <div className="flex-1 space-y-5 overflow-y-auto p-4">
               <label className="block">
-                <span className="text-xs font-medium text-muted-foreground">Period for &ldquo;Net profit&rdquo;</span>
+                <span className="text-xs font-medium text-muted-foreground">Default period (when none is picked above)</span>
                 <select id="dash-range" value={period} onChange={(e) => setPeriod(e.target.value)} className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm">
                   {ranges.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
                 </select>

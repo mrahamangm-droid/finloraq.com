@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { requireTenantContext } from "@/lib/tenant";
 import { prisma } from "@/lib/db";
-import { profitAndLoss, arAging, apAging, type AgingRow } from "@/lib/reports";
-import { currentCashPosition } from "@/lib/cashflow";
+import { profitAndLoss, arAging, apAging, trialBalance, type AgingRow } from "@/lib/reports";
+import { roundMoney } from "@/lib/currency";
 import { getDashboardLayout, getFormatter } from "@/lib/customization/server";
-import { RANGES, WIDGETS, rangeStart, type WidgetId } from "@/lib/customization/widgets";
+import { RANGES, WIDGETS, type WidgetId } from "@/lib/customization/widgets";
+import { periodFromRange, pickerProps, resolvePeriod, type PeriodParams } from "@/lib/periods";
+import { PeriodPicker } from "@/components/periods/period-picker";
 import { DashboardCustomizer } from "@/components/dashboard/dashboard-customizer";
 
 // Every figure here comes from a real Prisma query or the Phase 2/4 report
@@ -14,27 +16,36 @@ import { DashboardCustomizer } from "@/components/dashboard/dashboard-customizer
 //
 // Which cards appear, their order, and the period for "Net profit" are each
 // user's own choice (the Customize button); see src/lib/customization/widgets.ts.
-export default async function DashboardPage() {
+export default async function DashboardPage({ searchParams = {} }: { searchParams?: PeriodParams }) {
   const { active, userId } = await requireTenantContext();
   const companyId = active.companyId;
   const now = new Date();
   const [layout, fmt] = await Promise.all([getDashboardLayout(active.id), getFormatter(userId)]);
-  const from = rangeStart(layout.range, now);
+  // The picker (Daily … Yearly, any past period) wins; with no choice in the
+  // URL the user's saved default from Customize applies.
+  const period = searchParams.period ? resolvePeriod(searchParams, now) : periodFromRange(layout.range, now);
+  const { from, to } = period;
+  // Balances are shown as at the end of the period (or today, for the current one).
+  const asOf = to < now ? to : now;
 
   const [customerCount, supplierCount, openInvoiceCount, unpostedJournalCount, cash, pnl, ar, ap] = await Promise.all([
     prisma.customer.count({ where: { companyId } }),
     prisma.supplier.count({ where: { companyId } }),
     prisma.invoice.count({ where: { companyId, status: { in: ["SENT", "PARTIALLY_PAID", "OVERDUE"] } } }),
     prisma.journalEntry.count({ where: { companyId, status: "DRAFT" } }),
-    currentCashPosition(companyId),
-    profitAndLoss(companyId, from, now),
-    arAging(companyId, now),
-    apAging(companyId, now),
+    trialBalance(companyId, asOf).then((rows) => {
+      const bank = rows.find((r) => r.accountCode === "1000");
+      return bank ? roundMoney(bank.debit.minus(bank.credit)).toNumber() : 0;
+    }),
+    profitAndLoss(companyId, from, to),
+    arAging(companyId, asOf),
+    apAging(companyId, asOf),
   ]);
 
   const totalAr = ar.reduce((a, r) => a + r.balance, 0);
   const totalAp = ap.reduce((a, r) => a + r.balance, 0);
-  const rangeLabel = RANGES[layout.range];
+  const rangeLabel = searchParams.period ? period.label : RANGES[layout.range];
+  const asOfLabel = asOf === now ? undefined : `as at ${fmt.date(asOf)}`;
 
   const stat = (label: string, value: string, opts: { negative?: boolean; hint?: string; href?: string } = {}) => (
     <div className="h-full rounded-lg border border-border bg-card p-4">
@@ -70,8 +81,10 @@ export default async function DashboardPage() {
   );
 
   const render: Record<WidgetId, () => React.ReactNode> = {
-    cash: () => stat("Cash (Bank)", fmt.money(cash), { href: "/banking" }),
+    cash: () => stat("Cash (Bank)", fmt.money(cash), { href: "/banking", hint: asOfLabel }),
     profit: () => stat("Net profit", fmt.money(pnl.netProfit), { negative: pnl.netProfit.isNegative(), hint: rangeLabel }),
+    revenue: () => stat("Income", fmt.money(pnl.totalRevenue), { hint: rangeLabel, href: "/accounting/reports/profit-and-loss" }),
+    expenses: () => stat("Expenses", fmt.money(pnl.totalExpense), { hint: rangeLabel, href: "/expenses" }),
     receivables: () => stat("Receivables outstanding", fmt.money(totalAr), { href: "/reports/ar-aging" }),
     payables: () => stat("Payables outstanding", fmt.money(totalAp), { href: "/reports/ap-aging" }),
     customers: () => stat("Customers", String(customerCount), { href: "/customers" }),
@@ -89,6 +102,7 @@ export default async function DashboardPage() {
             ["/accounting/journals/new", "Journal entry"],
             ["/customers", "Add customer"],
             ["/documents", "Upload document"],
+            ["/import", "Import past data"],
           ].map(([href, label]) => (
             <Link key={href} href={href!} className="rounded-md border border-border px-3 py-2 text-sm text-foreground hover:border-primary hover:text-primary">
               {label}
@@ -125,6 +139,8 @@ export default async function DashboardPage() {
           ranges={Object.entries(RANGES).map(([id, label]) => ({ id, label }))}
         />
       </div>
+
+      <PeriodPicker {...pickerProps(period)} />
 
       {visible.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">

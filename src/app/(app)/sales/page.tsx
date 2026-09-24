@@ -2,6 +2,8 @@ import Link from "next/link";
 import { requireTenantContext } from "@/lib/tenant";
 import { getFormatter } from "@/lib/customization/server";
 import { prisma } from "@/lib/db";
+import { pickerProps, resolvePeriod, type PeriodParams } from "@/lib/periods";
+import { PeriodPicker } from "@/components/periods/period-picker";
 
 function statusColor(status: string) {
   if (status === "PAID") return "bg-success/10 text-success";
@@ -10,19 +12,21 @@ function statusColor(status: string) {
   return "bg-primary/10 text-primary";
 }
 
-export default async function SalesPage() {
+export default async function SalesPage({ searchParams = {} }: { searchParams?: PeriodParams }) {
   const { active, userId } = await requireTenantContext();
   const fmt = await getFormatter(userId);
+  const filtered = Boolean(searchParams.period);
+  const period = resolvePeriod(searchParams);
 
   // Capped rather than paginated for now (Phase 9 perf pass) — a company
   // with more than 200 invoices needs a real paginated/searchable list,
   // which is a bigger UI change than a safety cap; this at least stops
   // the page from loading every invoice ever issued into one response.
   const invoices = await prisma.invoice.findMany({
-    where: { companyId: active.companyId },
+    where: { companyId: active.companyId, ...(filtered ? { issueDate: { gte: period.from, lte: period.to } } : {}) },
     orderBy: { issueDate: "desc" },
     include: { customer: true },
-    take: 200,
+    take: filtered ? 1000 : 200,
   });
 
   return (
@@ -36,6 +40,8 @@ export default async function SalesPage() {
           New Invoice
         </Link>
       </div>
+
+      <PeriodPicker {...pickerProps(period)} showingAll={!filtered} clearable={filtered} />
 
       <div className="overflow-hidden rounded-lg border border-border bg-card">
         <div className="overflow-x-auto">
@@ -52,7 +58,7 @@ export default async function SalesPage() {
             </thead>
             <tbody>
               {invoices.length === 0 && (
-                <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">No invoices yet.</td></tr>
+                <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">{filtered ? `No invoices in ${period.label}.` : "No invoices yet."}</td></tr>
               )}
               {invoices.map((inv) => (
                 <tr key={inv.id} className="border-b border-border last:border-0 hover:bg-muted/30">
@@ -69,6 +75,15 @@ export default async function SalesPage() {
                 </tr>
               ))}
             </tbody>
+            {filtered && invoices.length > 0 && (
+              <tfoot className="border-t border-border font-medium">
+                <tr>
+                  <td className="px-4 py-2" colSpan={4}>Total · {period.label} · {invoices.length} invoices</td>
+                  <td className="px-4 py-2 text-right tabular-nums">{fmt.money(invoices.reduce((a, x) => a + x.total.toNumber(), 0))}</td>
+                  <td />
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
       </div>

@@ -1,6 +1,8 @@
 import { requireTenantContext } from "@/lib/tenant";
 import { getFormatter } from "@/lib/customization/server";
 import { balanceSheet } from "@/lib/reports";
+import { pickerProps, resolvePeriod, type PeriodParams } from "@/lib/periods";
+import { PeriodPicker } from "@/components/periods/period-picker";
 
 function Section({ title, rows, total, money }: { title: string; money: (v: import("decimal.js").default) => string; rows: { accountName: string; amount: import("decimal.js").default }[]; total: import("decimal.js").default }) {
   return (
@@ -30,10 +32,13 @@ function Section({ title, rows, total, money }: { title: string; money: (v: impo
   );
 }
 
-export default async function BalanceSheetPage() {
+export default async function BalanceSheetPage({ searchParams = {} }: { searchParams?: PeriodParams }) {
   const { active, userId } = await requireTenantContext();
   const fmt = await getFormatter(userId);
-  const asOf = new Date();
+  const now = new Date();
+  const period = resolvePeriod(searchParams, now);
+  // As at the end of the chosen period — or now, if that's still ahead.
+  const asOf = period.to < now ? period.to : now;
   const sheet = await balanceSheet(active.companyId, asOf);
 
   return (
@@ -42,6 +47,8 @@ export default async function BalanceSheetPage() {
         <h1 className="text-xl font-semibold text-foreground">Balance Sheet</h1>
         <p className="text-sm text-muted-foreground">{active.company.name} · as of {fmt.date(asOf)}</p>
       </div>
+
+      <PeriodPicker {...pickerProps(period)} allow={["day", "week", "month", "quarter", "year"]} />
 
       <Section money={fmt.money} title="Assets" rows={sheet.assets} total={sheet.totalAssets} />
       <Section money={fmt.money} title="Liabilities" rows={sheet.liabilities} total={sheet.totalLiabilities} />

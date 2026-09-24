@@ -1,33 +1,31 @@
-import Link from "next/link";
 import { requireTenantContext } from "@/lib/tenant";
 import { prisma } from "@/lib/db";
-import { ledgerPeriodRange, ledgerReport, type LedgerAccountSection } from "@/lib/reports";
+import { ledgerReport, type LedgerAccountSection } from "@/lib/reports";
+import { GRANULARITY_LABELS, pickerProps, resolvePeriod } from "@/lib/periods";
+import { PeriodPicker } from "@/components/periods/period-picker";
 
-type SearchParams = { period?: string; value?: string; account?: string; detail?: string };
+type SearchParams = { period?: string; date?: string; from?: string; to?: string; value?: string; account?: string; detail?: string };
 
 const fmt = (d: { toFixed: (n: number) => string }) => d.toFixed(2);
 const day = (d: Date) => d.toISOString().slice(0, 10);
 
-/** Two years back and one year forward around the selected "YYYY-MM". */
-function monthOptions(selected: string) {
-  const year = parseInt(selected.slice(0, 4), 10);
-  const month = parseInt(selected.slice(5, 7), 10) - 1;
-  const options: { value: string; label: string }[] = [];
-  for (let i = 12; i >= -24; i--) {
-    const d = new Date(Date.UTC(year, month + i, 1));
-    options.push({
-      value: `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`,
-      label: d.toLocaleString("en-US", { month: "long", year: "numeric", timeZone: "UTC" }),
-    });
-  }
-  return options;
+/** Links made before the shared picker used ?period=monthly&value=2024-03 / ?period=yearly&value=2024. */
+function legacy(sp: SearchParams): SearchParams {
+  if (sp.period === "monthly" && /^\d{4}-\d{2}$/.test(sp.value ?? "")) return { ...sp, period: "month", date: `${sp.value}-01` };
+  if (sp.period === "yearly" && /^\d{4}$/.test(sp.value ?? "")) return { ...sp, period: "year", date: `${sp.value}-01-01` };
+  if (sp.period === "monthly") return { ...sp, period: "month" };
+  if (sp.period === "yearly") return { ...sp, period: "year" };
+  return sp;
 }
 
 export default async function LedgerPage({ searchParams }: { searchParams: SearchParams }) {
   const { active } = await requireTenantContext();
-  const range = ledgerPeriodRange(searchParams.period, searchParams.value);
-  const accountCode = searchParams.account || undefined;
-  const showEntries = range.period === "monthly" || searchParams.detail === "1";
+  const sp = legacy(searchParams);
+  const range = resolvePeriod(sp);
+  const accountCode = sp.account || undefined;
+  // Longer periods get a month-by-month summary; entry detail is on request.
+  const long = range.to.getTime() - range.from.getTime() > 45 * 86_400_000;
+  const showEntries = !long || sp.detail === "1";
 
   const [sections, accounts] = await Promise.all([
     ledgerReport(active.companyId, range.from, range.to, accountCode),
@@ -38,63 +36,27 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
     }),
   ]);
 
-  function href(overrides: Partial<SearchParams>) {
-    const params = new URLSearchParams();
-    const merged: SearchParams = {
-      period: range.period,
-      value: range.value,
-      account: accountCode,
-      detail: searchParams.detail,
-      ...overrides,
-    };
-    for (const [k, v] of Object.entries(merged)) if (v) params.set(k, v);
-    return `/reports/ledger?${params.toString()}`;
-  }
-
-  const tab = (p: "monthly" | "yearly", label: string) => (
-    <Link
-      href={href({ period: p, value: undefined, detail: undefined })}
-      className={`rounded-md px-3 py-1.5 text-sm ${
-        range.period === p ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted/40"
-      }`}
-    >
-      {label}
-    </Link>
-  );
-
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold text-foreground">
-            Ledger — {range.period === "monthly" ? "Monthly" : "Yearly"}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {active.company.name} · {range.label} ({day(range.from)} to {day(range.to)})
-          </p>
-        </div>
-        <div className="flex gap-1 rounded-lg border border-border bg-card p-1">
-          {tab("monthly", "Monthly")}
-          {tab("yearly", "Yearly")}
-        </div>
+      <div>
+        <h1 className="text-xl font-semibold text-foreground">Ledger — {GRANULARITY_LABELS[range.granularity]}</h1>
+        <p className="text-sm text-muted-foreground">
+          {active.company.name} · {range.label} ({day(range.from)} to {day(range.to)})
+        </p>
       </div>
 
+      <PeriodPicker {...pickerProps(range)} />
+
       <form method="get" action="/reports/ledger" className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-card p-3 text-sm">
-        <input type="hidden" name="period" value={range.period} />
-        <label className="flex flex-col gap-1">
-          <span className="text-xs text-muted-foreground">{range.period === "monthly" ? "Month" : "Year"}</span>
-          {range.period === "monthly" ? (
-            // A <select> rather than <input type="month">: Firefox and older
-            // Safari render type="month" as a plain text box.
-            <select name="value" defaultValue={range.value} className="rounded-md border border-border bg-background px-2 py-1">
-              {monthOptions(range.value).map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
-          ) : (
-            <input type="number" name="value" min={1900} max={9999} defaultValue={range.value} className="w-24 rounded-md border border-border bg-background px-2 py-1" />
-          )}
-        </label>
+        <input type="hidden" name="period" value={range.granularity} />
+        {range.granularity === "custom" ? (
+          <>
+            <input type="hidden" name="from" value={day(range.from)} />
+            <input type="hidden" name="to" value={day(range.to)} />
+          </>
+        ) : (
+          <input type="hidden" name="date" value={range.date} />
+        )}
         <label className="flex flex-col gap-1">
           <span className="text-xs text-muted-foreground">Account</span>
           <select name="account" defaultValue={accountCode ?? ""} className="rounded-md border border-border bg-background px-2 py-1">
@@ -104,17 +66,13 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
             ))}
           </select>
         </label>
-        {range.period === "yearly" && (
+        {long && (
           <label className="flex items-center gap-2 pb-1">
-            <input type="checkbox" name="detail" value="1" defaultChecked={searchParams.detail === "1"} />
+            <input type="checkbox" name="detail" value="1" defaultChecked={sp.detail === "1"} />
             <span>Show every entry</span>
           </label>
         )}
         <button type="submit" className="rounded-md bg-primary px-3 py-1.5 text-primary-foreground">Apply</button>
-        <div className="ml-auto flex gap-2">
-          <Link href={href({ value: range.prev })} className="rounded-md border border-border px-3 py-1.5 hover:bg-muted/40">← Previous</Link>
-          <Link href={href({ value: range.next })} className="rounded-md border border-border px-3 py-1.5 hover:bg-muted/40">Next →</Link>
-        </div>
       </form>
 
       {sections.length === 0 && (
@@ -124,7 +82,7 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
       )}
 
       {sections.map((s) => (
-        <AccountLedger key={s.accountCode} section={s} period={range.period} showEntries={showEntries} />
+        <AccountLedger key={s.accountCode} section={s} period={long ? "yearly" : "monthly"} showEntries={showEntries} />
       ))}
 
       <p className="text-xs text-muted-foreground">
