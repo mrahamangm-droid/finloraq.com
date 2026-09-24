@@ -1,10 +1,12 @@
 import { requireTenantContext } from "@/lib/tenant";
 import { can } from "@/lib/rbac";
+import { prisma } from "@/lib/db";
 import { getAiProvider } from "@/lib/ai/provider";
 import { isWhatsAppConfigured } from "@/lib/integrations/whatsapp";
 import { getEInvoicingAdapter } from "@/lib/integrations/einvoicing";
 import { updateCompanySettingsAction } from "./actions";
 import { MfaPanel } from "@/components/settings/mfa-panel";
+import { BrandingPanel } from "@/components/settings/branding-panel";
 
 function StatusBadge({ live, label }: { live: boolean; label: string }) {
   return (
@@ -22,8 +24,10 @@ function StatusBadge({ live, label }: { live: boolean; label: string }) {
 }
 
 export default async function SettingsPage() {
-  const { active } = await requireTenantContext();
+  const { active, userId } = await requireTenantContext();
   const canEdit = await can(active.id, "settings", "EDIT");
+
+  const me = await prisma.user.findUnique({ where: { id: userId }, select: { avatarUrl: true } });
 
   const aiConfigured = getAiProvider() !== null;
   const whatsappConfigured = isWhatsAppConfigured();
@@ -127,6 +131,18 @@ export default async function SettingsPage() {
           )}
         </form>
       </div>
+
+      <BrandingPanel
+        initialAvatarUrl={me?.avatarUrl ?? null}
+        initial={{
+          logoUrl: company.logoUrl,
+          tagline: company.tagline,
+          brandEmail: company.brandEmail,
+          brandPhone: company.brandPhone,
+          brandAddress: company.brandAddress,
+        }}
+        canEditBranding={canEdit}
+      />
 
       <MfaPanel />
 

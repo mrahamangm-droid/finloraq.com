@@ -11,7 +11,15 @@ import { MobileNav } from "./mobile-nav";
 // Responsive: the search box shrinks to fit, labels collapse to icons on
 // phones, and the user's name/company is hidden below the md breakpoint
 // (the avatar stays), so the bar never overflows a 320px screen.
-export function Topbar({ userName, companyName }: { userName: string; companyName: string }) {
+export function Topbar({
+  userName,
+  companyName,
+  avatarUrl,
+}: {
+  userName: string;
+  companyName: string;
+  avatarUrl?: string | null;
+}) {
   return (
     <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border bg-background px-3 sm:gap-3 sm:px-4">
       <MobileNav />
@@ -54,12 +62,22 @@ export function Topbar({ userName, companyName }: { userName: string; companyNam
             <div className="truncate text-sm font-medium text-foreground">{userName}</div>
             <div className="truncate text-xs text-muted-foreground">{companyName}</div>
           </div>
-          <div
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-medium text-primary-foreground"
-            title={`${userName} · ${companyName}`}
-          >
-            {userName.charAt(0).toUpperCase()}
-          </div>
+          {avatarUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={avatarUrl}
+              alt={userName}
+              title={`${userName} · ${companyName}`}
+              className="h-8 w-8 shrink-0 rounded-full object-cover"
+            />
+          ) : (
+            <div
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-medium text-primary-foreground"
+              title={`${userName} · ${companyName}`}
+            >
+              {userName.charAt(0).toUpperCase()}
+            </div>
+          )}
         </div>
       </div>
     </header>
