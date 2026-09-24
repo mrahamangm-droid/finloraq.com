@@ -2,6 +2,7 @@
 
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 
 export default function RegisterPage() {
   return (
@@ -94,6 +95,18 @@ function RegisterForm() {
           >
             {loading ? "Creating account…" : "Create account"}
           </button>
+
+          <p className="text-center text-xs text-muted-foreground">
+            By creating an account, you agree to Finloraq&apos;s{" "}
+            <Link href="/terms" className="underline hover:text-foreground">
+              Terms of Service
+            </Link>{" "}
+            and{" "}
+            <Link href="/privacy" className="underline hover:text-foreground">
+              Privacy Policy
+            </Link>
+            .
+          </p>
         </form>
       </div>
     </div>
