@@ -136,7 +136,7 @@ export const HIW_STYLE = `
 .hiw .hiw-hint{position:absolute;right:16px;bottom:14px;margin:0;font-size:11.5px;color:var(--h-subtle);pointer-events:none;z-index:2}
 .hiw .hiw-caption{position:absolute;left:16px;bottom:14px;z-index:2;max-width:390px;margin:0;padding:12px 14px;border-radius:14px;background:var(--h-glass-2);border:1px solid var(--h-line);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);font-size:13px;line-height:1.5;color:var(--h-muted);pointer-events:none}
 .hiw .hiw-caption b{display:block;color:#fff;font-size:14px;margin-bottom:2px}
-.hiw .hiw-dragover{position:absolute;top:10px;right:10px;bottom:10px;left:10px;z-index:5;display:none;place-items:center;border:2px dashed rgba(127,227,212,.7);border-radius:22px;background:rgba(6,10,20,.72);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);text-align:center;font-size:18px;font-weight:800;color:#fff}
+.hiw .hiw-dragover{position:absolute;inset:10px;z-index:5;display:none;place-items:center;border:2px dashed rgba(127,227,212,.7);border-radius:22px;background:rgba(6,10,20,.72);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);text-align:center;font-size:18px;font-weight:800;color:#fff}
 .hiw .hiw-dragover small{display:block;font-size:12.5px;font-weight:600;color:var(--h-teal-2);margin-top:6px}
 .hiw .hiw-stage.is-drag .hiw-dragover{display:grid}
 
