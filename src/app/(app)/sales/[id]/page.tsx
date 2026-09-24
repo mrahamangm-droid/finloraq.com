@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { requireTenantContext } from "@/lib/tenant";
 import { prisma } from "@/lib/db";
 import { InvoiceActions } from "@/components/forms/invoice-actions";
+import { DocumentBrandHeader } from "@/components/branding/document-brand-header";
 
 export default async function InvoiceDetailPage({ params }: { params: { id: string } }) {
   const { active } = await requireTenantContext();
@@ -28,6 +29,17 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
           <h1 className="text-xl font-semibold text-foreground">Invoice {invoice.invoiceNumber}</h1>
           <p className="text-sm text-muted-foreground">{invoice.customer.name} · {invoice.status}</p>
         </div>
+      </div>
+
+      <div className="rounded-lg border border-border bg-card p-4">
+        <DocumentBrandHeader
+          companyName={active.company.name}
+          logoUrl={active.company.logoUrl}
+          tagline={active.company.tagline}
+          brandEmail={active.company.brandEmail}
+          brandPhone={active.company.brandPhone}
+          brandAddress={active.company.brandAddress}
+        />
       </div>
 
       <div className="rounded-lg border border-border bg-card">
