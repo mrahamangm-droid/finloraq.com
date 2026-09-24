@@ -289,11 +289,27 @@ const STYLE = `
   #fm-root .ft-list b{color:#fff}
   @media (max-width:860px){ #fm-root .ft-grid{grid-template-columns:1fr;gap:28px} }
 
-  /* ---------- Doc intelligence ---------- */
-  #fm-root .flow{display:flex;flex-wrap:wrap;gap:0;align-items:stretch;margin-top:12px}
-  #fm-root .flow-step{background:var(--canvas);border:1px solid var(--line);border-radius:var(--r-md);padding:14px 16px;font-size:13px;font-weight:700;display:flex;align-items:center;min-width:150px;flex:1}
+  /* ---------- How it works: 2D animated flow ---------- */
+  #fm-root .flow{display:flex;flex-wrap:wrap;gap:0;align-items:stretch;margin-top:12px;max-width:900px;margin-inline:auto}
+  #fm-root .flow-step{background:var(--canvas);border:1px solid var(--line);border-radius:var(--r-md);padding:14px 10px;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;text-align:center;min-width:120px;flex:1;animation:hiw-sweep 9s ease-in-out infinite}
+  #fm-root .flow-step:nth-child(3){animation-delay:.5s}
+  #fm-root .flow-step:nth-child(5){animation-delay:1s}
+  #fm-root .flow-step:nth-child(7){animation-delay:1.5s}
+  #fm-root .flow-step:nth-child(9){animation-delay:2s}
+  #fm-root .flow-step:nth-child(11){animation-delay:2.5s}
   #fm-root .flow-arrow{display:flex;align-items:center;justify-content:center;width:34px;color:var(--ink-subtle);flex:0 0 auto}
+  @keyframes hiw-sweep{0%,84%,100%{background:var(--canvas);color:var(--ink);border-color:var(--line)}4%,14%{background:var(--brand-tint);color:var(--brand-strong);border-color:var(--brand)}}
   @media (max-width:760px){ #fm-root .flow{flex-direction:column} #fm-root .flow-arrow{transform:rotate(90deg);width:100%;height:22px} }
+
+  /* Input docs -> AI hub -> record categories -> outcomes */
+  #fm-root .hiw-io{margin-top:48px;display:flex;flex-direction:column;align-items:center;gap:0}
+  #fm-root .hiw-chip-row{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:680px}
+  #fm-root .hiw-connector{width:2px;height:30px;background:var(--line-strong);position:relative}
+  #fm-root .hiw-connector::after{content:"";position:absolute;left:50%;top:-2px;width:6px;height:6px;margin-left:-3px;border-radius:50%;background:var(--brand);animation:hiw-drop 1.8s linear infinite}
+  @keyframes hiw-drop{0%{top:-2px;opacity:0}12%{opacity:1}88%{opacity:1}100%{top:100%;opacity:0}}
+  #fm-root .hiw-core{display:flex;align-items:center;gap:8px;padding:14px 26px;border-radius:var(--r-full);background:var(--brand);color:var(--on-brand);font-weight:800;font-size:14px;box-shadow:var(--shadow-md);animation:hiw-corepulse 3s ease-in-out infinite}
+  #fm-root .hiw-core .dot{width:8px;height:8px;border-radius:50%;background:currentColor;opacity:.85}
+  @keyframes hiw-corepulse{0%,100%{transform:scale(1)}50%{transform:scale(1.045)}}
 
   /* ---------- Health ---------- */
   #fm-root .health-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
@@ -469,7 +485,48 @@ const BODY_HTML = `<header class="nav">
 
 // Everything after the hero. The 3D "How Finloraq works" walkthrough lives
 // on its own page (/how-it-works) to keep this page short.
-const BODY_HTML_AFTER_HERO = `<!-- 2. LIVE PRODUCT PREVIEW / TRY THE DEMO -->
+const BODY_HTML_AFTER_HERO = `<!-- 2. HOW IT WORKS — simple 2D animated flow (replaces the old 3D walkthrough on this page; the full 3D version still lives at /how-it-works) -->
+<section class="canvas" id="how-it-works-flow" style="border-bottom:1px solid var(--line)">
+  <div class="wrap">
+    <div class="sec-head" style="margin-inline:auto;text-align:center">
+      <div class="eyebrow">How it works</div>
+      <h2 style="margin-top:12px">From any document to a decision — automatically.</h2>
+      <p style="margin-inline:auto">Upload whatever you already have. Finloraq reads it, records it correctly, and tells you what to do next.</p>
+    </div>
+
+    <div class="flow">
+      <div class="flow-step">Upload</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">AI Understands</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">Record</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">Analyze</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">Act</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">Respond</div>
+    </div>
+
+    <div class="hiw-io">
+      <div class="hiw-chip-row">
+        <span class="chip">PDF</span><span class="chip">Photo</span><span class="chip">Invoice</span><span class="chip">Receipt</span><span class="chip">Excel</span><span class="chip">Email</span><span class="chip">WhatsApp</span>
+      </div>
+      <div class="hiw-connector"></div>
+      <div class="hiw-core"><span class="dot"></span>FINLORAQ AI</div>
+      <div class="hiw-connector"></div>
+      <div class="hiw-chip-row">
+        <span class="chip">Accounting</span><span class="chip">Sales</span><span class="chip">Purchases</span><span class="chip">Expenses</span><span class="chip">Banking</span><span class="chip">Taxes</span>
+      </div>
+      <div class="hiw-connector"></div>
+      <div class="hiw-chip-row">
+        <span class="chip">Insights</span><span class="chip">Forecast</span><span class="chip">Actions</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 3. LIVE PRODUCT PREVIEW / TRY THE DEMO -->
 <section class="canvas" id="demo" style="background:var(--canvas-2);border-bottom:1px solid var(--line)">
   <div class="wrap">
     <div class="sec-head">
@@ -621,7 +678,7 @@ const BODY_HTML_AFTER_HERO = `<!-- 2. LIVE PRODUCT PREVIEW / TRY THE DEMO -->
   </div>
 </section>
 
-<!-- 3. WHY FINLORAQ — AI team, accounting core, controls, audience -->
+<!-- 4. WHY FINLORAQ — AI team, accounting core, controls, audience -->
 <section class="on-navy why" id="why">
   <div class="wrap">
     <div class="sec-head">
