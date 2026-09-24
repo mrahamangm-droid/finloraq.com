@@ -1,6 +1,6 @@
 # How Finloraq works — homepage 3D section
 
-Shown right under the hero (`#how-it-works`). It has to get one idea across in a few seconds:
+Shown on its own page, `/how-it-works` (section id `#how-it-works`). It used to sit under the homepage hero; it moved out to keep the homepage short. It has to get one idea across in a few seconds:
 **drop anything → Finloraq understands → records → analyzes → acts → responds.**
 
 ## Files

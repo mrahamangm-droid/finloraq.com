@@ -29,9 +29,20 @@ export const MARKETING_ROUTES: MarketingRoute[] = [
     navLabel: "Home",
     description:
       "Finloraq turns your financial data into clarity, predictions and controlled actions.",
-    lastModified: "2026-09-22",
+    lastModified: "2026-09-24",
     changeFrequency: "weekly",
     priority: 1.0,
+  },
+  {
+    path: "/how-it-works",
+    title: "How Finloraq Works — From Any Document to Approved, Explained Books",
+    navLabel: "How it works",
+    description:
+      "Drop an invoice, receipt, bank statement or email and watch Finloraq read it, draft the entry, check it and explain it — with a person approving before anything posts.",
+    lastModified: "2026-09-24",
+    changeFrequency: "monthly",
+    priority: 0.8,
+    footerGroup: "product",
   },
   {
     path: "/ai-accounting",
