@@ -1,5 +1,6 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { RegisterServiceWorker } from "@/components/pwa/register-sw";
 
 export const metadata: Metadata = {
   title: {
@@ -27,16 +28,29 @@ export const metadata: Metadata = {
     ],
     apple: "/apple-icon.png",
   },
+  manifest: "/manifest.json",
+  // Installable-PWA meta for iOS Safari, which doesn't read the web
+  // manifest for install behavior the way Chromium/Edge/Android do —
+  // it needs these tags to open "Add to Home Screen" as a standalone app
+  // (no browser chrome) instead of just a bookmark.
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Finloraq",
+  },
 };
 
-export const viewport = {
+export const viewport: Viewport = {
   themeColor: "#5048E5",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body>{children}</body>
+      <body>
+        {children}
+        <RegisterServiceWorker />
+      </body>
     </html>
   );
 }
