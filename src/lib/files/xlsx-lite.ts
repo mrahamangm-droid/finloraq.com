@@ -109,8 +109,8 @@ function parseSharedStrings(xml: string): string[] {
   while ((m = siRe.exec(xml))) {
     // A shared string can be plain <t>text</t> or rich text split across
     // multiple <r><t>...</t></r> runs — concatenate every <t> found inside.
-    const text = Array.from(m[1].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g))
-      .map((t) => decodeXmlEntities(t[1]))
+    const text = Array.from((m[1] ?? "").matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g))
+      .map((t) => decodeXmlEntities(t[1] ?? ""))
       .join("");
     strings.push(text);
   }
@@ -156,11 +156,12 @@ function parseDateStyleLookup(stylesXml: string | null): boolean[] {
   const customFormats = new Map<number, string>();
   const numFmtsBlock = stylesXml.match(/<numFmts[^>]*>([\s\S]*?)<\/numFmts>/);
   if (numFmtsBlock) {
-    for (const m of numFmtsBlock[1].matchAll(/<numFmt\b([^>]*)\/>/g)) {
-      const idMatch = m[1].match(/numFmtId="(\d+)"/);
-      const codeMatch = m[1].match(/formatCode="([^"]*)"/);
+    for (const m of (numFmtsBlock[1] ?? "").matchAll(/<numFmt\b([^>]*)\/>/g)) {
+      const attrs = m[1] ?? "";
+      const idMatch = attrs.match(/numFmtId="(\d+)"/);
+      const codeMatch = attrs.match(/formatCode="([^"]*)"/);
       if (idMatch && codeMatch) {
-        customFormats.set(Number(idMatch[1]), decodeXmlEntities(codeMatch[1]));
+        customFormats.set(Number(idMatch[1]), decodeXmlEntities(codeMatch[1] ?? ""));
       }
     }
   }
@@ -171,8 +172,8 @@ function parseDateStyleLookup(stylesXml: string | null): boolean[] {
   const xfRe = /<xf\b([^>]*?)(?:\/>|>[\s\S]*?<\/xf>)/g;
   const lookup: boolean[] = [];
   let m: RegExpExecArray | null;
-  while ((m = xfRe.exec(cellXfsBlock[1]))) {
-    const idMatch = m[1].match(/numFmtId="(\d+)"/);
+  while ((m = xfRe.exec(cellXfsBlock[1] ?? ""))) {
+    const idMatch = (m[1] ?? "").match(/numFmtId="(\d+)"/);
     const numFmtId = idMatch ? Number(idMatch[1]) : 0;
     lookup.push(isDateNumFmt(numFmtId, customFormats));
   }
@@ -197,11 +198,11 @@ function parseSheetRows(sheetXml: string, sharedStrings: string[], dateStyleLook
     let cellMatch: RegExpExecArray | null;
 
     while ((cellMatch = cellRe.exec(rowInner))) {
-      const attrs = cellMatch[1];
+      const attrs = cellMatch[1] ?? "";
       const inner = cellMatch[2];
       const refMatch = attrs.match(/\br="([A-Z]+)\d+"/);
       if (!refMatch) continue; // malformed cell, skip rather than misalign the row
-      const colIndex = columnLetterToIndex(refMatch[1]);
+      const colIndex = columnLetterToIndex(refMatch[1] ?? "");
 
       const typeMatch = attrs.match(/\st="([^"]*)"/);
       const type = typeMatch ? typeMatch[1] : null;
@@ -212,10 +213,10 @@ function parseSheetRows(sheetXml: string, sharedStrings: string[], dateStyleLook
       if (inner) {
         if (type === "inlineStr") {
           const t = inner.match(/<is>[\s\S]*?<t[^>]*>([\s\S]*?)<\/t>[\s\S]*?<\/is>/);
-          value = t ? decodeXmlEntities(t[1]) : "";
+          value = t ? decodeXmlEntities(t[1] ?? "") : "";
         } else {
           const v = inner.match(/<v>([\s\S]*?)<\/v>/);
-          const raw = v ? v[1] : "";
+          const raw = v ? (v[1] ?? "") : "";
           if (type === "s") {
             value = sharedStrings[Number(raw)] ?? "";
           } else if (type === "b") {

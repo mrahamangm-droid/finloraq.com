@@ -113,28 +113,28 @@ describe("parseXlsxRows", () => {
     const rows = parseXlsxRows(zip);
 
     expect(rows[0]).toEqual(["Customer"]);
-    expect(rows[1][0]).toBe("Acme, Inc.");
-    expect(rows[1][1]).toBe("2000-01-01"); // built-in numFmtId 14 (m/d/yy) on serial 36526
-    expect(rows[1][2]).toBe("1200.5");
-    expect(rows[2][0]).toBe("Northwind & Co");
-    expect(rows[2][1]).toBe("2001-01-01"); // custom "dd/mm/yyyy" style on serial 36892
+    expect(rows[1]?.[0]).toBe("Acme, Inc.");
+    expect(rows[1]?.[1]).toBe("2000-01-01"); // built-in numFmtId 14 (m/d/yy) on serial 36526
+    expect(rows[1]?.[2]).toBe("1200.5");
+    expect(rows[2]?.[0]).toBe("Northwind & Co");
+    expect(rows[2]?.[1]).toBe("2001-01-01"); // custom "dd/mm/yyyy" style on serial 36892
     // sparse row: column C (index 2) was never set, column D (index 3) is the inline string
-    expect(rows[2][2]).toBe("");
-    expect(rows[2][3]).toBe("note");
+    expect(rows[2]?.[2]).toBe("");
+    expect(rows[2]?.[3]).toBe("note");
   });
 
   it("also works with stored (uncompressed) ZIP entries", () => {
     const zip = buildZip([{ name: "xl/worksheets/sheet1.xml", data: SHEET_XML, method: 0 }]);
     const rows = parseXlsxRows(zip);
     // no sharedStrings.xml provided, so t="s" cells fall back to an empty string
-    expect(rows[1][0]).toBe("");
-    expect(rows[1][2]).toBe("1200.5");
+    expect(rows[1]?.[0]).toBe("");
+    expect(rows[1]?.[2]).toBe("1200.5");
   });
 
   it("falls back to the lowest-numbered sheet when sheet1.xml is absent", () => {
     const zip = buildZip([{ name: "xl/worksheets/sheet2.xml", data: SHEET_XML, method: 8 }]);
     const rows = parseXlsxRows(zip);
-    expect(rows[1][2]).toBe("1200.5");
+    expect(rows[1]?.[2]).toBe("1200.5");
   });
 
   it("throws a clear error for a file with no worksheet part", () => {

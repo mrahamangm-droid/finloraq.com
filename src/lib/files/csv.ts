@@ -60,7 +60,7 @@ export function parseCsv(text: string): string[][] {
   }
 
   // Drop fully-blank trailing rows (a common artifact of a trailing newline).
-  while (rows.length > 0 && rows[rows.length - 1].every((c) => c.trim() === "")) {
+  while (rows.length > 0 && (rows[rows.length - 1]?.every((c) => c.trim() === "") ?? false)) {
     rows.pop();
   }
 
