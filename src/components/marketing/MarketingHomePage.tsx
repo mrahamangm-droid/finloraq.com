@@ -87,10 +87,10 @@ const STYLE = `
   @media (prefers-reduced-motion: reduce){ #fm-root, #fm-root *{animation-duration:.001ms!important;transition-duration:.001ms!important} }
 
   #fm-root .wrap{max-width:1180px;margin:0 auto;padding-inline:24px}
-  #fm-root .eyebrow{font-size:12px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--brand)}
-  #fm-root .eyebrow.on-navy{color:#9C93F7}
-  #fm-root section{padding-block:88px}
-  @media (max-width:720px){ #fm-root section{padding-block:56px} #fm-root .wrap{padding-inline:16px} }
+  #fm-root .eyebrow{display:inline-flex;align-items:center;font-size:11.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--brand);background:var(--brand-tint);padding:5px 12px;border-radius:var(--r-full)}
+  #fm-root .eyebrow.on-navy{color:#C9C3FF;background:rgba(255,255,255,.07)}
+  #fm-root section{padding-block:76px}
+  @media (max-width:720px){ #fm-root section{padding-block:48px} #fm-root .wrap{padding-inline:16px} }
 
   /* ---------- Nav ---------- */
   #fm-root header.nav{position:sticky;top:env(safe-area-inset-top,0px);z-index:40;background:var(--bg);background:color-mix(in srgb, var(--bg) 88%, transparent);-webkit-backdrop-filter:saturate(140%) blur(10px);backdrop-filter:saturate(140%) blur(10px);border-bottom:1px solid var(--line)}
@@ -126,10 +126,10 @@ const STYLE = `
   @media (max-width:480px){ #fm-root .nav-right > .btn-ghost{display:none} #fm-root .nav-right > .btn-sm{padding:9px 14px} }
   @media (max-width:350px){ #fm-root .brand-mark{font-size:17px} #fm-root .nav-right > .btn-sm{padding:8px 11px;font-size:13px} }
 
-  #fm-root .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;font-family:var(--font-body);font-weight:700;font-size:14px;border-radius:var(--r-md);padding:11px 20px;border:1px solid transparent;cursor:pointer;transition:transform .12s ease, background .15s ease, border-color .15s ease}
+  #fm-root .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;font-family:var(--font-body);font-weight:700;font-size:14px;border-radius:var(--r-md);padding:11px 20px;border:1px solid transparent;cursor:pointer;transition:transform .12s ease, background .15s ease, border-color .15s ease, box-shadow .15s ease}
   #fm-root .btn:active{transform:translateY(1px)}
-  #fm-root .btn-primary{background:var(--brand);color:var(--on-brand)}
-  #fm-root .btn-primary:hover{background:var(--brand-strong)}
+  #fm-root .btn-primary{background:var(--brand);color:var(--on-brand);box-shadow:0 1px 2px rgba(79,70,229,.2), 0 8px 20px -8px rgba(79,70,229,.55)}
+  #fm-root .btn-primary:hover{background:var(--brand-strong);transform:translateY(-1px);box-shadow:0 1px 2px rgba(79,70,229,.25), 0 12px 28px -8px rgba(79,70,229,.6)}
   #fm-root .btn-ghost{background:transparent;color:var(--ink);border-color:var(--line-strong)}
   #fm-root .btn-ghost:hover{border-color:var(--brand)}
   #fm-root .btn-ghost.on-navy{color:var(--on-navy);border-color:var(--navy-line)}
@@ -138,19 +138,20 @@ const STYLE = `
   #fm-root .btn-block{width:100%}
 
   /* ---------- Hero ---------- */
-  #fm-root .hero{background:radial-gradient(1100px 520px at 18% -10%, #171F3A 0%, var(--navy) 55%), var(--navy);color:var(--on-navy);position:relative;overflow:hidden;padding-block:76px 64px;text-align:center}
-  #fm-root .hero .wrap{max-width:760px}
-  #fm-root .trust-line{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:28px;font-size:13px;color:var(--on-navy-muted)}
+  #fm-root .hero{background:radial-gradient(1100px 520px at 18% -10%, #171F3A 0%, var(--navy) 55%), var(--navy);color:var(--on-navy);position:relative;overflow:hidden;padding-block:64px 52px;text-align:center}
+  #fm-root .hero::before{content:"";position:absolute;inset:0;background-image:radial-gradient(circle at 1px 1px, rgba(255,255,255,.07) 1px, transparent 0);background-size:26px 26px;mask-image:radial-gradient(ellipse 62% 55% at 50% 0%, #000 40%, transparent 100%);-webkit-mask-image:radial-gradient(ellipse 62% 55% at 50% 0%, #000 40%, transparent 100%);pointer-events:none}
+  #fm-root .hero .wrap{max-width:760px;position:relative;z-index:1}
+  #fm-root .trust-line{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:24px;font-size:13px;color:var(--on-navy-muted)}
   #fm-root .trust-line .sep{width:3px;height:3px;border-radius:50%;background:var(--on-navy-muted)}
-  #fm-root .hero h1{font-size:clamp(38px,6.2vw,64px);font-weight:800;letter-spacing:-.02em;line-height:1.03;color:#fff}
+  #fm-root .hero h1{font-size:clamp(38px,6.4vw,60px);font-weight:800;letter-spacing:-.02em;line-height:1.05;color:#fff}
   #fm-root .hero h1 span{color:#A79CFF}
-  #fm-root .hero p.lead{margin:20px auto 0;font-size:17px;line-height:1.6;color:var(--on-navy-muted);max-width:46ch}
-  #fm-root .hero .cta-row{display:flex;gap:12px;margin-top:30px;flex-wrap:wrap;justify-content:center}
+  #fm-root .hero p.lead{margin:18px auto 0;font-size:17px;line-height:1.6;color:var(--on-navy-muted);max-width:44ch}
+  #fm-root .hero .cta-row{display:flex;gap:12px;margin-top:26px;flex-wrap:wrap;justify-content:center}
 
   /* ---------- Generic section headers ---------- */
-  #fm-root .sec-head{max-width:640px;margin-bottom:40px}
-  #fm-root .sec-head h2{font-size:clamp(26px,3.4vw,36px);font-weight:800;letter-spacing:-.015em}
-  #fm-root .sec-head p{margin-top:14px;font-size:16px;color:var(--ink-muted);line-height:1.6}
+  #fm-root .sec-head{max-width:620px;margin-bottom:30px}
+  #fm-root .sec-head h2{font-size:clamp(26px,3.2vw,34px);font-weight:800;letter-spacing:-.015em;line-height:1.15}
+  #fm-root .sec-head p{margin-top:12px;font-size:16px;color:var(--ink-muted);line-height:1.6}
   #fm-root section.on-navy{background:var(--navy);color:var(--on-navy)}
   #fm-root section.on-navy .sec-head h2{color:#fff}
   #fm-root section.on-navy .sec-head p{color:var(--on-navy-muted)}
@@ -302,7 +303,7 @@ const STYLE = `
   @media (max-width:760px){ #fm-root .flow{flex-direction:column} #fm-root .flow-arrow{transform:rotate(90deg);width:100%;height:22px} }
 
   /* Input docs -> AI hub -> record categories -> outcomes */
-  #fm-root .hiw-io{margin-top:48px;display:flex;flex-direction:column;align-items:center;gap:0}
+  #fm-root .hiw-io{margin-top:16px;display:flex;flex-direction:column;align-items:center;gap:0}
   #fm-root .hiw-chip-row{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:680px}
   #fm-root .hiw-connector{width:2px;height:30px;background:var(--line-strong);position:relative}
   #fm-root .hiw-connector::after{content:"";position:absolute;left:50%;top:-2px;width:6px;height:6px;margin-left:-3px;border-radius:50%;background:var(--brand);animation:hiw-drop 1.8s linear infinite}
@@ -338,7 +339,7 @@ const STYLE = `
 
   /* ---------- Audience ---------- */
   /* Merged "Why Finloraq" section */
-  #fm-root section.why{padding-block:72px}
+  #fm-root section.why{padding-block:64px}
   #fm-root .why-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
   #fm-root .why-card{background:var(--navy-2);border:1px solid var(--navy-line);border-radius:var(--r-lg);padding:22px;scroll-margin-top:90px}
   #fm-root .why-card h4{color:#fff;font-size:16px}
@@ -350,7 +351,7 @@ const STYLE = `
   #fm-root .why-aud b{color:#fff}
   #fm-root .why-aud-lead{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#9C93F7;font-weight:700}
   @media (max-width:900px){ #fm-root .why-grid{grid-template-columns:1fr} }
-  @media (max-width:720px){ #fm-root section.why{padding-block:56px} #fm-root .why-aud{flex-direction:column;align-items:flex-start;gap:8px} }
+  @media (max-width:720px){ #fm-root section.why{padding-block:44px} #fm-root .why-aud{flex-direction:column;align-items:flex-start;gap:8px} }
   #fm-root .hero-more{display:inline-block;margin-top:18px;font-size:14px;font-weight:600;color:#C9C3FF;text-decoration:none}
   #fm-root .hero-more:hover{text-decoration:underline}
   #fm-root .sec-head p a{color:var(--brand)}
@@ -427,6 +428,32 @@ const STYLE = `
   @media (pointer:coarse){ #fm-root .foot-grid ul{gap:2px} #fm-root .foot-grid a{display:inline-block;padding-block:5px} }
   @media (max-width:820px){ #fm-root .foot-grid ul{gap:2px} #fm-root .foot-grid ul a{display:inline-flex;align-items:center;min-height:40px} }
   #fm-root .foot-bottom{border-top:1px solid var(--navy-line);padding:20px 0;font-size:12.5px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
+
+  /* ---------- Premium interaction polish ---------- */
+  #fm-root .why-card, #fm-root .agent-card, #fm-root .aud-card, #fm-root .icard, #fm-root .trust-item{transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease}
+  #fm-root .why-card:hover, #fm-root .agent-card:hover{transform:translateY(-3px);border-color:var(--brand)}
+  #fm-root .aud-card:hover{transform:translateY(-3px);box-shadow:var(--shadow-md);border-color:var(--line-strong)}
+  #fm-root .icard:hover{transform:translateY(-2px);box-shadow:var(--shadow-md)}
+  #fm-root .plan{transition:transform .18s ease, box-shadow .18s ease}
+  #fm-root .plan:hover{transform:translateY(-3px);box-shadow:var(--shadow-md)}
+  @media (hover:none){
+    #fm-root .why-card:hover, #fm-root .agent-card:hover, #fm-root .aud-card:hover, #fm-root .icard:hover, #fm-root .plan:hover{transform:none;box-shadow:inherit;border-color:inherit}
+  }
+
+  /* ---------- Mobile typography: improve legibility on small screens (bump up, never down) ---------- */
+  @media (max-width:640px){
+    #fm-root .why-card p{font-size:14.5px;line-height:1.65}
+    #fm-root .agent-card p{font-size:14px;line-height:1.6}
+    #fm-root .icard .why{font-size:13.5px;line-height:1.55}
+    #fm-root .trust-item p{font-size:13.5px;line-height:1.55}
+    #fm-root .faq-q{font-size:15.5px}
+    #fm-root .faq-a{font-size:15px;line-height:1.7}
+    #fm-root .plan ul{font-size:13.5px;line-height:1.55}
+    #fm-root .aud-item span{font-size:14px;line-height:1.55}
+    #fm-root .foot-bottom{font-size:13px}
+    #fm-root .demo-table{font-size:12.5px}
+    #fm-root .why-aud{font-size:14px}
+  }
 `;
 
 const BODY_HTML = `<header class="nav">
@@ -492,20 +519,6 @@ const BODY_HTML_AFTER_HERO = `<!-- 2. HOW IT WORKS — simple 2D animated flow (
       <div class="eyebrow">How it works</div>
       <h2 style="margin-top:12px">From any document to a decision — automatically.</h2>
       <p style="margin-inline:auto">Upload whatever you already have. Finloraq reads it, records it correctly, and tells you what to do next.</p>
-    </div>
-
-    <div class="flow">
-      <div class="flow-step">Upload</div>
-      <div class="flow-arrow">→</div>
-      <div class="flow-step">AI Understands</div>
-      <div class="flow-arrow">→</div>
-      <div class="flow-step">Record</div>
-      <div class="flow-arrow">→</div>
-      <div class="flow-step">Analyze</div>
-      <div class="flow-arrow">→</div>
-      <div class="flow-step">Act</div>
-      <div class="flow-arrow">→</div>
-      <div class="flow-step">Respond</div>
     </div>
 
     <div class="hiw-io">
