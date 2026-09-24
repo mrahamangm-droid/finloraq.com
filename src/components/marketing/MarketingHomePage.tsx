@@ -415,7 +415,7 @@ const STYLE = `
 
 const BODY_HTML = `<header class="nav">
   <div class="wrap nav-row">
-    <div class="brand-mark"><span class="dot"></span>FINLORAQ</div>
+    <a href="/" class="brand-mark" aria-label="Finloraq home"><span class="dot"></span>FINLORAQ</a>
     <nav class="links">
       <a href="/how-it-works">How it works</a>
       <a href="#demo">Demo</a>
@@ -759,7 +759,7 @@ const BODY_HTML_AFTER_HERO = `<!-- 2. LIVE PRODUCT PREVIEW / TRY THE DEMO -->
 <footer>
   <div class="wrap foot-grid">
     <div>
-      <div class="brand-mark" style="color:#fff"><span class="dot"></span>FINLORAQ</div>
+      <a href="/" class="brand-mark" style="color:#fff" aria-label="Finloraq home"><span class="dot"></span>FINLORAQ</a>
       <p style="margin-top:14px;font-size:13px;max-width:32ch;line-height:1.6">AI Finance Operating System — accounting foundation, AI intelligence, human-controlled automation.</p>
     </div>
     <div><h6>Product</h6><ul><li><a href="/how-it-works">How it works</a></li><li><a href="#demo">Business Pulse</a></li><li><a href="/ai-accounting">AI Accounting</a></li><li><a href="/cash-flow-forecasting">Cash Flow Forecasting</a></li><li><a href="#agents">Finance Agents</a></li></ul></div>

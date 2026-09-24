@@ -119,10 +119,10 @@ export function MarketingFooter() {
     <footer>
       <div className="wrap foot-grid">
         <div>
-          <div className="brand-mark" style={{ color: "#fff" }}>
+          <Link href="/" className="brand-mark" style={{ color: "#fff" }} aria-label="Finloraq home">
             <span className="dot" />
             FINLORAQ
-          </div>
+          </Link>
           <p style={{ marginTop: 14, fontSize: 13, maxWidth: "32ch", lineHeight: 1.6 }}>
             AI Finance Operating System — accounting foundation, AI intelligence,
             human-controlled automation.
