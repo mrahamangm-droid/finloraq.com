@@ -262,7 +262,9 @@ async function saveResolution(
   recordIndex: number,
   resolution: NonNullable<ExtractedCustomerRecord["resolution"]>
 ) {
-  extraction.records[recordIndex] = { ...extraction.records[recordIndex], resolution };
+  const existing = extraction.records[recordIndex];
+  if (!existing) throw new Error("Record not found on this document.");
+  extraction.records[recordIndex] = { ...existing, resolution };
   const stillPending = extraction.records.some((r) => !r.resolution);
   await prisma.document.update({
     where: { id: documentId },
