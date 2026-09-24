@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireTenantContext } from "@/lib/tenant";
+import { getFormatter } from "@/lib/customization/server";
 import { prisma } from "@/lib/db";
 
 function statusColor(status: string) {
@@ -10,7 +11,8 @@ function statusColor(status: string) {
 }
 
 export default async function PurchasesPage() {
-  const { active } = await requireTenantContext();
+  const { active, userId } = await requireTenantContext();
+  const fmt = await getFormatter(userId);
 
   // Same cap-not-paginate tradeoff as the Sales list (see its comment).
   const bills = await prisma.bill.findMany({
@@ -55,9 +57,9 @@ export default async function PurchasesPage() {
                     <Link href={`/purchases/${b.id}`} className="font-mono text-xs text-primary">{b.billNumber}</Link>
                   </td>
                   <td className="px-4 py-2 text-card-foreground">{b.supplier.name}</td>
-                  <td className="px-4 py-2 text-muted-foreground">{b.issueDate.toISOString().slice(0, 10)}</td>
-                  <td className="px-4 py-2 text-muted-foreground">{b.dueDate.toISOString().slice(0, 10)}</td>
-                  <td className="px-4 py-2 text-right text-card-foreground">{b.total.toFixed(2)} {b.currency}</td>
+                  <td className="px-4 py-2 text-muted-foreground">{fmt.date(b.issueDate)}</td>
+                  <td className="px-4 py-2 text-muted-foreground">{fmt.date(b.dueDate)}</td>
+                  <td className="px-4 py-2 text-right text-card-foreground">{fmt.money(b.total)} {b.currency}</td>
                   <td className="px-4 py-2">
                     <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusColor(b.status)}`}>{b.status}</span>
                   </td>

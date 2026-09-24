@@ -1,15 +1,21 @@
 import { requireTenantContext } from "@/lib/tenant";
 import { prisma } from "@/lib/db";
+import { fieldDefs } from "@/lib/customization/server";
+import { displayFieldValue } from "@/lib/customization/customFields";
+import { CustomFieldInputs, fieldValues } from "@/components/custom-fields/custom-field-inputs";
 import { createCustomerAction } from "./actions";
 import { FileIntelligencePanel, type QueueDocument } from "@/components/customers/file-intelligence-panel";
 
 export default async function CustomersPage() {
   const { active } = await requireTenantContext();
 
-  const customers = await prisma.customer.findMany({
-    where: { companyId: active.companyId },
-    orderBy: { createdAt: "desc" },
-  });
+  const [customers, defs] = await Promise.all([
+    prisma.customer.findMany({
+      where: { companyId: active.companyId },
+      orderBy: { createdAt: "desc" },
+    }),
+    fieldDefs(active.companyId, "CUSTOMER"),
+  ]);
 
   // Customer File Intelligence review queue (spec item 5): documents still
   // waiting on a human decision. A document stays EXTRACTED/MATCHED until
@@ -39,6 +45,7 @@ export default async function CustomersPage() {
         <input name="name" required placeholder="Customer name" className="rounded-md border border-border bg-background px-3 py-2 text-sm" />
         <input name="email" type="email" placeholder="Email (optional)" className="rounded-md border border-border bg-background px-3 py-2 text-sm" />
         <input name="phone" placeholder="Phone (optional)" className="rounded-md border border-border bg-background px-3 py-2 text-sm" />
+        <CustomFieldInputs defs={defs} />
         <button type="submit" className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground">
           Add customer
         </button>
@@ -53,11 +60,12 @@ export default async function CustomersPage() {
                 <th className="px-4 py-2">Email</th>
                 <th className="px-4 py-2">Phone</th>
                 <th className="px-4 py-2">Terms</th>
+                {defs.map((d) => <th key={d.key} className="px-4 py-2">{d.label}</th>)}
               </tr>
             </thead>
             <tbody>
               {customers.length === 0 && (
-                <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">No customers yet.</td></tr>
+                <tr><td colSpan={4 + defs.length} className="px-4 py-8 text-center text-muted-foreground">No customers yet.</td></tr>
               )}
               {customers.map((c) => (
                 <tr key={c.id} className="border-b border-border last:border-0">
@@ -65,6 +73,7 @@ export default async function CustomersPage() {
                   <td className="px-4 py-2 text-muted-foreground">{c.email ?? "—"}</td>
                   <td className="px-4 py-2 text-muted-foreground">{c.phone ?? "—"}</td>
                   <td className="px-4 py-2 text-muted-foreground">{c.paymentTermsDays} days</td>
+                  {defs.map((d) => <td key={d.key} className="px-4 py-2 text-muted-foreground">{displayFieldValue(fieldValues(c.customFields)[d.key])}</td>)}
                 </tr>
               ))}
             </tbody>

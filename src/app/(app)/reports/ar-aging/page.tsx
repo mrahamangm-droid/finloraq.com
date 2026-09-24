@@ -1,10 +1,12 @@
 import { requireTenantContext } from "@/lib/tenant";
+import { getFormatter } from "@/lib/customization/server";
 import { arAging } from "@/lib/reports";
 
 const BUCKETS = ["current", "1-30", "31-60", "61-90", "90+"] as const;
 
 export default async function ArAgingPage() {
-  const { active } = await requireTenantContext();
+  const { active, userId } = await requireTenantContext();
+  const fmt = await getFormatter(userId);
   const rows = await arAging(active.companyId);
 
   const totals = Object.fromEntries(BUCKETS.map((b) => [b, rows.filter((r) => r.bucket === b).reduce((a, r) => a + r.balance, 0)]));
@@ -45,8 +47,8 @@ export default async function ArAgingPage() {
                 <tr key={r.id} className="border-b border-border last:border-0">
                   <td className="px-4 py-2 font-mono text-xs text-card-foreground">{r.number}</td>
                   <td className="px-4 py-2 text-card-foreground">{r.partyName}</td>
-                  <td className="px-4 py-2 text-muted-foreground">{r.dueDate.toISOString().slice(0, 10)}</td>
-                  <td className="px-4 py-2 text-right text-card-foreground">{r.balance.toFixed(2)}</td>
+                  <td className="px-4 py-2 text-muted-foreground">{fmt.date(r.dueDate)}</td>
+                  <td className="px-4 py-2 text-right text-card-foreground">{fmt.money(r.balance)}</td>
                   <td className="px-4 py-2 text-muted-foreground">{r.bucket}</td>
                 </tr>
               ))}

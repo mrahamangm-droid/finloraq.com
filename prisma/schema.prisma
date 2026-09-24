@@ -71,6 +71,7 @@ model User {
   backupCodes MfaBackupCode[]
 
   @@index([email])
+  preference    UserPreference?
 }
 
 /// One-time MFA recovery codes (spec section 21's MFA requirement). Only
@@ -138,6 +139,12 @@ model Company {
   brandPhone    String?
   brandAddress  String?
   isDemo        Boolean  @default(false)
+  /// Customisation (admins, Settings → Branding / Menu). The logo itself is logoUrl above.
+  brandColor    String?
+  invoiceFooter String?
+  invoiceTerms  String?
+  /// Company-wide sidebar layout: { order: string[], hidden: string[] } (hrefs).
+  navConfig     Json?
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -159,6 +166,7 @@ model Company {
   documents          Document[]
   auditEvents        AuditEvent[]
   workflowRules      WorkflowRule[]
+  customFieldDefinitions CustomFieldDefinition[]
   subscription       Subscription?
   invitations        Invitation[]
 
@@ -235,6 +243,7 @@ model CompanyMembership {
   company     Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
   user        User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   overrides   PermissionOverride[]
+  dashboardLayout DashboardLayout?
 
   @@unique([companyId, userId])
   @@index([userId])
@@ -423,6 +432,8 @@ model Customer {
   currency    String?
   paymentTermsDays Int @default(30)
   isActive    Boolean  @default(true)
+  /// Values for the company's custom fields, keyed by field key.
+  customFields Json?
   createdAt   DateTime @default(now())
 
   company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -441,6 +452,8 @@ model Supplier {
   currency    String?
   paymentTermsDays Int @default(30)
   isActive    Boolean  @default(true)
+  /// Values for the company's custom fields, keyed by field key.
+  customFields Json?
   createdAt   DateTime @default(now())
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -472,6 +485,8 @@ model Invoice {
   total       Decimal       @db.Decimal(18, 2)
   status      InvoiceStatus @default(DRAFT)
   journalEntryId String?
+  /// Values for the company's custom invoice fields, keyed by field key.
+  customFields Json?
   createdAt   DateTime      @default(now())
 
   company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -801,4 +816,67 @@ model AiUsageEvent {
   subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
 
   @@index([subscriptionId, kind])
+}
+
+// ---------------------------------------------------------------------------
+// Personalisation & customisation
+// ---------------------------------------------------------------------------
+
+/// Personal settings — they follow the user across every company they belong to.
+model UserPreference {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  theme        String   @default("system") // system | light | dark
+  density      String   @default("comfortable") // comfortable | compact
+  landingPage  String   @default("/dashboard")
+  dateFormat   String   @default("YYYY-MM-DD")
+  numberFormat String   @default("1,234.56")
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// A user's dashboard in one company: which cards, in which order, over which period.
+model DashboardLayout {
+  id           String   @id @default(cuid())
+  membershipId String   @unique
+  widgets      Json // [{ id: string, visible: boolean }] in display order
+  range        String   @default("mtd") // mtd | qtd | ytd | last30
+  updatedAt    DateTime @updatedAt
+
+  membership CompanyMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+}
+
+enum CustomFieldEntity {
+  CUSTOMER
+  SUPPLIER
+  INVOICE
+}
+
+enum CustomFieldType {
+  TEXT
+  NUMBER
+  DATE
+  SELECT
+  CHECKBOX
+}
+
+/// Admin-defined extra fields on customers, suppliers and invoices.
+model CustomFieldDefinition {
+  id        String            @id @default(cuid())
+  companyId String
+  entity    CustomFieldEntity
+  key       String
+  label     String
+  type      CustomFieldType
+  options   String[]
+  required  Boolean           @default(false)
+  position  Int               @default(0)
+  isActive  Boolean           @default(true)
+  createdAt DateTime          @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, entity, key])
+  @@index([companyId, entity])
 }

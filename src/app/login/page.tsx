@@ -18,7 +18,7 @@ function LoginForm() {
   // Only ever redirect to a same-site relative path — never trust an
   // absolute/external URL from a query param (open-redirect prevention).
   const rawCallback = searchParams.get("callbackUrl");
-  const callbackUrl = rawCallback && rawCallback.startsWith("/") && !rawCallback.startsWith("//") ? rawCallback : "/dashboard";
+  const callbackUrl = rawCallback && rawCallback.startsWith("/") && !rawCallback.startsWith("//") ? rawCallback : "/start";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [mfaToken, setMfaToken] = useState("");

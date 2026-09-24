@@ -7,6 +7,7 @@ import { getEInvoicingAdapter } from "@/lib/integrations/einvoicing";
 import { updateCompanySettingsAction } from "./actions";
 import { MfaPanel } from "@/components/settings/mfa-panel";
 import { BrandingPanel } from "@/components/settings/branding-panel";
+import { SettingsTabs } from "@/components/settings/customize/settings-tabs";
 
 function StatusBadge({ live, label }: { live: boolean; label: string }) {
   return (
@@ -44,6 +45,8 @@ export default async function SettingsPage() {
           Company profile and the live/simulated status of every external integration.
         </p>
       </div>
+
+      <SettingsTabs />
 
       <div className="rounded-lg border border-border bg-card">
         <div className="border-b border-border px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">

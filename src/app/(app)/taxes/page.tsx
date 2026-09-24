@@ -1,9 +1,11 @@
 import { requireTenantContext } from "@/lib/tenant";
+import { getFormatter } from "@/lib/customization/server";
 import { prisma } from "@/lib/db";
 import { vatReturn } from "@/lib/reports";
 
 export default async function TaxesPage() {
-  const { active } = await requireTenantContext();
+  const { active, userId } = await requireTenantContext();
+  const fmt = await getFormatter(userId);
   const now = new Date();
   const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   const to = now;
@@ -31,18 +33,18 @@ export default async function TaxesPage() {
             <tbody>
               <tr>
                 <td className="py-1 text-card-foreground">Output tax (on sales)</td>
-                <td className="py-1 text-right text-card-foreground">{vat.outputTax.toFixed(2)}</td>
+                <td className="py-1 text-right text-card-foreground">{fmt.money(vat.outputTax)}</td>
               </tr>
               <tr>
                 <td className="py-1 text-card-foreground">Input tax (on purchases)</td>
-                <td className="py-1 text-right text-card-foreground">{vat.inputTax.toFixed(2)}</td>
+                <td className="py-1 text-right text-card-foreground">{fmt.money(vat.inputTax)}</td>
               </tr>
             </tbody>
           </table>
         </div>
         <div className="mt-2 flex justify-between border-t border-border pt-2 text-sm font-semibold text-foreground">
           <span>{vat.netPayable.isNegative() ? "Net refund due" : "Net payable"}</span>
-          <span>{vat.netPayable.abs().toFixed(2)}</span>
+          <span>{fmt.money(vat.netPayable.abs())}</span>
         </div>
       </div>
 
@@ -58,7 +60,7 @@ export default async function TaxesPage() {
                   <td className="px-4 py-2 font-mono text-xs text-muted-foreground">{t.code}</td>
                   <td className="px-4 py-2 text-card-foreground">{t.name}</td>
                   <td className="px-4 py-2 text-muted-foreground">{t.treatment}</td>
-                  <td className="px-4 py-2 text-right text-card-foreground">{t.rate.times(100).toFixed(2)}%</td>
+                  <td className="px-4 py-2 text-right text-card-foreground">{fmt.money(t.rate.times(100))}%</td>
                 </tr>
               ))}
             </tbody>

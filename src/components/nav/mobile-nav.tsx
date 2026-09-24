@@ -5,12 +5,13 @@ import { usePathname } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Menu, X } from "lucide-react";
 import { NavLinks } from "./nav-links";
+import { BrandMark } from "./brand-mark";
 
 // Phones and portrait tablets (< 1024px): a menu button in the topbar opens
 // the full navigation in a slide-out drawer. Radix Dialog provides the focus
 // trap, Escape to close, background scroll lock and screen-reader labelling,
 // and behaves the same in Safari, Chrome, Firefox and Edge.
-export function MobileNav() {
+export function MobileNav({ companyName = "", hrefs, logo = null }: { companyName?: string; hrefs?: string[]; logo?: string | null }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
@@ -34,7 +35,7 @@ export function MobileNav() {
           className="app-drawer fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col border-r border-border bg-card shadow-xl focus:outline-none lg:hidden"
         >
           <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-4">
-            <Dialog.Title className="text-base font-semibold text-card-foreground">Finloraq</Dialog.Title>
+            <Dialog.Title className="min-w-0 text-base font-semibold text-card-foreground"><BrandMark companyName={companyName} logo={logo} /></Dialog.Title>
             <Dialog.Close asChild>
               <button
                 type="button"
@@ -47,7 +48,7 @@ export function MobileNav() {
           </div>
           <Dialog.Description className="sr-only">Main navigation</Dialog.Description>
           <nav aria-label="Main" className="flex-1 space-y-0.5 overflow-y-auto overscroll-contain p-2">
-            <NavLinks onNavigate={() => setOpen(false)} />
+            <NavLinks onNavigate={() => setOpen(false)} hrefs={hrefs} />
           </nav>
         </Dialog.Content>
       </Dialog.Portal>

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireTenantContext } from "@/lib/tenant";
+import { getFormatter } from "@/lib/customization/server";
 import { prisma } from "@/lib/db";
 
 function statusColor(status: string) {
@@ -10,7 +11,8 @@ function statusColor(status: string) {
 }
 
 export default async function SalesPage() {
-  const { active } = await requireTenantContext();
+  const { active, userId } = await requireTenantContext();
+  const fmt = await getFormatter(userId);
 
   // Capped rather than paginated for now (Phase 9 perf pass) — a company
   // with more than 200 invoices needs a real paginated/searchable list,
@@ -58,9 +60,9 @@ export default async function SalesPage() {
                     <Link href={`/sales/${inv.id}`} className="font-mono text-xs text-primary">{inv.invoiceNumber}</Link>
                   </td>
                   <td className="px-4 py-2 text-card-foreground">{inv.customer.name}</td>
-                  <td className="px-4 py-2 text-muted-foreground">{inv.issueDate.toISOString().slice(0, 10)}</td>
-                  <td className="px-4 py-2 text-muted-foreground">{inv.dueDate.toISOString().slice(0, 10)}</td>
-                  <td className="px-4 py-2 text-right text-card-foreground">{inv.total.toFixed(2)} {inv.currency}</td>
+                  <td className="px-4 py-2 text-muted-foreground">{fmt.date(inv.issueDate)}</td>
+                  <td className="px-4 py-2 text-muted-foreground">{fmt.date(inv.dueDate)}</td>
+                  <td className="px-4 py-2 text-right text-card-foreground">{fmt.money(inv.total)} {inv.currency}</td>
                   <td className="px-4 py-2">
                     <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusColor(inv.status)}`}>{inv.status}</span>
                   </td>
