@@ -125,8 +125,8 @@ export const HIW_STYLE = `
 /* ---- stage */
 .hiw .hiw-stage{position:relative;margin:14px 16px 0;max-width:1320px;height:clamp(470px,40vw,600px);border-radius:28px;overflow:hidden;border:1px solid var(--h-line);background:#070B16;isolation:isolate;box-shadow:0 40px 120px -40px rgba(80,72,229,.35), inset 0 1px 0 rgba(255,255,255,.04)}
 @media (min-width:1352px){ .hiw .hiw-stage{margin-inline:auto} }
-.hiw .hiw-canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:pan-y}
-.hiw .hiw-labels{position:absolute;inset:0;pointer-events:none;overflow:hidden;contain:strict}
+.hiw .hiw-canvas{position:absolute;top:0;right:0;bottom:0;left:0;width:100%;height:100%;display:block;touch-action:pan-y}
+.hiw .hiw-labels{position:absolute;top:0;right:0;bottom:0;left:0;pointer-events:none;overflow:hidden;contain:strict}
 .hiw .hiw-hud{position:absolute;top:14px;left:14px;right:14px;display:flex;justify-content:space-between;align-items:flex-start;gap:10px;pointer-events:none;z-index:3}
 .hiw .hiw-badge{pointer-events:auto;font-size:11.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#F3C77A;background:rgba(224,163,64,.12);border:1px solid rgba(224,163,64,.3);padding:5px 10px;border-radius:999px;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
 .hiw .hiw-ctrls{display:flex;gap:6px;pointer-events:auto}
@@ -136,7 +136,7 @@ export const HIW_STYLE = `
 .hiw .hiw-hint{position:absolute;right:16px;bottom:14px;margin:0;font-size:11.5px;color:var(--h-subtle);pointer-events:none;z-index:2}
 .hiw .hiw-caption{position:absolute;left:16px;bottom:14px;z-index:2;max-width:390px;margin:0;padding:12px 14px;border-radius:14px;background:var(--h-glass-2);border:1px solid var(--h-line);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);font-size:13px;line-height:1.5;color:var(--h-muted);pointer-events:none}
 .hiw .hiw-caption b{display:block;color:#fff;font-size:14px;margin-bottom:2px}
-.hiw .hiw-dragover{position:absolute;inset:10px;z-index:5;display:none;place-items:center;border:2px dashed rgba(127,227,212,.7);border-radius:22px;background:rgba(6,10,20,.72);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);text-align:center;font-size:18px;font-weight:800;color:#fff}
+.hiw .hiw-dragover{position:absolute;top:10px;right:10px;bottom:10px;left:10px;z-index:5;display:none;place-items:center;border:2px dashed rgba(127,227,212,.7);border-radius:22px;background:rgba(6,10,20,.72);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);text-align:center;font-size:18px;font-weight:800;color:#fff}
 .hiw .hiw-dragover small{display:block;font-size:12.5px;font-weight:600;color:var(--h-teal-2);margin-top:6px}
 .hiw .hiw-stage.is-drag .hiw-dragover{display:grid}
 
@@ -166,7 +166,7 @@ export const HIW_STYLE = `
 .hiw .hiw-o-stage p{margin:0;font-size:13px;color:var(--h-muted);line-height:1.55}
 .hiw.hiw--3d .hiw-outline{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
 .hiw:not(.hiw--3d) .hiw-stage{height:auto;display:flex;flex-direction:column;padding:16px 0 4px}
-.hiw:not(.hiw--3d) .hiw-hud{position:relative;inset:auto;padding:0 16px}
+.hiw:not(.hiw--3d) .hiw-hud{position:relative;top:auto;right:auto;bottom:auto;left:auto;padding:0 16px}
 .hiw:not(.hiw--3d) .hiw-outline{order:1;padding-top:16px}
 .hiw.hiw--reduced .hiw-ctrls [data-hiw-pause]{display:none}
 .hiw:not(.hiw--3d) .hiw-caption{order:2}
