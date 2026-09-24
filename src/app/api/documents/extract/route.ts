@@ -6,7 +6,7 @@ import { AiNotConfiguredError } from "@/lib/ai/provider";
 
 const schema = z.object({
   fileName: z.string().min(1),
-  imageBase64: z.string().min(1),
+  fileBase64: z.string().min(1),
   mimeType: z.string().min(1),
 });
 
@@ -23,7 +23,7 @@ export async function POST(req: Request) {
       membershipId: active.id,
       userId,
       fileName: parsed.data.fileName,
-      imageBase64: parsed.data.imageBase64,
+      fileBase64: parsed.data.fileBase64,
       mimeType: parsed.data.mimeType,
     });
     return NextResponse.json(result);
