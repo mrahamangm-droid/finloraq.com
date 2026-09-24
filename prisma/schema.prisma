@@ -42,6 +42,12 @@ model User {
   email         String     @unique
   emailVerified DateTime?
   name          String
+  // Profile photo, personal to this user (not the company's branding —
+  // see Company.logoUrl for that). Stored as a data: URL, same reasoning
+  // as Company.logoUrl below: no object storage is configured yet, and a
+  // small avatar is cheap enough to keep inline. Editable by the user
+  // themselves regardless of company role — see /api/profile/photo.
+  avatarUrl     String?
   passwordHash  String
   globalRole    GlobalRole @default(USER)
   mfaEnabled    Boolean    @default(false)
@@ -119,6 +125,18 @@ model Company {
   timezone      String   @default("Asia/Dubai")
   fiscalYearEnd Int      @default(12) // month 1-12
   taxRegNumber  String? // e.g. UAE TRN
+  // Branding — available on every plan (no feature gate, unlike
+  // documentExtraction/eInvoicing/etc. in src/lib/billing/plans.ts).
+  // Applied to the header of customer-facing documents (currently the
+  // Invoice detail page; the same fields are ready for quotations,
+  // receipts and statements once those exist as their own features).
+  // logoUrl is a data: URL for the same no-object-storage-yet reason as
+  // User.avatarUrl above — see /api/settings/branding for the size cap.
+  logoUrl       String?
+  tagline       String?
+  brandEmail    String?
+  brandPhone    String?
+  brandAddress  String?
   isDemo        Boolean  @default(false)
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())
