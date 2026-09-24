@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireTenantContext } from "@/lib/tenant";
+import { getFormatter } from "@/lib/customization/server";
 import { prisma } from "@/lib/db";
 
 function statusColor(status: string) {
@@ -9,7 +10,8 @@ function statusColor(status: string) {
 }
 
 export default async function JournalsPage() {
-  const { active } = await requireTenantContext();
+  const { active, userId } = await requireTenantContext();
+  const fmt = await getFormatter(userId);
 
   const entries = await prisma.journalEntry.findMany({
     where: { companyId: active.companyId },
@@ -60,10 +62,10 @@ export default async function JournalsPage() {
                 return (
                   <tr key={e.id} className="border-b border-border last:border-0">
                     <td className="px-4 py-2 font-mono text-xs text-card-foreground">{e.entryNumber}</td>
-                    <td className="px-4 py-2 text-card-foreground">{e.date.toISOString().slice(0, 10)}</td>
+                    <td className="px-4 py-2 text-card-foreground">{fmt.date(e.date)}</td>
                     <td className="px-4 py-2 text-muted-foreground">{e.sourceType}</td>
                     <td className="px-4 py-2 text-card-foreground">{e.memo ?? "—"}</td>
-                    <td className="px-4 py-2 text-right text-card-foreground">{total.toFixed(2)}</td>
+                    <td className="px-4 py-2 text-right text-card-foreground">{fmt.money(total)}</td>
                     <td className="px-4 py-2">
                       <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusColor(e.status)}`}>
                         {e.status}

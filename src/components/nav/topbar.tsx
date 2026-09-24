@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Search, Bell, Plus, Command, Settings, LogOut, ChevronDown } from "lucide-react";
+import { Search, Bell, Plus, Command, Settings, LogOut, ChevronDown, SlidersHorizontal } from "lucide-react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { signOut } from "next-auth/react";
 import { MobileNav } from "./mobile-nav";
@@ -18,14 +18,18 @@ export function Topbar({
   userName,
   companyName,
   avatarUrl,
+  navHrefs,
+  logo = null,
 }: {
   userName: string;
   companyName: string;
   avatarUrl?: string | null;
+  navHrefs?: string[];
+  logo?: string | null;
 }) {
   return (
     <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border bg-background px-3 sm:gap-3 sm:px-4">
-      <MobileNav />
+      <MobileNav companyName={companyName} hrefs={navHrefs} logo={logo} />
 
       <button
         type="button"
@@ -108,6 +112,15 @@ export function Topbar({
                 >
                   <Settings className="h-4 w-4" aria-hidden="true" />
                   Settings
+                </Link>
+              </DropdownMenu.Item>
+              <DropdownMenu.Item asChild>
+                <Link
+                  href="/settings/preferences"
+                  className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-muted focus:bg-muted"
+                >
+                  <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
+                  My preferences
                 </Link>
               </DropdownMenu.Item>
               <DropdownMenu.Item

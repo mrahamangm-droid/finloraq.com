@@ -1,8 +1,10 @@
 import { requireTenantContext } from "@/lib/tenant";
+import { getFormatter } from "@/lib/customization/server";
 import { profitAndLoss } from "@/lib/reports";
 
 export default async function ProfitAndLossPage() {
-  const { active } = await requireTenantContext();
+  const { active, userId } = await requireTenantContext();
+  const fmt = await getFormatter(userId);
   const now = new Date();
   const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   const to = now;
@@ -14,7 +16,7 @@ export default async function ProfitAndLossPage() {
       <div>
         <h1 className="text-xl font-semibold text-foreground">Profit &amp; Loss</h1>
         <p className="text-sm text-muted-foreground">
-          {active.company.name} · {from.toISOString().slice(0, 10)} to {to.toISOString().slice(0, 10)}
+          {active.company.name} · {fmt.date(from)} to {fmt.date(to)}
         </p>
       </div>
 
@@ -29,7 +31,7 @@ export default async function ProfitAndLossPage() {
                 {report.revenue.map((r) => (
                   <tr key={r.accountCode}>
                     <td className="py-1 text-card-foreground">{r.accountName}</td>
-                    <td className="py-1 text-right text-card-foreground">{r.amount.toFixed(2)}</td>
+                    <td className="py-1 text-right text-card-foreground">{fmt.money(r.amount)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -38,7 +40,7 @@ export default async function ProfitAndLossPage() {
         )}
         <div className="mt-2 flex justify-between border-t border-border pt-2 text-sm font-medium">
           <span>Total Revenue</span>
-          <span>{report.totalRevenue.toFixed(2)}</span>
+          <span>{fmt.money(report.totalRevenue)}</span>
         </div>
       </div>
 
@@ -53,7 +55,7 @@ export default async function ProfitAndLossPage() {
                 {report.expense.map((r) => (
                   <tr key={r.accountCode}>
                     <td className="py-1 text-card-foreground">{r.accountName}</td>
-                    <td className="py-1 text-right text-card-foreground">{r.amount.toFixed(2)}</td>
+                    <td className="py-1 text-right text-card-foreground">{fmt.money(r.amount)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -62,7 +64,7 @@ export default async function ProfitAndLossPage() {
         )}
         <div className="mt-2 flex justify-between border-t border-border pt-2 text-sm font-medium">
           <span>Total Expenses</span>
-          <span>{report.totalExpense.toFixed(2)}</span>
+          <span>{fmt.money(report.totalExpense)}</span>
         </div>
       </div>
 
@@ -70,7 +72,7 @@ export default async function ProfitAndLossPage() {
         <div className="flex justify-between text-base font-semibold text-foreground">
           <span>Net Profit</span>
           <span className={report.netProfit.isNegative() ? "text-destructive" : "text-success"}>
-            {report.netProfit.toFixed(2)}
+            {fmt.money(report.netProfit)}
           </span>
         </div>
       </div>

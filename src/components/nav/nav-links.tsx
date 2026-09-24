@@ -7,11 +7,13 @@ import { NAV } from "./nav-items";
 // The app's section links, with the current section highlighted and marked
 // aria-current="page" (so screen readers announce it too). `onNavigate`
 // lets the mobile drawer close itself when a link is tapped.
-export function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
+// `hrefs` is the company's menu (Settings → Menu): which items, in which order.
+export function NavLinks({ onNavigate, hrefs }: { onNavigate?: () => void; hrefs?: string[] }) {
   const pathname = usePathname() ?? "";
+  const items = hrefs ? hrefs.flatMap((h) => NAV.filter((n) => n.href === h)) : NAV;
   return (
     <>
-      {NAV.map(({ href, label, icon: Icon }) => {
+      {items.map(({ href, label, icon: Icon }) => {
         const active = pathname === href || pathname.startsWith(href + "/");
         return (
           <Link

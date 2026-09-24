@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -13,7 +14,8 @@ const ACTIVE_COMPANY_COOKIE = "finloraq_active_company";
  * companyId + membershipId from here rather than trusting a client-supplied
  * companyId in a request body.
  */
-export async function getTenantContext() {
+// cache(): the layout and the page both need this — one session lookup and one query per request.
+export const getTenantContext = cache(async () => {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return null;
 
@@ -32,7 +34,7 @@ export async function getTenantContext() {
     memberships.find((m) => m.companyId === activeCompanyId) ?? memberships[0];
 
   return { userId: session.user.id, memberships, active };
-}
+});
 
 /** Throws if there's no signed-in user with an active company membership. */
 export async function requireTenantContext() {

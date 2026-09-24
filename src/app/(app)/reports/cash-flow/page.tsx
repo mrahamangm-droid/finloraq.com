@@ -1,8 +1,10 @@
 import { requireTenantContext } from "@/lib/tenant";
+import { getFormatter } from "@/lib/customization/server";
 import { cashFlowForecast, customerPaymentBehavior } from "@/lib/cashflow";
 
 export default async function CashFlowPage() {
-  const { active } = await requireTenantContext();
+  const { active, userId } = await requireTenantContext();
+  const fmt = await getFormatter(userId);
   const [forecast, behavior] = await Promise.all([
     cashFlowForecast(active.companyId),
     customerPaymentBehavior(active.companyId),
@@ -17,7 +19,7 @@ export default async function CashFlowPage() {
 
       <div className="rounded-lg border border-border bg-card p-4">
         <div className="text-xs uppercase text-muted-foreground">Current cash (Bank, from posted entries)</div>
-        <div className="mt-1 text-2xl font-semibold text-card-foreground">{forecast.currentCash.toFixed(2)}</div>
+        <div className="mt-1 text-2xl font-semibold text-card-foreground">{fmt.money(forecast.currentCash)}</div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -25,12 +27,12 @@ export default async function CashFlowPage() {
           <div key={b.days} className="rounded-lg border border-border bg-card p-4">
             <div className="text-xs uppercase text-muted-foreground">Next {b.days} days</div>
             <div className="mt-2 space-y-1 text-sm">
-              <div className="flex justify-between text-success"><span>Expected in</span><span>+{b.expectedInflow.toFixed(2)}</span></div>
-              <div className="flex justify-between text-destructive"><span>Expected out</span><span>-{b.expectedOutflow.toFixed(2)}</span></div>
+              <div className="flex justify-between text-success"><span>Expected in</span><span>+{fmt.money(b.expectedInflow)}</span></div>
+              <div className="flex justify-between text-destructive"><span>Expected out</span><span>-{fmt.money(b.expectedOutflow)}</span></div>
             </div>
             <div className="mt-2 flex justify-between border-t border-border pt-2 text-sm font-semibold text-card-foreground">
               <span>Projected cash</span>
-              <span className={b.projectedCash < 0 ? "text-destructive" : ""}>{b.projectedCash.toFixed(2)}</span>
+              <span className={b.projectedCash < 0 ? "text-destructive" : ""}>{fmt.money(b.projectedCash)}</span>
             </div>
           </div>
         ))}

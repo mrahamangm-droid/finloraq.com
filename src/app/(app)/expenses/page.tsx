@@ -1,10 +1,12 @@
 import { requireTenantContext } from "@/lib/tenant";
+import { getFormatter } from "@/lib/customization/server";
 import { listRecentExpenses } from "@/lib/expenses";
 import { NewExpenseForm } from "@/components/forms/new-expense-form";
 import { ExpenseApproveButton } from "@/components/forms/expense-approve-button";
 
 export default async function ExpensesPage() {
-  const { active } = await requireTenantContext();
+  const { active, userId } = await requireTenantContext();
+  const fmt = await getFormatter(userId);
   const expenses = await listRecentExpenses(active.companyId);
 
   return (
@@ -39,9 +41,9 @@ export default async function ExpensesPage() {
                 const amount = bankLine ? bankLine.credit.toNumber() : e.lines.reduce((a, l) => a + l.debit.toNumber(), 0);
                 return (
                   <tr key={e.id} className="border-b border-border last:border-0">
-                    <td className="px-4 py-2 text-muted-foreground">{e.date.toISOString().slice(0, 10)}</td>
+                    <td className="px-4 py-2 text-muted-foreground">{fmt.date(e.date)}</td>
                     <td className="px-4 py-2 text-card-foreground">{e.memo}</td>
-                    <td className="px-4 py-2 text-right text-card-foreground">{amount.toFixed(2)}</td>
+                    <td className="px-4 py-2 text-right text-card-foreground">{fmt.money(amount)}</td>
                     <td className="px-4 py-2">
                       <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${e.status === "POSTED" ? "bg-success/10 text-success" : "bg-muted text-muted-foreground"}`}>
                         {e.status}

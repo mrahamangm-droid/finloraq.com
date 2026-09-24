@@ -1,10 +1,12 @@
 import { notFound } from "next/navigation";
 import { requireTenantContext } from "@/lib/tenant";
+import { getFormatter } from "@/lib/customization/server";
 import { projectProfitability } from "@/lib/projects";
 import { prisma } from "@/lib/db";
 
 export default async function ProjectDetailPage({ params }: { params: { id: string } }) {
-  const { active } = await requireTenantContext();
+  const { active, userId } = await requireTenantContext();
+  const fmt = await getFormatter(userId);
 
   const exists = await prisma.project.findFirst({ where: { id: params.id, companyId: active.companyId } });
   if (!exists) notFound();
@@ -21,17 +23,17 @@ export default async function ProjectDetailPage({ params }: { params: { id: stri
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="rounded-lg border border-border bg-card p-4">
           <div className="text-xs uppercase text-muted-foreground">Revenue</div>
-          <div className="mt-1 text-xl font-semibold text-card-foreground">{p.revenue.toFixed(2)}</div>
+          <div className="mt-1 text-xl font-semibold text-card-foreground">{fmt.money(p.revenue)}</div>
           <div className="text-xs text-muted-foreground">{p.invoiceCount} invoice(s)</div>
         </div>
         <div className="rounded-lg border border-border bg-card p-4">
           <div className="text-xs uppercase text-muted-foreground">Cost</div>
-          <div className="mt-1 text-xl font-semibold text-card-foreground">{p.cost.toFixed(2)}</div>
+          <div className="mt-1 text-xl font-semibold text-card-foreground">{fmt.money(p.cost)}</div>
           <div className="text-xs text-muted-foreground">{p.billCount} bill(s)</div>
         </div>
         <div className="rounded-lg border border-border bg-card p-4">
           <div className="text-xs uppercase text-muted-foreground">Margin</div>
-          <div className={`mt-1 text-xl font-semibold ${p.margin < 0 ? "text-destructive" : "text-success"}`}>{p.margin.toFixed(2)}</div>
+          <div className={`mt-1 text-xl font-semibold ${p.margin < 0 ? "text-destructive" : "text-success"}`}>{fmt.money(p.margin)}</div>
           <div className="text-xs text-muted-foreground">{p.marginPct.toFixed(1)}%</div>
         </div>
       </div>
@@ -40,12 +42,12 @@ export default async function ProjectDetailPage({ params }: { params: { id: stri
         <div className="rounded-lg border border-border bg-card p-4">
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Budget</span>
-            <span className="text-card-foreground">{p.budget.toFixed(2)}</span>
+            <span className="text-card-foreground">{fmt.money(p.budget)}</span>
           </div>
           <div className="mt-1 flex justify-between text-sm font-medium">
             <span>{(p.budgetVariance ?? 0) < 0 ? "Over budget by" : "Under budget by"}</span>
             <span className={(p.budgetVariance ?? 0) < 0 ? "text-destructive" : "text-success"}>
-              {Math.abs(p.budgetVariance ?? 0).toFixed(2)}
+              {fmt.money(Math.abs(p.budgetVariance ?? 0))}
             </span>
           </div>
         </div>

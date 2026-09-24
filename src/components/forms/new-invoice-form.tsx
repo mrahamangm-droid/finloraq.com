@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2 } from "lucide-react";
+import type { FieldDef } from "@/lib/customization/customFields";
+import { CustomFieldInputs } from "@/components/custom-fields/custom-field-inputs";
 
 type Line = { description: string; quantity: string; unitPrice: string; taxCodeId: string };
 const emptyLine = (): Line => ({ description: "", quantity: "1", unitPrice: "", taxCodeId: "" });
@@ -10,10 +12,13 @@ const emptyLine = (): Line => ({ description: "", quantity: "1", unitPrice: "", 
 export function NewInvoiceForm({
   customers,
   taxCodes,
+  fields = [],
 }: {
   customers: { id: string; name: string }[];
   taxCodes: { id: string; name: string; rate: number }[];
+  fields?: FieldDef[];
 }) {
+  const fieldsRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
   const [customerId, setCustomerId] = useState(customers[0]?.id ?? "");
   const [issueDate, setIssueDate] = useState(new Date().toISOString().slice(0, 10));
@@ -35,6 +40,10 @@ export function NewInvoiceForm({
 
   async function submit() {
     setError(null);
+    const cf = fieldsRef.current;
+    if (cf && !cf.reportValidity()) return;
+    const customFields: Record<string, string> = {};
+    if (cf) new FormData(cf).forEach((v, k) => { if (k.startsWith("cf_")) customFields[k.slice(3)] = String(v); });
     setLoading(true);
 
     const res = await fetch("/api/invoices", {
@@ -45,6 +54,7 @@ export function NewInvoiceForm({
         issueDate,
         dueDate,
         currency: "AED",
+        customFields,
         lines: lines
           .filter((l) => l.description && l.unitPrice)
           .map((l) => ({
@@ -94,6 +104,12 @@ export function NewInvoiceForm({
           <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm" />
         </div>
       </div>
+
+      {fields.length > 0 && (
+        <form ref={fieldsRef} onSubmit={(e) => e.preventDefault()} className="grid grid-cols-1 gap-3 rounded-lg border border-border bg-card p-4 sm:grid-cols-3">
+          <CustomFieldInputs defs={fields} />
+        </form>
+      )}
 
       <div className="rounded-lg border border-border bg-card">
         <div className="overflow-x-auto">

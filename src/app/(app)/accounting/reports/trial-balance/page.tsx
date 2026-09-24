@@ -1,8 +1,10 @@
 import { requireTenantContext } from "@/lib/tenant";
+import { getFormatter } from "@/lib/customization/server";
 import { trialBalance } from "@/lib/reports";
 
 export default async function TrialBalancePage() {
-  const { active } = await requireTenantContext();
+  const { active, userId } = await requireTenantContext();
+  const fmt = await getFormatter(userId);
   const asOf = new Date();
   const rows = await trialBalance(active.companyId, asOf);
 
@@ -15,7 +17,7 @@ export default async function TrialBalancePage() {
       <div>
         <h1 className="text-xl font-semibold text-foreground">Trial Balance</h1>
         <p className="text-sm text-muted-foreground">
-          {active.company.name} · as of {asOf.toISOString().slice(0, 10)}
+          {active.company.name} · as of {fmt.date(asOf)}
         </p>
       </div>
 
@@ -44,8 +46,8 @@ export default async function TrialBalancePage() {
                   <td className="px-4 py-2 font-mono text-xs text-muted-foreground">{r.accountCode}</td>
                   <td className="px-4 py-2 text-card-foreground">{r.accountName}</td>
                   <td className="px-4 py-2 text-muted-foreground">{r.type}</td>
-                  <td className="px-4 py-2 text-right text-card-foreground">{r.debit.toFixed(2)}</td>
-                  <td className="px-4 py-2 text-right text-card-foreground">{r.credit.toFixed(2)}</td>
+                  <td className="px-4 py-2 text-right text-card-foreground">{fmt.money(r.debit)}</td>
+                  <td className="px-4 py-2 text-right text-card-foreground">{fmt.money(r.credit)}</td>
                 </tr>
               ))}
             </tbody>
@@ -55,8 +57,8 @@ export default async function TrialBalancePage() {
                   <td colSpan={3} className="px-4 py-2 text-card-foreground">
                     Total
                   </td>
-                  <td className="px-4 py-2 text-right text-card-foreground">{totalDebit.toFixed(2)}</td>
-                  <td className="px-4 py-2 text-right text-card-foreground">{totalCredit.toFixed(2)}</td>
+                  <td className="px-4 py-2 text-right text-card-foreground">{fmt.money(totalDebit)}</td>
+                  <td className="px-4 py-2 text-right text-card-foreground">{fmt.money(totalCredit)}</td>
                 </tr>
               </tfoot>
             )}

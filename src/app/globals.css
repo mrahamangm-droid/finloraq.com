@@ -94,3 +94,35 @@
     animation: none;
   }
 }
+
+/* ---- Personal theme & density (Settings → My preferences), scoped to #app-shell ---- */
+@layer base {
+  .theme-light {
+    color-scheme: light;
+    --primary: 243 75% 59%;
+    --primary-foreground: 0 0% 100%;
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;
+    --border: 220 13% 91%;
+  }
+  .theme-dark {
+    color-scheme: dark;
+    --primary: 243 75% 65%;
+    --primary-foreground: 222 47% 7%;
+    --background: 222 47% 7%;
+    --foreground: 210 20% 96%;
+    --card: 222 40% 10%;
+    --card-foreground: 210 20% 96%;
+    --muted: 222 30% 15%;
+    --muted-foreground: 220 10% 65%;
+    --border: 222 25% 20%;
+  }
+  /* Compact: everything in the content area ~10% smaller, so more rows fit on screen. */
+  .density-compact .app-main {
+    zoom: 0.9;
+  }
+}

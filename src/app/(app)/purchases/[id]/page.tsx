@@ -1,10 +1,12 @@
 import { notFound } from "next/navigation";
 import { requireTenantContext } from "@/lib/tenant";
+import { getFormatter } from "@/lib/customization/server";
 import { prisma } from "@/lib/db";
 import { BillActions } from "@/components/forms/bill-actions";
 
 export default async function BillDetailPage({ params }: { params: { id: string } }) {
-  const { active } = await requireTenantContext();
+  const { active, userId } = await requireTenantContext();
+  const fmt = await getFormatter(userId);
 
   const bill = await prisma.bill.findFirst({
     where: { id: params.id, companyId: active.companyId },
@@ -45,21 +47,21 @@ export default async function BillDetailPage({ params }: { params: { id: string 
                 <tr key={l.id} className="border-b border-border last:border-0">
                   <td className="px-3 py-2 text-card-foreground">{l.description}</td>
                   <td className="px-3 py-2 text-right text-muted-foreground">{l.quantity.toString()}</td>
-                  <td className="px-3 py-2 text-right text-muted-foreground">{l.unitPrice.toFixed(2)}</td>
+                  <td className="px-3 py-2 text-right text-muted-foreground">{fmt.money(l.unitPrice)}</td>
                   <td className="px-3 py-2 text-muted-foreground">{l.taxCode?.name ?? "—"}</td>
-                  <td className="px-3 py-2 text-right text-card-foreground">{l.lineTotal.toFixed(2)}</td>
+                  <td className="px-3 py-2 text-right text-card-foreground">{fmt.money(l.lineTotal)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
         <div className="space-y-1 border-t border-border px-3 py-2 text-right text-sm">
-          <div className="text-muted-foreground">Subtotal {bill.subtotal.toFixed(2)}</div>
-          <div className="text-muted-foreground">Tax {bill.taxTotal.toFixed(2)}</div>
-          <div className="font-medium text-card-foreground">Total {bill.total.toFixed(2)} {bill.currency}</div>
-          {paid > 0 && <div className="text-success">Paid {paid.toFixed(2)}</div>}
+          <div className="text-muted-foreground">Subtotal {fmt.money(bill.subtotal)}</div>
+          <div className="text-muted-foreground">Tax {fmt.money(bill.taxTotal)}</div>
+          <div className="font-medium text-card-foreground">Total {fmt.money(bill.total)} {bill.currency}</div>
+          {paid > 0 && <div className="text-success">Paid {fmt.money(paid)}</div>}
           {bill.status !== "PAID" && bill.status !== "DRAFT" && (
-            <div className="font-medium text-card-foreground">Balance due {balanceDue.toFixed(2)}</div>
+            <div className="font-medium text-card-foreground">Balance due {fmt.money(balanceDue)}</div>
           )}
         </div>
       </div>

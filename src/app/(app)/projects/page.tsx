@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireTenantContext } from "@/lib/tenant";
+import { getFormatter } from "@/lib/customization/server";
 import { prisma } from "@/lib/db";
 import { listProjectsWithProfitability } from "@/lib/projects";
 import { spendByCostCentre } from "@/lib/costCentres";
@@ -7,7 +8,8 @@ import { NewProjectForm } from "@/components/forms/new-project-form";
 import { NewCostCentreForm } from "@/components/forms/new-cost-centre-form";
 
 export default async function ProjectsPage() {
-  const { active } = await requireTenantContext();
+  const { active, userId } = await requireTenantContext();
+  const fmt = await getFormatter(userId);
   const now = new Date();
   const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
 
@@ -50,9 +52,9 @@ export default async function ProjectsPage() {
                     <Link href={`/projects/${p.project.id}`} className="text-primary">{p.project.name}</Link>
                     <span className="ml-1 font-mono text-xs text-muted-foreground">{p.project.code}</span>
                   </td>
-                  <td className="px-4 py-2 text-right text-card-foreground">{p.revenue.toFixed(2)}</td>
-                  <td className="px-4 py-2 text-right text-card-foreground">{p.cost.toFixed(2)}</td>
-                  <td className={`px-4 py-2 text-right font-medium ${p.margin < 0 ? "text-destructive" : "text-success"}`}>{p.margin.toFixed(2)}</td>
+                  <td className="px-4 py-2 text-right text-card-foreground">{fmt.money(p.revenue)}</td>
+                  <td className="px-4 py-2 text-right text-card-foreground">{fmt.money(p.cost)}</td>
+                  <td className={`px-4 py-2 text-right font-medium ${p.margin < 0 ? "text-destructive" : "text-success"}`}>{fmt.money(p.margin)}</td>
                   <td className="px-4 py-2 text-right text-muted-foreground">{p.budget !== null ? p.budget.toFixed(2) : "—"}</td>
                   <td className="px-4 py-2 text-right text-muted-foreground">
                     {p.budgetVariance !== null ? p.budgetVariance.toFixed(2) : "—"}
