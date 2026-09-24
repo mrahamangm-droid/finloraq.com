@@ -93,9 +93,10 @@ export function FileIntelligencePanel({ queue }: { queue: QueueDocument[] }) {
       <div>
         <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Customer File Intelligence</div>
         <p className="mt-1 text-xs text-muted-foreground">
-          Upload a PDF, photo, invoice, receipt, Excel file, CSV, email or WhatsApp export. Finloraq reads it, tries to
-          match it to an existing customer, and lists it below for you to confirm — nothing is created or changed
-          automatically.
+          Upload any customer file — a PDF, photo, invoice, receipt, Excel file, CSV, email or WhatsApp export all
+          work. Finloraq reads it, tries to match it to an existing customer, and lists it below for you to confirm —
+          nothing is created or changed automatically. If it's a format Finloraq can't read yet, you'll get a clear
+          reason instead of a silent failure.
         </p>
       </div>
 
@@ -106,15 +107,13 @@ export function FileIntelligencePanel({ queue }: { queue: QueueDocument[] }) {
         className="flex w-full flex-col items-center gap-2 rounded-lg border border-dashed border-border p-6 text-muted-foreground hover:bg-muted/30 disabled:opacity-50"
       >
         <Upload className="h-5 w-5" />
-        <span className="text-sm">{uploading ? "Reading file…" : "Click to upload a customer document"}</span>
+        <span className="text-sm">{uploading ? "Reading file…" : "Click to upload any customer file"}</span>
       </button>
-      <input
-        ref={fileInput}
-        type="file"
-        accept=".pdf,.xlsx,.csv,.txt,.eml,image/*,message/rfc822"
-        className="hidden"
-        onChange={onFileChange}
-      />
+      {/* No `accept` filter: the picker shows every file on the user's device.
+          Finloraq reads what it can (PDF, image, Excel, CSV, text/email) and,
+          for anything else, the upload comes back with a clear, specific
+          reason instead of the file just never appearing in the picker. */}
+      <input ref={fileInput} type="file" className="hidden" onChange={onFileChange} />
       {uploadError && (
         <p className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{uploadError}</p>
       )}
