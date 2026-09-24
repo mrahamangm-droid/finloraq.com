@@ -95,8 +95,8 @@ export function FileIntelligencePanel({ queue }: { queue: QueueDocument[] }) {
         <p className="mt-1 text-xs text-muted-foreground">
           Upload any customer file — a PDF, photo, invoice, receipt, Excel file, CSV, email or WhatsApp export all
           work. Finloraq reads it, tries to match it to an existing customer, and lists it below for you to confirm —
-          nothing is created or changed automatically. If it's a format Finloraq can't read yet, you'll get a clear
-          reason instead of a silent failure.
+          nothing is created or changed automatically. If it&apos;s a format Finloraq can&apos;t read yet,
+          you&apos;ll get a clear reason instead of a silent failure.
         </p>
       </div>
 
