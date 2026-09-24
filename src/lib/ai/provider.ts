@@ -27,10 +27,25 @@ export interface AiVisionParams {
   maxTokens?: number;
 }
 
+/** Superset of AiVisionParams: also accepts application/pdf, for the
+ *  Customer File Intelligence pipeline (src/lib/ai/customer-extraction.ts),
+ *  which needs to read PDFs as well as photos/scans. Kept as a separate
+ *  method from completeWithImage() rather than widening that one, so the
+ *  existing expense-extraction call site (src/lib/ai/extraction.ts) is
+ *  untouched. */
+export interface AiFileParams {
+  system: string;
+  prompt: string;
+  fileBase64: string;
+  mimeType: string;
+  maxTokens?: number;
+}
+
 export interface AiProvider {
   readonly name: string;
   complete(params: AiCompletionParams): Promise<string>;
   completeWithImage(params: AiVisionParams): Promise<string>;
+  completeWithFile(params: AiFileParams): Promise<string>;
 }
 
 export class AiNotConfiguredError extends Error {
@@ -64,13 +79,35 @@ class AnthropicProvider implements AiProvider {
     );
   }
 
-  private async call(system: string, messages: unknown[], maxTokens: number): Promise<string> {
+  /**
+   * Reads either an image or a PDF and returns the model's raw text
+   * response. PDFs use Anthropic's "document" content block (still gated
+   * behind the pdfs-2024-09-25 beta header at the time this was written) —
+   * everything else (image/png, image/jpeg, image/webp, image/gif) uses
+   * the same "image" block completeWithImage() uses.
+   */
+  async completeWithFile({ system, prompt, fileBase64, mimeType, maxTokens = 1024 }: AiFileParams): Promise<string> {
+    const isPdf = mimeType === "application/pdf";
+    const block = isPdf
+      ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: fileBase64 } }
+      : { type: "image", source: { type: "base64", media_type: mimeType, data: fileBase64 } };
+
+    return this.call(
+      system,
+      [{ role: "user", content: [block, { type: "text", text: prompt }] }],
+      maxTokens,
+      isPdf ? { "anthropic-beta": "pdfs-2024-09-25" } : undefined
+    );
+  }
+
+  private async call(system: string, messages: unknown[], maxTokens: number, extraHeaders?: Record<string, string>): Promise<string> {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
         "content-type": "application/json",
         "x-api-key": this.apiKey,
         "anthropic-version": "2023-06-01",
+        ...extraHeaders,
       },
       body: JSON.stringify({ model: this.model, max_tokens: maxTokens, system, messages }),
     });
