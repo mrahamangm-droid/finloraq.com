@@ -163,15 +163,24 @@ these steps is safe — everything is idempotent.
 
 ## 4. Point the domain
 
-`finloraq.com` itself stays on WordPress/Hostinger per the README (the marketing site is
-separate from this app). Add a CNAME (or Vercel's provided A/ALIAS record) for
-`app.finloraq.com` pointing at Vercel, then add that domain in Project Settings →
-Domains. Update `NEXTAUTH_URL` in Production to match exactly once the domain is live.
+**Status as of 2026-09-24: done.** The plan below (keep `finloraq.com` on
+WordPress/Hostinger, use this app only for `app.finloraq.com`) is what section 3b of the
+README and the note below describe as of 2026-09-22 — it's since changed. Marketing pages
+now live in this app itself (see the README's "SEO" note), and Vercel's Domains list
+confirms `finloraq.com`, `www.finloraq.com` (308 → `finloraq.com`) and `app.finloraq.com`
+are all "Valid Configuration" on this same project. `NEXTAUTH_URL` should be
+`https://app.finloraq.com` in Production to match the domain sessions are actually served
+from. The steps and DNS troubleshooting notes below are kept for reference (e.g. if the
+domain ever needs to be re-pointed), not because they still describe a pending task.
 
-**Status as of 2026-09-22: not done yet — this is the one open item blocking the real
-domain.** `app.finloraq.com` is already added in Vercel (Project Settings → Domains),
-which is why it shows "Invalid Configuration" there rather than being absent — but a DNS
-lookup confirms no record exists for it yet:
+Add a CNAME (or Vercel's provided A/ALIAS record) for `app.finloraq.com` pointing at
+Vercel, then add that domain in Project Settings → Domains. Update `NEXTAUTH_URL` in
+Production to match exactly once the domain is live.
+
+**Status as of 2026-09-22 (historical — superseded, see above): not done yet — this was
+the one open item blocking the real domain.** `app.finloraq.com` is already added in
+Vercel (Project Settings → Domains), which is why it shows "Invalid Configuration" there
+rather than being absent — but a DNS lookup confirms no record exists for it yet:
 
 ```
 $ dig CNAME app.finloraq.com   →  NXDOMAIN (no answer, only an SOA in Authority)
@@ -266,8 +275,10 @@ all return 200 with the correct content-type, and `<head>` carries the matching
       relied on for real receipts — right now only the extraction result is persisted,
       not the source image (`Document.storageKey` is a placeholder).
 - [ ] MFA is enabled for every admin-level account before go-live.
-- [ ] `robots.txt` and `robots: { index: false }` (already in place) keep
-      `app.finloraq.com` out of search results — confirm `finloraq.com` is the domain
-      that actually ranks.
+- [x] `robots.txt` and `robots: { index: false }` (already in place) keep
+      `app.finloraq.com` out of search results — **confirmed 2026-09-24**:
+      `finloraq.com` (this same Vercel project, not the WordPress site described in
+      section 4 below) is the domain serving the indexable marketing pages, and its
+      Vercel domain shows "Valid Configuration."
 - [ ] The CSP in `next.config.mjs` moves from `'unsafe-inline'` to a per-request nonce
       once CI is verifying builds (documented in that file).

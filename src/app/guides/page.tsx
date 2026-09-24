@@ -3,23 +3,11 @@ import Link from "next/link";
 import { MarketingHeader, MarketingFooter } from "@/components/marketing/MarketingChrome";
 import { MARKETING_BASE_STYLE } from "@/components/marketing/marketing-base-style";
 import { BreadcrumbJsonLd } from "@/components/marketing/StructuredData";
-import { getMarketingRoute } from "@/components/marketing/marketing-routes";
+import { getMarketingRoute, buildMarketingMetadata } from "@/components/marketing/marketing-routes";
 
 const route = getMarketingRoute("/guides")!;
 
-export const metadata: Metadata = {
-  title: route.title,
-  description: route.description,
-  robots: { index: true, follow: true },
-  alternates: { canonical: route.path },
-  openGraph: {
-    title: route.title,
-    description: route.description,
-    url: route.path,
-    type: "website",
-  },
-  twitter: { title: route.title, description: route.description },
-};
+export const metadata: Metadata = buildMarketingMetadata(route);
 
 const LIVE_GUIDES = [
   {

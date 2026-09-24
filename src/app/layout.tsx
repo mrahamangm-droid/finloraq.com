@@ -1,20 +1,38 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { RegisterServiceWorker } from "@/components/pwa/register-sw";
+import { SITE_URL } from "@/lib/site";
 
 export const metadata: Metadata = {
+  // Resolves every relative URL used in metadata (alternates.canonical,
+  // openGraph.url/images, twitter.images, …) to an absolute
+  // https://finloraq.com/... URL in the rendered tags. Without this, Next
+  // renders those as bare relative paths (confirmed in production: <link
+  // rel="canonical" href="/ai-accounting"/> and <meta property="og:url"
+  // content="/ai-accounting"/> — both technically against spec and against
+  // Google's own guidance to use absolute canonical URLs).
+  metadataBase: new URL(SITE_URL),
   title: {
     default: "Finloraq — AI Finance Operating System",
     template: "%s · Finloraq",
   },
   description:
     "Accounting, cash flow, tax, automation and financial intelligence in one intelligent platform.",
-  // This app is the authenticated product itself (app.finloraq.com), not
-  // the marketing site — finloraq.com stays on WordPress/Hostinger and is
-  // the thing that should actually rank. Every page here is behind login
-  // or exists only to route into one, so there's nothing here for a
-  // search engine to usefully index; robots.txt (public/robots.txt)
-  // backs this up for crawlers that ignore per-page meta tags.
+  // DEPLOYMENT.md's original plan (2026-09-22) was to keep the marketing
+  // site on WordPress/Hostinger and use this Next.js app only for the
+  // authenticated product at app.finloraq.com. That plan changed: the
+  // marketing pages now live in this app too (src/app/page.tsx,
+  // ai-accounting/, ai-cfo/, cash-flow-forecasting/, guides/,
+  // how-it-works/), and finloraq.com itself now points at this Vercel
+  // project (confirmed live 2026-09-24 — finloraq.com, www.finloraq.com
+  // and app.finloraq.com are all "Valid Configuration" on the same
+  // project). So `robots: { index: false, follow: false }` here is the
+  // *default* for this whole app (the authenticated product, onboarding,
+  // auth routes, etc. — everything that isn't a marketing page) — each
+  // marketing page overrides it to indexable via buildMarketingMetadata()
+  // (src/components/marketing/marketing-routes.ts). /robots.txt
+  // (src/app/robots.ts, generated from MARKETING_ROUTES) backs this up
+  // for crawlers that ignore per-page meta tags.
   robots: { index: false, follow: false },
   // src/app/icon.png and src/app/apple-icon.png already auto-generate the
   // matching <link> tags via Next's file-based icon convention — this is

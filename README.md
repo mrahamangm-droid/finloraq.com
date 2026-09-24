@@ -332,11 +332,16 @@ adapter behind that interface to make it live; nothing else in the billing flow 
   without an `htmlFor`/`id` pairing (screen readers can't associate them) were fixed in
   the MFA panel. `lang="en"` and page metadata were already correct from Phase 1. This is
   a real but partial pass, not a full audit — flagged honestly rather than claimed as done.
-- **SEO**: this app (`app.finloraq.com`) is the authenticated product, not the marketing
-  site — finloraq.com stays on WordPress and is what should actually rank. Added
-  `robots: { index: false, follow: false }` to the root metadata and a `public/robots.txt`
-  disallowing all crawling, so this app can never accidentally compete with or dilute the
-  marketing site's search presence.
+- **SEO**: this app is the authenticated product *and*, as of the marketing pages under
+  `src/app/` (home, `/ai-accounting`, `/ai-cfo`, `/cash-flow-forecasting`, `/guides`,
+  `/how-it-works`), the marketing site — `finloraq.com` now points at this same Vercel
+  project rather than staying on WordPress as originally planned (confirmed live
+  2026-09-24). Root metadata defaults to `robots: { index: false, follow: false }` so the
+  authenticated product and auth/onboarding routes stay out of search results; each
+  marketing page opts back into `index: true` via `buildMarketingMetadata()`
+  (`src/components/marketing/marketing-routes.ts`), and `/robots.txt`
+  (`src/app/robots.ts`, generated from that same route list) backs that up for crawlers
+  that ignore per-page meta tags.
 - **Testing**: `mfa.test.ts` (RFC 6238 vectors + backup-code hashing) and
   `rateLimit.test.ts` (pure sliding-window logic) are new; combined with the existing
   RBAC/password/billing-plan-catalog/reports-aging tests, `npm test` now covers every pure
@@ -429,8 +434,12 @@ Before pointing real customers at a deployment:
       it breaks — noted in that file rather than done blind here.
 - [ ] MFA is enabled for every admin-level account at minimum (`Settings` → Two-Factor
       Authentication) before go-live.
-- [ ] `robots.txt` (`public/robots.txt`) correctly disallows all crawling — confirm this
-      app's subdomain is never the one Google indexes; finloraq.com's WordPress site is.
+- [x] `/robots.txt` (`src/app/robots.ts`) allows only the marketing routes and disallows
+      everything else. **Verified 2026-09-24**: `finloraq.com`, `www.finloraq.com` and
+      `app.finloraq.com` are all live on this same Vercel project (not WordPress) — the
+      marketing pages under `src/app/` are the thing that's meant to rank, on
+      `finloraq.com`, and this file plus each marketing page's `robots: { index: true }`
+      is what makes that happen.
 
 ## Roadmap (spec's own phase order)
 

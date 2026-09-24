@@ -8,23 +8,11 @@ import {
   BreadcrumbJsonLd,
   type FaqItem,
 } from "@/components/marketing/StructuredData";
-import { getMarketingRoute } from "@/components/marketing/marketing-routes";
+import { getMarketingRoute, buildMarketingMetadata } from "@/components/marketing/marketing-routes";
 
 const route = getMarketingRoute("/ai-cfo")!;
 
-export const metadata: Metadata = {
-  title: route.title,
-  description: route.description,
-  robots: { index: true, follow: true },
-  alternates: { canonical: route.path },
-  openGraph: {
-    title: route.title,
-    description: route.description,
-    url: route.path,
-    type: "website",
-  },
-  twitter: { title: route.title, description: route.description },
-};
+export const metadata: Metadata = buildMarketingMetadata(route);
 
 const FAQ_ITEMS: FaqItem[] = [
   {
