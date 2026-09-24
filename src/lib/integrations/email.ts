@@ -45,7 +45,12 @@ export async function processInboundEmailAttachment(input: {
     membershipId: adminMembership.id,
     userId: adminMembership.userId,
     fileName: input.fileName,
-    imageBase64: input.imageBase64,
+    // extractDocument()'s param is fileBase64 (it now also accepts PDFs/
+    // xlsx/CSV, not just images) — this function's own input field stays
+    // named imageBase64 since it's the inbound-email webhook's external
+    // payload shape (src/app/api/webhooks/email/route.ts), unchanged here
+    // to avoid a breaking change to that contract.
+    fileBase64: input.imageBase64,
     mimeType: input.mimeType,
   });
 
