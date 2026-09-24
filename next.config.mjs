@@ -26,6 +26,17 @@ const nextConfig = {
   async headers() {
     return [
       {
+        // The service worker script itself must never be served from a
+        // stale CDN/browser cache — that's the classic "my PWA update
+        // never reaches users" bug. `no-cache` forces a revalidation
+        // request every time the browser checks for an update, so a new
+        // deploy's sw.js is picked up promptly instead of being stuck
+        // behind whatever cache lifetime Vercel would otherwise apply to
+        // a static file under public/.
+        source: "/sw.js",
+        headers: [{ key: "Cache-Control", value: "no-cache" }],
+      },
+      {
         source: "/(.*)",
         headers: [
           { key: "X-Frame-Options", value: "DENY" },
