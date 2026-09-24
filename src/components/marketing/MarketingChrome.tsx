@@ -186,7 +186,10 @@ export function MarketingFooter() {
         </div>
       </div>
       <div className="wrap foot-bottom">
-        <span>© {new Date().getFullYear()} Finloraq</span>
+        <span>
+          © {new Date().getFullYear()} Finloraq — PAPPLE WORLD FZE LLC | RAK, UAE |{" "}
+          <a href="mailto:support@finloraq.com">support@finloraq.com</a>
+        </span>
         <span>Demo content shown throughout is illustrative and does not represent a real customer.</span>
       </div>
     </footer>

@@ -767,7 +767,7 @@ const BODY_HTML_AFTER_HERO = `<!-- 2. LIVE PRODUCT PREVIEW / TRY THE DEMO -->
     <div><h6>Resources</h6><ul><li><a href="/guides">Guides</a></li><li><a href="#faq">FAQ</a></li><li><a href="mailto:hello@finloraq.com">Help</a></li></ul></div>
     <div><h6>Company</h6><ul><li><a href="mailto:hello@finloraq.com">About</a></li><li><a href="mailto:hello@finloraq.com">Contact</a></li><li><a href="#trust">Security</a></li></ul></div>
   </div>
-  <div class="wrap foot-bottom"><span>© Finloraq</span><span>Demo content shown throughout is illustrative and does not represent a real customer.</span></div>
+  <div class="wrap foot-bottom"><span>© Finloraq — PAPPLE WORLD FZE LLC | RAK, UAE | <a href="mailto:support@finloraq.com">support@finloraq.com</a></span><span>Demo content shown throughout is illustrative and does not represent a real customer.</span></div>
 </footer>`;
 
 export function MarketingHomePage() {
