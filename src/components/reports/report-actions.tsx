@@ -16,10 +16,30 @@ function csvCell(v: string) {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
+// Heading for a table, taken from the element just above it (or above one of its
+// wrappers) when that element is short, table-free and not part of the toolbar.
+function tableTitle(table: HTMLElement, root: HTMLElement): string {
+  let el: HTMLElement | null = table;
+  for (let i = 0; i < 3 && el && el !== root; i++, el = el.parentElement) {
+    const prev = el.previousElementSibling as HTMLElement | null;
+    if (!prev || prev.classList.contains("no-print") || prev.querySelector("table")) continue;
+    const leaves = Array.from(prev.querySelectorAll("*"))
+      .filter((n) => n.children.length === 0)
+      .map((n) => (n.textContent ?? "").trim())
+      .filter(Boolean);
+    const parts = leaves.length ? leaves : [(prev.textContent ?? "").trim()].filter(Boolean);
+    const text = parts.join(" ");
+    if (parts.length > 0 && parts.length <= 4 && text.length < 150) return text;
+  }
+  return "";
+}
+
 function tablesToCsv(root: HTMLElement): string {
   const lines: string[] = [];
   root.querySelectorAll("table").forEach((table, i) => {
     if (i > 0) lines.push("");
+    const title = tableTitle(table as HTMLElement, root);
+    if (title) lines.push(csvCell(title));
     table.querySelectorAll("tr").forEach((tr) => {
       const cells = Array.from(tr.children).map((c) => csvCell((c as HTMLElement).innerText ?? c.textContent ?? ""));
       if (cells.some((c) => c !== "")) lines.push(cells.join(","));
