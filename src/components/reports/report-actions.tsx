@@ -31,8 +31,10 @@ function tableTitle(table: HTMLElement, root: HTMLElement): string {
       const t = (n.textContent ?? "").trim();
       if (t) parts.push(t);
     }
-    const text = parts.join(" ");
-    if (parts.length > 0 && parts.length <= 4 && text.length < 150) return text;
+    const text = parts.join(" ").replace(/\s+/g, " ");
+    // Up to 8 pieces: a ledger heading is name + badge + opening/closing, while the
+    // aging summary cards above the table have 10 and are correctly skipped.
+    if (parts.length > 0 && parts.length <= 8 && text.length < 150) return text;
   }
   return "";
 }
