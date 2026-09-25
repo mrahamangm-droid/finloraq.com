@@ -52,7 +52,7 @@ export function PeriodPicker({ granularity, date, from, to, label, prev, next, i
   const field = "rounded-md border border-border bg-background px-2 py-1.5 text-sm";
 
   return (
-    <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-3 text-sm" aria-label="Reporting period">
+    <div className="no-print flex flex-col gap-3 rounded-lg border border-border bg-card p-3 text-sm" aria-label="Reporting period">
       <div className="flex flex-wrap items-center gap-2">
         <div role="tablist" className="flex flex-wrap gap-1 rounded-md bg-muted/60 p-1">
           {options.map((g) => (
