@@ -183,3 +183,72 @@ export async function createSupplier(params: {
 
   return supplier;
 }
+
+/**
+ * Permanently removes a supplier. Refused when any bill — posted or draft
+ * — was ever raised against them, since that would orphan financial
+ * records; archive (setSupplierActive) is the right move for a supplier
+ * with history. Admin-only by default (see the "suppliers" DELETE row in
+ * src/lib/rbac.ts's role matrix). Mirrors deleteCustomer() above, checking
+ * Bill instead of Invoice.
+ */
+export async function deleteSupplier(params: {
+  companyId: string;
+  membershipId: string;
+  userId: string;
+  supplierId: string;
+}) {
+  await requirePermission(params.membershipId, "suppliers", "DELETE");
+
+  const supplier = await prisma.supplier.findFirst({ where: { id: params.supplierId, companyId: params.companyId } });
+  if (!supplier) throw new Error("Supplier not found.");
+
+  const billCount = await prisma.bill.count({ where: { supplierId: supplier.id } });
+  if (billCount > 0) {
+    throw new PartyInUseError(
+      `${supplier.name} has ${billCount} bill${billCount === 1 ? "" : "s"} on record and can't be deleted. Archive them instead to hide them without losing that history.`
+    );
+  }
+
+  await prisma.supplier.delete({ where: { id: supplier.id } });
+
+  await recordAuditEvent({
+    companyId: params.companyId,
+    userId: params.userId,
+    action: "supplier.deleted",
+    entityType: "Supplier",
+    entityId: supplier.id,
+    previousValue: { name: supplier.name, email: supplier.email },
+  });
+}
+
+/**
+ * Archives or restores a supplier (toggles Supplier.isActive) instead of
+ * deleting them — the safe option once they have bill history. Archived
+ * suppliers drop out of the active list and the "new bill" picker but
+ * keep every past record intact. Mirrors setCustomerActive() above.
+ */
+export async function setSupplierActive(params: {
+  companyId: string;
+  membershipId: string;
+  userId: string;
+  supplierId: string;
+  isActive: boolean;
+}) {
+  await requirePermission(params.membershipId, "suppliers", "DELETE");
+
+  const supplier = await prisma.supplier.findFirst({ where: { id: params.supplierId, companyId: params.companyId } });
+  if (!supplier) throw new Error("Supplier not found.");
+
+  const updated = await prisma.supplier.update({ where: { id: supplier.id }, data: { isActive: params.isActive } });
+
+  await recordAuditEvent({
+    companyId: params.companyId,
+    userId: params.userId,
+    action: params.isActive ? "supplier.restored" : "supplier.archived",
+    entityType: "Supplier",
+    entityId: supplier.id,
+  });
+
+  return updated;
+}

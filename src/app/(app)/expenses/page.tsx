@@ -5,7 +5,7 @@ import { listRecentExpenses } from "@/lib/expenses";
 import { pickerProps, resolvePeriod, type PeriodParams } from "@/lib/periods";
 import { PeriodPicker } from "@/components/periods/period-picker";
 import { NewExpenseForm } from "@/components/forms/new-expense-form";
-import { ExpenseApproveButton } from "@/components/forms/expense-approve-button";
+import { ExpenseRowActions } from "@/components/forms/expense-row-actions";
 
 export default async function ExpensesPage({ searchParams = {} }: { searchParams?: PeriodParams }) {
   const { active, userId } = await requireTenantContext();
@@ -65,7 +65,7 @@ export default async function ExpensesPage({ searchParams = {} }: { searchParams
                       </span>
                     </td>
                     <td className="px-4 py-2">
-                      {e.status === "DRAFT" && <ExpenseApproveButton journalEntryId={e.id} />}
+                      <ExpenseRowActions journalEntryId={e.id} status={e.status} />
                     </td>
                   </tr>
                 );

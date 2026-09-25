@@ -1,19 +1,24 @@
 import { requireTenantContext } from "@/lib/tenant";
 import { prisma } from "@/lib/db";
+import { can } from "@/lib/rbac";
 import { fieldDefs } from "@/lib/customization/server";
 import { displayFieldValue } from "@/lib/customization/customFields";
 import { CustomFieldInputs, fieldValues } from "@/components/custom-fields/custom-field-inputs";
 import { createSupplierAction } from "./actions";
+import { SupplierRowActions } from "@/components/suppliers/supplier-row-actions";
 
-export default async function SuppliersPage() {
+export default async function SuppliersPage({ searchParams }: { searchParams: { archived?: string } }) {
   const { active } = await requireTenantContext();
+  const showArchived = searchParams.archived === "1";
 
-  const [suppliers, defs] = await Promise.all([
+  const [suppliers, defs, canDelete, archivedCount] = await Promise.all([
     prisma.supplier.findMany({
-      where: { companyId: active.companyId },
+      where: { companyId: active.companyId, isActive: !showArchived },
       orderBy: { createdAt: "desc" },
     }),
     fieldDefs(active.companyId, "SUPPLIER"),
+    can(active.id, "suppliers", "DELETE"),
+    prisma.supplier.count({ where: { companyId: active.companyId, isActive: false } }),
   ]);
 
   return (
@@ -34,6 +39,16 @@ export default async function SuppliersPage() {
       </form>
 
       <div className="overflow-hidden rounded-lg border border-border bg-card">
+        <div className="flex items-center justify-between border-b border-border px-4 py-2">
+          <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            {showArchived ? "Archived suppliers" : "Active suppliers"}
+          </span>
+          {(showArchived || archivedCount > 0) && (
+            <a href={showArchived ? "/suppliers" : "/suppliers?archived=1"} className="text-xs font-medium text-muted-foreground underline hover:text-foreground">
+              {showArchived ? "Back to active suppliers" : `Show archived (${archivedCount})`}
+            </a>
+          )}
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
@@ -43,11 +58,16 @@ export default async function SuppliersPage() {
                 <th className="px-4 py-2">Phone</th>
                 <th className="px-4 py-2">Terms</th>
                 {defs.map((d) => <th key={d.key} className="px-4 py-2">{d.label}</th>)}
+                {canDelete && <th className="px-4 py-2"></th>}
               </tr>
             </thead>
             <tbody>
               {suppliers.length === 0 && (
-                <tr><td colSpan={4 + defs.length} className="px-4 py-8 text-center text-muted-foreground">No suppliers yet.</td></tr>
+                <tr>
+                  <td colSpan={4 + defs.length + (canDelete ? 1 : 0)} className="px-4 py-8 text-center text-muted-foreground">
+                    {showArchived ? "No archived suppliers." : "No suppliers yet."}
+                  </td>
+                </tr>
               )}
               {suppliers.map((s) => (
                 <tr key={s.id} className="border-b border-border last:border-0">
@@ -56,6 +76,11 @@ export default async function SuppliersPage() {
                   <td className="px-4 py-2 text-muted-foreground">{s.phone ?? "—"}</td>
                   <td className="px-4 py-2 text-muted-foreground">{s.paymentTermsDays} days</td>
                   {defs.map((d) => <td key={d.key} className="px-4 py-2 text-muted-foreground">{displayFieldValue(fieldValues(s.customFields)[d.key])}</td>)}
+                  {canDelete && (
+                    <td className="px-4 py-2">
+                      <SupplierRowActions supplierId={s.id} name={s.name} isActive={s.isActive} />
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
