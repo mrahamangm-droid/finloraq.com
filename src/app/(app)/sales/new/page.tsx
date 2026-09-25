@@ -7,7 +7,7 @@ export default async function NewInvoicePage() {
   const { active } = await requireTenantContext();
 
   const [customers, taxCodes, fields] = await Promise.all([
-    prisma.customer.findMany({ where: { companyId: active.companyId }, orderBy: { name: "asc" } }),
+    prisma.customer.findMany({ where: { companyId: active.companyId, isActive: true }, orderBy: { name: "asc" } }),
     prisma.taxCode.findMany({ where: { companyId: active.companyId, isActive: true }, orderBy: { name: "asc" } }),
     fieldDefs(active.companyId, "INVOICE"),
   ]);

@@ -80,6 +80,77 @@ export async function updateCustomerFromReview(params: {
   return customer;
 }
 
+/** Thrown when a delete is refused because the record has history attached to it. */
+export class PartyInUseError extends Error {}
+
+/**
+ * Permanently removes a customer. Refused when any invoice — posted or
+ * draft — was ever raised against them, since that would orphan financial
+ * records; archive (setCustomerActive) is the right move for a customer
+ * with history. Admin-only by default (see the "customers" DELETE row in
+ * src/lib/rbac.ts's role matrix).
+ */
+export async function deleteCustomer(params: {
+  companyId: string;
+  membershipId: string;
+  userId: string;
+  customerId: string;
+}) {
+  await requirePermission(params.membershipId, "customers", "DELETE");
+
+  const customer = await prisma.customer.findFirst({ where: { id: params.customerId, companyId: params.companyId } });
+  if (!customer) throw new Error("Customer not found.");
+
+  const invoiceCount = await prisma.invoice.count({ where: { customerId: customer.id } });
+  if (invoiceCount > 0) {
+    throw new PartyInUseError(
+      `${customer.name} has ${invoiceCount} invoice${invoiceCount === 1 ? "" : "s"} on record and can't be deleted. Archive them instead to hide them without losing that history.`
+    );
+  }
+
+  await prisma.customer.delete({ where: { id: customer.id } });
+
+  await recordAuditEvent({
+    companyId: params.companyId,
+    userId: params.userId,
+    action: "customer.deleted",
+    entityType: "Customer",
+    entityId: customer.id,
+    previousValue: { name: customer.name, email: customer.email },
+  });
+}
+
+/**
+ * Archives or restores a customer (toggles Customer.isActive) instead of
+ * deleting them — the safe option once they have invoice history. Archived
+ * customers drop out of the active list and the "new invoice" picker but
+ * keep every past record intact.
+ */
+export async function setCustomerActive(params: {
+  companyId: string;
+  membershipId: string;
+  userId: string;
+  customerId: string;
+  isActive: boolean;
+}) {
+  await requirePermission(params.membershipId, "customers", "DELETE");
+
+  const customer = await prisma.customer.findFirst({ where: { id: params.customerId, companyId: params.companyId } });
+  if (!customer) throw new Error("Customer not found.");
+
+  const updated = await prisma.customer.update({ where: { id: customer.id }, data: { isActive: params.isActive } });
+
+  await recordAuditEvent({
+    companyId: params.companyId,
+    userId: params.userId,
+    action: params.isActive ? "customer.restored" : "customer.archived",
+    entityType: "Customer",
+    entityId: customer.id,
+  });
+
+  return updated;
+}
+
 export async function createSupplier(params: {
   companyId: string;
   membershipId: string;
