@@ -6,6 +6,7 @@ import { isWhatsAppConfigured } from "@/lib/integrations/whatsapp";
 import { getEInvoicingAdapter } from "@/lib/integrations/einvoicing";
 import { updateCompanySettingsAction } from "./actions";
 import { MfaPanel } from "@/components/settings/mfa-panel";
+import { ChangePasswordPanel } from "@/components/settings/change-password-panel";
 import { BrandingPanel } from "@/components/settings/branding-panel";
 import { SettingsTabs } from "@/components/settings/customize/settings-tabs";
 
@@ -146,6 +147,8 @@ export default async function SettingsPage() {
         }}
         canEditBranding={canEdit}
       />
+
+      <ChangePasswordPanel />
 
       <MfaPanel />
 
