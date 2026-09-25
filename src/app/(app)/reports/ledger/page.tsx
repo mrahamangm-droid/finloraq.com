@@ -1,3 +1,4 @@
+import { ReportActions } from "@/components/reports/report-actions";
 import { requireTenantContext } from "@/lib/tenant";
 import { prisma } from "@/lib/db";
 import { ledgerReport, type LedgerAccountSection } from "@/lib/reports";
@@ -37,13 +38,14 @@ export default async function LedgerPage({ searchParams }: { searchParams: Searc
   ]);
 
   return (
-    <div className="space-y-4">
+    <div id="report-content" className="space-y-4">
       <div>
         <h1 className="text-xl font-semibold text-foreground">Ledger — {GRANULARITY_LABELS[range.granularity]}</h1>
         <p className="text-sm text-muted-foreground">
           {active.company.name} · {range.label} ({day(range.from)} to {day(range.to)})
         </p>
       </div>
+      <ReportActions title={`Ledger — ${GRANULARITY_LABELS[range.granularity]}`} company={active.company.name} />
 
       <PeriodPicker {...pickerProps(range)} />
 

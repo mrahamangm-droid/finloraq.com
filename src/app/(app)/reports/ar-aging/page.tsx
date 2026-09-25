@@ -1,3 +1,4 @@
+import { ReportActions } from "@/components/reports/report-actions";
 import { requireTenantContext } from "@/lib/tenant";
 import { getFormatter } from "@/lib/customization/server";
 import { arAging } from "@/lib/reports";
@@ -12,11 +13,12 @@ export default async function ArAgingPage() {
   const totals = Object.fromEntries(BUCKETS.map((b) => [b, rows.filter((r) => r.bucket === b).reduce((a, r) => a + r.balance, 0)]));
 
   return (
-    <div className="space-y-4">
+    <div id="report-content" className="space-y-4">
       <div>
         <h1 className="text-xl font-semibold text-foreground">Accounts Receivable Aging</h1>
         <p className="text-sm text-muted-foreground">{active.company.name}</p>
       </div>
+      <ReportActions title="Accounts Receivable Aging" company={active.company.name} />
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {BUCKETS.map((b) => (
