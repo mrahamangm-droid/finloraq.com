@@ -11,7 +11,7 @@ import { createCustomer, deleteCustomer, setCustomerActive, PartyInUseError } fr
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
-async function run(fn: () => Promise<void>): Promise<ActionResult> {
+async function run(fn: () => Promise<unknown>): Promise<ActionResult> {
   try {
     await fn();
     revalidatePath("/customers");
