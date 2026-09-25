@@ -1,3 +1,4 @@
+import { ReportActions } from "@/components/reports/report-actions";
 import { requireTenantContext } from "@/lib/tenant";
 import { getFormatter } from "@/lib/customization/server";
 import Link from "next/link";
@@ -18,13 +19,14 @@ export default async function ProfitAndLossPage({ searchParams = {} }: { searchP
   ]);
 
   return (
-    <div className="space-y-4">
+    <div id="report-content" className="space-y-4">
       <div>
         <h1 className="text-xl font-semibold text-foreground">Profit &amp; Loss</h1>
         <p className="text-sm text-muted-foreground">
           {active.company.name} · {period.label} ({fmt.date(from)} to {fmt.date(to)})
         </p>
       </div>
+      <ReportActions title="Profit & Loss" company={active.company.name} />
 
       <PeriodPicker {...pickerProps(period)} />
 

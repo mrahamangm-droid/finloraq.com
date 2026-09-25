@@ -1,3 +1,4 @@
+import { ReportActions } from "@/components/reports/report-actions";
 import { requireTenantContext } from "@/lib/tenant";
 import { getFormatter } from "@/lib/customization/server";
 import { cashFlowForecast, customerPaymentBehavior } from "@/lib/cashflow";
@@ -11,11 +12,12 @@ export default async function CashFlowPage() {
   ]);
 
   return (
-    <div className="space-y-6">
+    <div id="report-content" className="space-y-6">
       <div>
         <h1 className="text-xl font-semibold text-foreground">Cash-Flow Forecast</h1>
         <p className="text-sm text-muted-foreground">{active.company.name}</p>
       </div>
+      <ReportActions title="Cash-Flow Forecast" company={active.company.name} />
 
       <div className="rounded-lg border border-border bg-card p-4">
         <div className="text-xs uppercase text-muted-foreground">Current cash (Bank, from posted entries)</div>

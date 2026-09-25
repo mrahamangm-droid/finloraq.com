@@ -1,3 +1,4 @@
+import { ReportActions } from "@/components/reports/report-actions";
 import { requireTenantContext } from "@/lib/tenant";
 import { getFormatter } from "@/lib/customization/server";
 import { balanceSheet } from "@/lib/reports";
@@ -42,11 +43,12 @@ export default async function BalanceSheetPage({ searchParams = {} }: { searchPa
   const sheet = await balanceSheet(active.companyId, asOf);
 
   return (
-    <div className="space-y-4">
+    <div id="report-content" className="space-y-4">
       <div>
         <h1 className="text-xl font-semibold text-foreground">Balance Sheet</h1>
         <p className="text-sm text-muted-foreground">{active.company.name} · as of {fmt.date(asOf)}</p>
       </div>
+      <ReportActions title="Balance Sheet" company={active.company.name} />
 
       <PeriodPicker {...pickerProps(period)} allow={["day", "week", "month", "quarter", "year"]} />
 

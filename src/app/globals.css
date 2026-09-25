@@ -126,3 +126,38 @@
     zoom: 0.9;
   }
 }
+
+/* ---- Printing / Save as PDF for reports ---- */
+@media print {
+  @page {
+    margin: 12mm;
+  }
+  html,
+  body,
+  #app-shell,
+  #app-shell > div,
+  .app-main {
+    height: auto !important;
+    overflow: visible !important;
+    display: block !important;
+    background: #fff !important;
+  }
+  #app-shell aside,
+  #app-shell header,
+  .no-print {
+    display: none !important;
+  }
+  .app-main {
+    padding: 0 !important;
+  }
+  .app-main table {
+    page-break-inside: auto;
+  }
+  .app-main tr {
+    page-break-inside: avoid;
+  }
+  .app-main * {
+    color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}

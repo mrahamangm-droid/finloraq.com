@@ -1,3 +1,4 @@
+import { ReportActions } from "@/components/reports/report-actions";
 import { requireTenantContext } from "@/lib/tenant";
 import { getFormatter } from "@/lib/customization/server";
 import { trialBalance } from "@/lib/reports";
@@ -17,13 +18,14 @@ export default async function TrialBalancePage({ searchParams = {} }: { searchPa
   const balanced = Math.abs(totalDebit - totalCredit) < 0.005;
 
   return (
-    <div className="space-y-4">
+    <div id="report-content" className="space-y-4">
       <div>
         <h1 className="text-xl font-semibold text-foreground">Trial Balance</h1>
         <p className="text-sm text-muted-foreground">
           {active.company.name} · as of {fmt.date(asOf)}
         </p>
       </div>
+      <ReportActions title="Trial Balance" company={active.company.name} />
 
       <PeriodPicker {...pickerProps(period)} allow={["day", "week", "month", "quarter", "year"]} />
 
