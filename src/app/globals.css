@@ -135,33 +135,38 @@
  * just the first — verified by rendering a 2-page test document with
  * Chromium's own print-to-PDF before shipping this.
  *
- * The negative top/bottom + left offsets pull the banner out of the
- * @page margin (below) into the margin area itself, all the way to the
- * physical page edge, matching the source artwork's own edge-to-edge
- * design (a real printer's unprintable border may still clip a couple
- * mm — a hardware limit, not something this CSS can work around, and
- * the same limit the original PDF letterhead would hit printed as-is).
- * calc(100% + 24mm) spans the full page width: 100% of the @page
- * content-box width (page width minus the 12mm left+right margins)
- * plus those two margins back.
+ * Top-of-page only, exactly 0.5in tall, full page width — logo + company
+ * name, composited into a single image (public/letterhead/header.png,
+ * 2481×150px @ 300dpi = 8.27in × 0.5in, matching A4 width). No footer.
  *
- * The @page top/bottom margins below (70mm / 36mm) are sized to the
- * letterhead artwork's own proportions at full page width — header
- * image aspect ratio ≈ 3.18:1 → ~66mm tall at 210mm (A4) width, footer
- * ≈ 6.39:1 → ~33mm — plus a few mm of breathing room before the report
- * content starts/ends. If the letterhead artwork is ever replaced, these
- * three numbers (top margin, header's negative top, footer's negative
- * bottom) need to move together with the new image's aspect ratio.
+ * IMPORTANT — do not give `.print-letterhead-header` a negative `top`
+ * offset. That was tried (to bleed the header past the @page margin to
+ * the physical top edge, the same way the horizontal bleed below works)
+ * and empirically breaks pagination in Chromium's print-to-PDF: the
+ * fixed element stops repeating per page and instead renders once, near
+ * the bottom of the first page. Confirmed by rendering 2-page test PDFs
+ * both ways before shipping. `top: 0` is anchored to the top of the
+ * @page content box (inside the margin, not the physical edge) and is
+ * the only offset that repeats correctly on every page — so the header
+ * doesn't bleed vertically, it starts right at the page's printable
+ * area. The horizontal left/width bleed is unaffected by this and does
+ * span the full physical page width.
+ *
+ * @page top margin is 0 so the content box (and the header inside it)
+ * starts essentially at the physical top edge. Vertical clearance for
+ * the header is instead reserved with `.app-main`'s `padding-top`
+ * below, sized to the header's own height (0.5in ≈ 12.7mm) plus a few
+ * mm of breathing room. If the header image is ever replaced with a
+ * different height, that padding-top needs to move with it.
  */
-.print-letterhead-header,
-.print-letterhead-footer {
+.print-letterhead-header {
   display: none;
 }
 
 /* ---- Printing / Save as PDF for reports ---- */
 @media print {
   @page {
-    margin: 70mm 12mm 36mm 12mm;
+    margin: 0 12mm 12mm 12mm;
   }
   html,
   body,
@@ -180,6 +185,7 @@
   }
   .app-main {
     padding: 0 !important;
+    padding-top: 18mm !important;
   }
   .app-main table {
     page-break-inside: auto;
@@ -194,19 +200,11 @@
   .print-letterhead-header {
     display: block;
     position: fixed;
-    top: -70mm;
+    top: 0;
     left: -12mm;
     width: calc(100% + 24mm);
   }
-  .print-letterhead-footer {
-    display: block;
-    position: fixed;
-    bottom: -36mm;
-    left: -12mm;
-    width: calc(100% + 24mm);
-  }
-  .print-letterhead-header img,
-  .print-letterhead-footer img {
+  .print-letterhead-header img {
     display: block;
     width: 100%;
     height: auto;
