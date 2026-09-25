@@ -19,8 +19,11 @@ import { can } from "@/lib/rbac";
  *  - TOTAL DEBITS = TOTAL CREDITS, always, checked before any DB write.
  *  - All posting happens server-side inside a DB transaction — never
  *    computed/trusted from the client.
- *  - Posted entries are immutable. There is no updateJournalEntry() or
- *    deleteJournalEntry() export. Corrections are reversal entries.
+ *  - Posted entries are immutable. There is no updateJournalEntry() export,
+ *    and deleteDraftJournalEntry() below only ever touches a DRAFT (an
+ *    entry that was never posted, so it has no ledger/report impact yet —
+ *    deleting it is not an edit to financial history). A POSTED entry can
+ *    never be deleted or edited; corrections are reversal entries only.
  *  - Sequential, gapless entry numbering per company.
  *  - The accounting period must be OPEN.
  *  - The acting user must hold the required RBAC permission.
@@ -294,6 +297,45 @@ export async function postDraftJournalEntry(params: {
   });
 
   return posted;
+}
+
+/**
+ * Deletes a DRAFT journal entry outright. Refused for anything already
+ * POSTED — that's what reverseJournalEntry() below is for instead. Same
+ * permission tier as postDraftJournalEntry() (APPROVE on Journals), since
+ * both act on someone else's submitted draft, not just your own.
+ */
+export async function deleteDraftJournalEntry(params: {
+  companyId: string;
+  membershipId: string;
+  userId: string;
+  journalEntryId: string;
+}) {
+  const allowed = await can(params.membershipId, "journals", "APPROVE");
+  if (!allowed) {
+    throw new InvalidLineError("Deleting a journal entry requires the APPROVE permission on Journals.");
+  }
+
+  const draft = await prisma.journalEntry.findFirstOrThrow({
+    where: { id: params.journalEntryId, companyId: params.companyId },
+  });
+  if (draft.status !== "DRAFT") {
+    throw new InvalidLineError("Only a draft entry can be deleted. A posted entry can be reversed instead.");
+  }
+
+  await prisma.$transaction([
+    prisma.journalLine.deleteMany({ where: { journalEntryId: draft.id } }),
+    prisma.journalEntry.delete({ where: { id: draft.id } }),
+  ]);
+
+  await recordAuditEvent({
+    companyId: params.companyId,
+    userId: params.userId,
+    action: "journal.draft_deleted",
+    entityType: "JournalEntry",
+    entityId: draft.id,
+    previousValue: { entryNumber: draft.entryNumber, memo: draft.memo },
+  });
 }
 
 /**
