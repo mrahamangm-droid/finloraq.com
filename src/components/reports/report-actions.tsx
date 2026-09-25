@@ -23,11 +23,14 @@ function tableTitle(table: HTMLElement, root: HTMLElement): string {
   for (let i = 0; i < 3 && el && el !== root; i++, el = el.parentElement) {
     const prev = el.previousElementSibling as HTMLElement | null;
     if (!prev || prev.classList.contains("no-print") || prev.querySelector("table")) continue;
-    const leaves = Array.from(prev.querySelectorAll("*"))
-      .filter((n) => n.children.length === 0)
-      .map((n) => (n.textContent ?? "").trim())
-      .filter(Boolean);
-    const parts = leaves.length ? leaves : [(prev.textContent ?? "").trim()].filter(Boolean);
+    // Collect the visible text pieces (text nodes), so "1000 · Bank" and its "ASSET"
+    // badge both survive even when they sit in the same element.
+    const parts: string[] = [];
+    const walker = document.createTreeWalker(prev, NodeFilter.SHOW_TEXT);
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      const t = (n.textContent ?? "").trim();
+      if (t) parts.push(t);
+    }
     const text = parts.join(" ");
     if (parts.length > 0 && parts.length <= 4 && text.length < 150) return text;
   }
