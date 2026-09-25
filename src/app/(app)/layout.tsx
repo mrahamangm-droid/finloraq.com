@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { Sidebar } from "@/components/nav/sidebar";
 import { Topbar } from "@/components/nav/topbar";
 import { ThemeSync } from "@/components/nav/theme-sync";
+import { PrintLetterhead } from "@/components/print/print-letterhead";
 import { NAV } from "@/components/nav/nav-items";
 import { getPreferences, readNavConfig } from "@/lib/customization/server";
 import { applyNavConfig } from "@/lib/customization/nav";
@@ -44,6 +45,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       style={brandStyle(company.brandColor) as React.CSSProperties | undefined}
     >
       <ThemeSync theme={prefs.theme} />
+      <PrintLetterhead />
       <Sidebar hrefs={navHrefs} companyName={company.name} logo={company.logoUrl} />
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <Topbar
