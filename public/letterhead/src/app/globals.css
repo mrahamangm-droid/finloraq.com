@@ -1,0 +1,214 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --primary: 243 75% 59%;
+    --primary-foreground: 0 0% 100%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;
+    --border: 220 13% 91%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 142 71% 35%;
+    --success-foreground: 0 0% 100%;
+    --radius: 0.5rem;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --background: 222 47% 7%;
+      --foreground: 210 20% 96%;
+      --card: 222 40% 10%;
+      --card-foreground: 210 20% 96%;
+      --primary: 243 75% 65%;
+      --primary-foreground: 222 47% 7%;
+      --muted: 222 30% 15%;
+      --muted-foreground: 220 10% 65%;
+      --border: 222 25% 20%;
+    }
+  }
+
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "cv11", "ss01";
+    font-variation-settings: "opsz" 32;
+  }
+}
+
+/* iOS/iPadOS Safari zooms the whole page when a focused field's text is under
+   16px. Keep form text at 16px on phones and on any touch-first device
+   (iPads, Android tablets) so tapping Login/Register/any form field doesn't
+   jump the layout. */
+@media (max-width: 640px), (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea {
+    /* !important: must beat utility classes like text-sm and scoped widget styles */
+    font-size: 16px !important;
+  }
+}
+
+/* Full-height layouts on phones and tablets. 100vh on iOS/Android includes
+   the area behind the browser toolbar, which cut off the bottom of the app
+   and pushed centred login forms down. Browsers that support dynamic
+   viewport units (Safari 15.4+, Chrome 108+, Firefox 101+) use the visible
+   height; older ones keep 100vh. */
+.app-shell {
+  height: 100vh;
+}
+@supports (height: 100dvh) {
+  .app-shell {
+    height: 100dvh;
+  }
+  .min-h-screen {
+    min-height: 100dvh;
+  }
+  .h-screen {
+    height: 100dvh;
+  }
+}
+
+/* Mobile navigation drawer (src/components/nav/mobile-nav.tsx). */
+.app-drawer[data-state="open"] {
+  animation: app-drawer-in 0.2s ease-out;
+}
+@keyframes app-drawer-in {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-drawer[data-state="open"] {
+    animation: none;
+  }
+}
+
+/* ---- Personal theme & density (Settings → My preferences), scoped to #app-shell ---- */
+@layer base {
+  .theme-light {
+    color-scheme: light;
+    --primary: 243 75% 59%;
+    --primary-foreground: 0 0% 100%;
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;
+    --border: 220 13% 91%;
+  }
+  .theme-dark {
+    color-scheme: dark;
+    --primary: 243 75% 65%;
+    --primary-foreground: 222 47% 7%;
+    --background: 222 47% 7%;
+    --foreground: 210 20% 96%;
+    --card: 222 40% 10%;
+    --card-foreground: 210 20% 96%;
+    --muted: 222 30% 15%;
+    --muted-foreground: 220 10% 65%;
+    --border: 222 25% 20%;
+  }
+  /* Compact: everything in the content area ~10% smaller, so more rows fit on screen. */
+  .density-compact .app-main {
+    zoom: 0.9;
+  }
+}
+
+/* ---- Company letterhead on every printed page ----
+ * Hidden on screen; PrintLetterhead (src/components/print/print-letterhead.tsx)
+ * renders it once per authenticated page. `position: fixed` inside @media
+ * print repeats an element on every page of a multi-page print/PDF in
+ * Chromium, which is what makes this appear on every page rather than
+ * just the first — verified by rendering a 2-page test document with
+ * Chromium's own print-to-PDF before shipping this.
+ *
+ * The negative top/bottom + left offsets pull the banner out of the
+ * @page margin (below) into the margin area itself, all the way to the
+ * physical page edge, matching the source artwork's own edge-to-edge
+ * design (a real printer's unprintable border may still clip a couple
+ * mm — a hardware limit, not something this CSS can work around, and
+ * the same limit the original PDF letterhead would hit printed as-is).
+ * calc(100% + 24mm) spans the full page width: 100% of the @page
+ * content-box width (page width minus the 12mm left+right margins)
+ * plus those two margins back.
+ *
+ * The @page top/bottom margins below (70mm / 36mm) are sized to the
+ * letterhead artwork's own proportions at full page width — header
+ * image aspect ratio ≈ 3.18:1 → ~66mm tall at 210mm (A4) width, footer
+ * ≈ 6.39:1 → ~33mm — plus a few mm of breathing room before the report
+ * content starts/ends. If the letterhead artwork is ever replaced, these
+ * three numbers (top margin, header's negative top, footer's negative
+ * bottom) need to move together with the new image's aspect ratio.
+ */
+.print-letterhead-header,
+.print-letterhead-footer {
+  display: none;
+}
+
+/* ---- Printing / Save as PDF for reports ---- */
+@media print {
+  @page {
+    margin: 70mm 12mm 36mm 12mm;
+  }
+  html,
+  body,
+  #app-shell,
+  #app-shell > div,
+  .app-main {
+    height: auto !important;
+    overflow: visible !important;
+    display: block !important;
+    background: #fff !important;
+  }
+  #app-shell aside,
+  #app-shell header,
+  .no-print {
+    display: none !important;
+  }
+  .app-main {
+    padding: 0 !important;
+  }
+  .app-main table {
+    page-break-inside: auto;
+  }
+  .app-main tr {
+    page-break-inside: avoid;
+  }
+  .app-main * {
+    color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  .print-letterhead-header {
+    display: block;
+    position: fixed;
+    top: -70mm;
+    left: -12mm;
+    width: calc(100% + 24mm);
+  }
+  .print-letterhead-footer {
+    display: block;
+    position: fixed;
+    bottom: -36mm;
+    left: -12mm;
+    width: calc(100% + 24mm);
+  }
+  .print-letterhead-header img,
+  .print-letterhead-footer img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+}
