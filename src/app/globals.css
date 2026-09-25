@@ -127,10 +127,41 @@
   }
 }
 
+/* ---- Company letterhead on every printed page ----
+ * Hidden on screen; PrintLetterhead (src/components/print/print-letterhead.tsx)
+ * renders it once per authenticated page. `position: fixed` inside @media
+ * print repeats an element on every page of a multi-page print/PDF in
+ * Chromium, which is what makes this appear on every page rather than
+ * just the first — verified by rendering a 2-page test document with
+ * Chromium's own print-to-PDF before shipping this.
+ *
+ * The negative top/bottom + left offsets pull the banner out of the
+ * @page margin (below) into the margin area itself, all the way to the
+ * physical page edge, matching the source artwork's own edge-to-edge
+ * design (a real printer's unprintable border may still clip a couple
+ * mm — a hardware limit, not something this CSS can work around, and
+ * the same limit the original PDF letterhead would hit printed as-is).
+ * calc(100% + 24mm) spans the full page width: 100% of the @page
+ * content-box width (page width minus the 12mm left+right margins)
+ * plus those two margins back.
+ *
+ * The @page top/bottom margins below (70mm / 36mm) are sized to the
+ * letterhead artwork's own proportions at full page width — header
+ * image aspect ratio ≈ 3.18:1 → ~66mm tall at 210mm (A4) width, footer
+ * ≈ 6.39:1 → ~33mm — plus a few mm of breathing room before the report
+ * content starts/ends. If the letterhead artwork is ever replaced, these
+ * three numbers (top margin, header's negative top, footer's negative
+ * bottom) need to move together with the new image's aspect ratio.
+ */
+.print-letterhead-header,
+.print-letterhead-footer {
+  display: none;
+}
+
 /* ---- Printing / Save as PDF for reports ---- */
 @media print {
   @page {
-    margin: 12mm;
+    margin: 70mm 12mm 36mm 12mm;
   }
   html,
   body,
@@ -159,5 +190,25 @@
   .app-main * {
     color-adjust: exact;
     -webkit-print-color-adjust: exact;
+  }
+  .print-letterhead-header {
+    display: block;
+    position: fixed;
+    top: -70mm;
+    left: -12mm;
+    width: calc(100% + 24mm);
+  }
+  .print-letterhead-footer {
+    display: block;
+    position: fixed;
+    bottom: -36mm;
+    left: -12mm;
+    width: calc(100% + 24mm);
+  }
+  .print-letterhead-header img,
+  .print-letterhead-footer img {
+    display: block;
+    width: 100%;
+    height: auto;
   }
 }
