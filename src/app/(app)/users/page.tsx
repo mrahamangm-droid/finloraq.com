@@ -1,20 +1,38 @@
+import { Fragment } from "react";
 import { requireTenantContext } from "@/lib/tenant";
 import { can } from "@/lib/rbac";
 import { listMembers, listPendingInvitations } from "@/lib/users";
+import { listMemberFilesForCompany, MAX_MEMBER_FILE_BYTES } from "@/lib/memberFiles";
 import { getBillingSnapshot } from "@/lib/billing/subscription";
-import { inviteUserAction, revokeInvitationAction, changeMemberRoleAction, deactivateMemberAction } from "./actions";
+import {
+  inviteUserAction,
+  revokeInvitationAction,
+  changeMemberRoleAction,
+  deactivateMemberAction,
+  uploadMemberFileAction,
+  replaceMemberFileAction,
+  renameMemberFileAction,
+  deleteMemberFileAction,
+} from "./actions";
 
 const ROLES = ["COMPANY_ADMIN", "CFO", "FINANCE_MANAGER", "ACCOUNTANT", "STAFF", "AUDITOR"] as const;
 
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export default async function UsersPage() {
   const { active } = await requireTenantContext();
-  const [members, invitations, billing, canCreate, canEdit, canDelete] = await Promise.all([
+  const [members, invitations, billing, canCreate, canEdit, canDelete, filesByMember] = await Promise.all([
     listMembers(active.companyId),
     listPendingInvitations(active.companyId),
     getBillingSnapshot(active.companyId),
     can(active.id, "users", "CREATE"),
     can(active.id, "users", "EDIT"),
     can(active.id, "users", "DELETE"),
+    listMemberFilesForCompany(active.companyId),
   ]);
 
   const seatsUsed = members.filter((m) => m.isActive).length + invitations.length;
@@ -84,8 +102,11 @@ export default async function UsersPage() {
               </tr>
             </thead>
             <tbody>
-              {members.map((m) => (
-                <tr key={m.id} className="border-b border-border last:border-0">
+              {members.map((m) => {
+                const files = filesByMember.get(m.id) ?? [];
+                return (
+                <Fragment key={m.id}>
+                <tr className="border-b border-border">
                   <td className="px-4 py-2 text-card-foreground">{m.user.name}</td>
                   <td className="px-4 py-2 text-card-foreground">{m.user.email}</td>
                   <td className="px-4 py-2">
@@ -130,7 +151,90 @@ export default async function UsersPage() {
                     )}
                   </td>
                 </tr>
-              ))}
+                <tr className="border-b border-border last:border-0 bg-muted/20">
+                  <td colSpan={5} className="px-4 py-2">
+                    <details>
+                      <summary className="cursor-pointer text-xs font-medium text-muted-foreground select-none">
+                        Files ({files.length}){files.length === 0 ? "" : ` — ${files.map((f) => f.title).join(", ")}`}
+                      </summary>
+                      <div className="mt-3 space-y-3 pb-1">
+                        {files.length > 0 && (
+                          <ul className="space-y-2">
+                            {files.map((f) => (
+                              <li
+                                key={f.id}
+                                className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-xs"
+                              >
+                                <a
+                                  href={`/api/member-files/${f.id}`}
+                                  className="font-medium text-primary hover:underline"
+                                >
+                                  {f.title}
+                                </a>
+                                <span className="text-muted-foreground">
+                                  {f.fileName} · {formatFileSize(f.sizeBytes)}
+                                </span>
+
+                                {canEdit && (
+                                  <form action={renameMemberFileAction} className="inline-flex items-center gap-1">
+                                    <input type="hidden" name="fileId" value={f.id} />
+                                    <input
+                                      name="title"
+                                      defaultValue={f.title}
+                                      className="w-32 rounded-md border border-border bg-background px-1.5 py-0.5 text-xs"
+                                    />
+                                    <button type="submit" className="rounded-md border border-border px-1.5 py-0.5 text-xs hover:bg-muted">
+                                      Rename
+                                    </button>
+                                  </form>
+                                )}
+
+                                {canEdit && (
+                                  <form action={replaceMemberFileAction} className="inline-flex items-center gap-1">
+                                    <input type="hidden" name="fileId" value={f.id} />
+                                    <input type="file" name="file" required className="w-40 text-xs" />
+                                    <button type="submit" className="rounded-md border border-border px-1.5 py-0.5 text-xs hover:bg-muted">
+                                      Replace
+                                    </button>
+                                  </form>
+                                )}
+
+                                {canDelete && (
+                                  <form action={deleteMemberFileAction}>
+                                    <input type="hidden" name="fileId" value={f.id} />
+                                    <button type="submit" className="text-xs font-medium text-destructive hover:underline">
+                                      Delete
+                                    </button>
+                                  </form>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+
+                        {canCreate && (
+                          <form action={uploadMemberFileAction} className="flex flex-wrap items-center gap-2">
+                            <input type="hidden" name="membershipId" value={m.id} />
+                            <input
+                              name="title"
+                              placeholder="Title (e.g. Emirates ID)"
+                              className="w-44 rounded-md border border-border bg-background px-2 py-1 text-xs"
+                            />
+                            <input type="file" name="file" required className="text-xs" />
+                            <button type="submit" className="rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground">
+                              Upload
+                            </button>
+                            <span className="text-xs text-muted-foreground">
+                              Up to {Math.floor(MAX_MEMBER_FILE_BYTES / 1_000_000)}MB, any file type.
+                            </span>
+                          </form>
+                        )}
+                      </div>
+                    </details>
+                  </td>
+                </tr>
+                </Fragment>
+              );})}
             </tbody>
           </table>
         </div>
