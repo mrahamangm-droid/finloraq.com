@@ -62,9 +62,24 @@ export async function approveExpense(params: {
   });
 }
 
-export async function listRecentExpenses(companyId: string, range?: { from: Date; to: Date }) {
+/**
+ * status narrows the Expenses page's filter tabs (All / Drafts / Posted /
+ * Reversed) to one JournalStatus — purely a display filter, no different
+ * from the existing date-range one, so it's additive and optional like
+ * `range` rather than a new required argument.
+ */
+export async function listRecentExpenses(
+  companyId: string,
+  range?: { from: Date; to: Date },
+  status?: "DRAFT" | "POSTED" | "REVERSED",
+) {
   return prisma.journalEntry.findMany({
-    where: { companyId, sourceType: "EXPENSE", ...(range ? { date: { gte: range.from, lte: range.to } } : {}) },
+    where: {
+      companyId,
+      sourceType: "EXPENSE",
+      ...(range ? { date: { gte: range.from, lte: range.to } } : {}),
+      ...(status ? { status } : {}),
+    },
     orderBy: { date: "desc" },
     take: range ? 500 : 50,
     include: { lines: { include: { account: true } } },
