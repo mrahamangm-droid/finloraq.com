@@ -169,6 +169,7 @@ model Company {
   customFieldDefinitions CustomFieldDefinition[]
   subscription       Subscription?
   invitations        Invitation[]
+  memberFiles        MemberFile[]
 
   @@index([countryCode])
 }
@@ -244,9 +245,38 @@ model CompanyMembership {
   user        User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   overrides   PermissionOverride[]
   dashboardLayout DashboardLayout?
+  files       MemberFile[]
 
   @@unique([companyId, userId])
   @@index([userId])
+}
+
+/// A file an admin attaches to a member's record on the Users & Roles page
+/// (an ID document, a signed contract, etc.) — separate from Document
+/// above, which is the Phase 6 receipt/bill OCR pipeline. Same
+/// no-object-storage-yet situation as User.avatarUrl/Company.logoUrl
+/// (see src/lib/branding.ts): the bytes live as a `data:` URL directly in
+/// this row rather than a storageKey pointing at a bucket, so
+/// src/lib/memberFiles.ts caps how big one of these can be. Revisit this
+/// model (add a real storageKey) if that cap ever turns out too small —
+/// don't just raise the cap on the base64-in-Postgres version.
+model MemberFile {
+  id           String   @id @default(cuid())
+  companyId    String
+  membershipId String
+  title        String
+  fileName     String
+  mimeType     String
+  sizeBytes    Int
+  dataUrl      String
+  uploadedBy   String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  company    Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  membership CompanyMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, membershipId])
 }
 
 /// Optional per-user, per-module exceptions to the role's default permission
