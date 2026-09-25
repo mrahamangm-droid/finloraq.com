@@ -83,9 +83,16 @@ function LoginForm() {
             />
           </div>
           <div>
-            <label htmlFor="password" className="mb-1 block text-sm font-medium text-card-foreground">
-              Password
-            </label>
+            <div className="mb-1 flex items-center justify-between">
+              <label htmlFor="password" className="block text-sm font-medium text-card-foreground">
+                Password
+              </label>
+              {!needsMfa && (
+                <a href="/forgot-password" className="text-xs text-primary hover:underline">
+                  Forgot password?
+                </a>
+              )}
+            </div>
             <input
               id="password"
               type="password"
