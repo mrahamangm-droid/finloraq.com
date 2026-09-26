@@ -1,6 +1,6 @@
 import { deflateRawSync } from "node:zlib";
 import { describe, it, expect } from "vitest";
-import { parseXlsxRows, __internal } from "./xlsx-lite";
+import { parseXlsxRows, parseXlsxWorkbook, __internal } from "./xlsx-lite";
 
 const { isDateNumFmt, excelSerialToIsoDate } = __internal;
 
@@ -174,6 +174,38 @@ describe("parseXlsxRows", () => {
 
   it("throws a clear error for a non-ZIP buffer", () => {
     expect(() => parseXlsxRows(Buffer.from("not a zip file"))).toThrow(/not a valid \.xlsx/i);
+  });
+});
+
+describe("parseXlsxWorkbook", () => {
+  it("reads every sheet, in real tab order, with its real tab name", () => {
+    // A workbook with a non-data cover sheet first (like a real accounting
+    // export: cover page, dashboard, then the actual registers) and the
+    // real tab order different from the sheetN.xml filenames.
+    const coverXml = `<?xml version="1.0"?><worksheet><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>Cover page</t></is></c></row></sheetData></worksheet>`;
+    const workbookXml = `<?xml version="1.0"?><workbook xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="01 Cover" sheetId="1" r:id="rId1"/><sheet name="04 Income Register" sheetId="2" r:id="rId2"/></sheets></workbook>`;
+    const relsXml = `<?xml version="1.0"?><Relationships><Relationship Id="rId1" Type="worksheet" Target="worksheets/sheet2.xml"/><Relationship Id="rId2" Type="worksheet" Target="worksheets/sheet1.xml"/></Relationships>`;
+    const zip = buildZip([
+      { name: "xl/workbook.xml", data: workbookXml, method: 8 },
+      { name: "xl/_rels/workbook.xml.rels", data: relsXml, method: 8 },
+      { name: "xl/sharedStrings.xml", data: SHARED_STRINGS_XML, method: 8 },
+      { name: "xl/styles.xml", data: STYLES_XML, method: 8 },
+      { name: "xl/worksheets/sheet1.xml", data: SHEET_XML, method: 8 }, // real first tab ("04 Income Register")
+      { name: "xl/worksheets/sheet2.xml", data: coverXml, method: 8 },
+    ]);
+    const sheets = parseXlsxWorkbook(zip);
+    expect(sheets.map((s) => s.name)).toEqual(["01 Cover", "04 Income Register"]);
+    expect(sheets[0]!.rows[0]?.[0]).toBe("Cover page");
+    expect(sheets[1]!.rows[1]?.[0]).toBe("Acme, Inc.");
+  });
+
+  it("falls back to generic Sheet1/Sheet2 names in filename order when workbook.xml is absent", () => {
+    const zip = buildZip([
+      { name: "xl/worksheets/sheet2.xml", data: SHEET_XML, method: 8 },
+      { name: "xl/worksheets/sheet10.xml", data: SHEET_XML, method: 8 },
+    ]);
+    const sheets = parseXlsxWorkbook(zip);
+    expect(sheets.map((s) => s.name)).toEqual(["Sheet1", "Sheet2"]);
   });
 });
 

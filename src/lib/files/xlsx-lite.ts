@@ -242,63 +242,76 @@ function parseSheetRows(sheetXml: string, sharedStrings: string[], dateStyleLook
   return rows;
 }
 
+interface SheetRef {
+  name: string;
+  entry: ZipEntry;
+}
+
+/** Filename-order fallback, used when workbook.xml/its rels are missing or
+ *  malformed: sheet1.xml, sheet2.xml, … in numeric order, generically named
+ *  since we have no real tab names to offer. */
+function fallbackSheetOrder(entries: ZipEntry[]): SheetRef[] {
+  return entries
+    .filter((e) => /^xl\/worksheets\/sheet\d+\.xml$/i.test(e.name))
+    .sort((a, b) => {
+      const na = Number(a.name.match(/(\d+)/)?.[1] ?? 0);
+      const nb = Number(b.name.match(/(\d+)/)?.[1] ?? 0);
+      return na - nb;
+    })
+    .map((entry, i) => ({ name: `Sheet${i + 1}`, entry }));
+}
+
 /**
- * Finds the worksheet part for the workbook's *first tab*, the way Excel
- * shows it — not the lowest `sheetN.xml` filename, which is only the same
- * thing until someone adds, deletes or reorders sheets (Excel doesn't
- * renumber the underlying files, so a workbook whose first visible tab is
- * "Ledger" can easily be stored as sheet3.xml while sheet1.xml is a sheet
- * that was moved later or is hidden). The true order lives in
- * xl/workbook.xml's <sheets> list, resolved to a file name via each
- * sheet's relationship ID in xl/_rels/workbook.xml.rels.
+ * Resolves every worksheet in the workbook's *visible tab order*, the way
+ * Excel shows it — not filename order, which is only the same thing until
+ * someone adds, deletes or reorders sheets (Excel doesn't renumber the
+ * underlying files, so a workbook's first tab can easily be stored as
+ * sheet3.xml while sheet1.xml is a sheet that was moved later or is
+ * hidden). The true order and the real tab names live in xl/workbook.xml's
+ * <sheets> list, resolved to a file name via each sheet's relationship ID
+ * in xl/_rels/workbook.xml.rels.
  */
-function findFirstSheetEntry(entries: ZipEntry[], byName: Map<string, ZipEntry>, buffer: Buffer): ZipEntry | undefined {
+function resolveSheetOrder(entries: ZipEntry[], byName: Map<string, ZipEntry>, buffer: Buffer): SheetRef[] {
   const workbookEntry = byName.get("xl/workbook.xml");
   const relsEntry = byName.get("xl/_rels/workbook.xml.rels");
   if (workbookEntry && relsEntry) {
     try {
       const workbookXml = readZipEntryData(buffer, workbookEntry).toString("utf8");
+      const relsXml = readZipEntryData(buffer, relsEntry).toString("utf8");
       const sheetsBlock = workbookXml.match(/<sheets>([\s\S]*?)<\/sheets>/)?.[1] ?? "";
-      const firstSheetTag = sheetsBlock.match(/<sheet\b[^>]*\/>/)?.[0];
-      const rId = firstSheetTag?.match(/r:id="([^"]+)"/)?.[1];
-      if (rId) {
-        const relsXml = readZipEntryData(buffer, relsEntry).toString("utf8");
+      const sheetTags = sheetsBlock.match(/<sheet\b[^>]*\/>/g) ?? [];
+      const ordered: SheetRef[] = [];
+      for (const tag of sheetTags) {
+        const name = decodeXmlEntities(tag.match(/\bname="([^"]*)"/)?.[1] ?? "");
+        const rId = tag.match(/r:id="([^"]+)"/)?.[1];
+        if (!rId) continue;
         const relTag = new RegExp(`<Relationship\\b[^>]*\\bId="${rId}"[^>]*/?>`).exec(relsXml)?.[0];
         const target = relTag?.match(/Target="([^"]+)"/)?.[1];
-        if (target) {
-          const resolved = target.startsWith("/") ? target.slice(1) : posixPath.normalize(posixPath.join("xl", target));
-          const byOrder = byName.get(resolved);
-          if (byOrder) return byOrder;
-        }
+        if (!target) continue;
+        const resolved = target.startsWith("/") ? target.slice(1) : posixPath.normalize(posixPath.join("xl", target));
+        const entry = byName.get(resolved);
+        if (entry) ordered.push({ name, entry });
       }
+      if (ordered.length) return ordered;
     } catch {
       // Malformed workbook.xml/rels — fall through to the filename heuristic below.
     }
   }
 
-  return (
-    byName.get("xl/worksheets/sheet1.xml") ??
-    entries
-      .filter((e) => /^xl\/worksheets\/sheet\d+\.xml$/i.test(e.name))
-      .sort((a, b) => {
-        const na = Number(a.name.match(/(\d+)/)?.[1] ?? 0);
-        const nb = Number(b.name.match(/(\d+)/)?.[1] ?? 0);
-        return na - nb;
-      })[0]
-  );
+  return fallbackSheetOrder(entries);
 }
 
-/** Reads the first worksheet of a .xlsx file into rows of cell text.
- *  Date-formatted cells come back as YYYY-MM-DD; everything else comes
- *  back as whatever text/number Excel stored, verbatim. Throws if the
- *  buffer isn't a valid ZIP or has no worksheet part. */
-export function parseXlsxRows(buffer: Buffer): string[][] {
+/** Reads every worksheet of a .xlsx file, in the workbook's real tab
+ *  order, into rows of cell text. Date-formatted cells come back as
+ *  YYYY-MM-DD; everything else comes back as whatever text/number Excel
+ *  stored, verbatim. Throws if the buffer isn't a valid ZIP or has no
+ *  worksheet part. */
+export function parseXlsxWorkbook(buffer: Buffer): { name: string; rows: string[][] }[] {
   const entries = readZipEntries(buffer);
   const byName = new Map(entries.map((e) => [e.name, e]));
 
-  const sheetEntry = findFirstSheetEntry(entries, byName, buffer);
-
-  if (!sheetEntry) {
+  const sheetRefs = resolveSheetOrder(entries, byName, buffer);
+  if (!sheetRefs.length) {
     throw new Error("This .xlsx file has no worksheet Finloraq can read (no xl/worksheets/sheet*.xml part found).");
   }
 
@@ -308,8 +321,17 @@ export function parseXlsxRows(buffer: Buffer): string[][] {
   const stylesEntry = byName.get("xl/styles.xml");
   const dateStyleLookup = stylesEntry ? parseDateStyleLookup(readZipEntryData(buffer, stylesEntry).toString("utf8")) : [];
 
-  const sheetXml = readZipEntryData(buffer, sheetEntry).toString("utf8");
-  return parseSheetRows(sheetXml, sharedStrings, dateStyleLookup);
+  return sheetRefs.map(({ name, entry }) => ({
+    name,
+    rows: parseSheetRows(readZipEntryData(buffer, entry).toString("utf8"), sharedStrings, dateStyleLookup),
+  }));
+}
+
+/** Reads only the workbook's first visible tab — see parseXlsxWorkbook for
+ *  reading every sheet (used by the spreadsheet importer, which searches
+ *  every tab for the one holding real transaction data). */
+export function parseXlsxRows(buffer: Buffer): string[][] {
+  return parseXlsxWorkbook(buffer)[0]?.rows ?? [];
 }
 
 // Exported for unit testing the date-format heuristic in isolation.
