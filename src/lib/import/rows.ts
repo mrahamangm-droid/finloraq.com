@@ -51,6 +51,9 @@ export interface ParsedRow<T> {
   row: T | null;
   errors: string[];
   notes: string[];
+  /** Which sheet this came from — only set when the workbook had more than
+   *  one sheet contributing rows (e.g. separate Income/Expense registers). */
+  sheet?: string;
 }
 
 // ------------------------------------------------------------------ headers
@@ -78,6 +81,40 @@ const ALIASES: Record<string, string[]> = {
  *  spacer rows…) a real-world export can carry before the actual header. */
 const MAX_HEADER_SEARCH_ROWS = 30;
 
+/** How many body rows under a candidate header to sample when sanity-checking
+ *  that a money-like column actually holds numbers (see moneyColumnLooksReal). */
+const MONEY_COLUMN_SAMPLE_ROWS = 20;
+
+const isNumericLooking = (s: string): boolean => {
+  const t = s.trim();
+  if (!t) return true; // blank cells don't count against a column either way
+  const stripped = t.replace(/^\(|\)$/g, "").replace(/[A-Za-z$€£¥₹%\s,']/g, "");
+  return /^-?\d+(\.\d+)?-?$/.test(stripped);
+};
+
+/**
+ * A header word matching an amount/income/expense/tax alias isn't proof the
+ * column holds money — real exports have status/reference/text columns
+ * whose normalized name happens to share a prefix with a money alias (e.g.
+ * "Payment Status" starts with the "expense" alias "payments"). Before
+ * trusting a money-field match, sample the rows under it and require most
+ * non-blank values to actually look numeric; otherwise the match is
+ * discarded as a false positive rather than silently feeding text into
+ * amount parsing (which would either crash the row or, worse, coincidentally
+ * parse into a plausible-looking wrong number).
+ */
+function moneyColumnLooksReal(table: string[][], headerIndex: number, colIndex: number): boolean {
+  let seen = 0, numeric = 0;
+  for (let i = headerIndex + 1; i < table.length && seen < MONEY_COLUMN_SAMPLE_ROWS; i++) {
+    const v = String((table[i] ?? [])[colIndex] ?? "").trim();
+    if (!v) continue;
+    seen++;
+    if (isNumericLooking(v)) numeric++;
+  }
+  if (seen < 2) return true; // not enough data to judge — don't punish a short/sparse sheet
+  return numeric / seen >= 0.6;
+}
+
 /**
  * Finds the header row and maps fields to column indexes. Two passes per
  * candidate row: an exact match against ALIASES (so "Paid date" isn't taken
@@ -104,6 +141,25 @@ export function detectColumns(table: string[][]): { headerIndex: number; columns
       const taken = used();
       const i = header.findIndex((c, idx) => c.length >= 3 && !taken.has(idx) && aliases.some((a) => a.length >= 3 && (c.startsWith(a) || a.startsWith(c))));
       if (i >= 0) columns[field as keyof typeof ALIASES] = i;
+    }
+    // Last resort: a longer alias appearing anywhere in the header text, not
+    // just as a prefix — e.g. "P&L Category" (normalizes to "plcategory")
+    // contains "category" but doesn't start with it. Restricted to aliases
+    // of 5+ characters so this doesn't start matching on short, common
+    // fragments ("no", "ref", "in", "out"...).
+    for (const [field, aliases] of Object.entries(ALIASES)) {
+      if (columns[field as keyof typeof ALIASES] !== undefined) continue;
+      const taken = used();
+      const i = header.findIndex((c, idx) => c.length >= 5 && !taken.has(idx) && aliases.some((a) => a.length >= 5 && c.includes(a)));
+      if (i >= 0) columns[field as keyof typeof ALIASES] = i;
+    }
+
+    // A money-shaped field matched by name alone isn't trustworthy until we
+    // check its actual values — drop it if the column it landed on doesn't
+    // really hold numbers (see moneyColumnLooksReal).
+    for (const field of ["amount", "income", "expense", "tax", "taxRate", "paid"] as const) {
+      const idx = columns[field];
+      if (idx !== undefined && !moneyColumnLooksReal(table, h, idx)) delete columns[field];
     }
 
     const hasMoney = columns.amount !== undefined || columns.income !== undefined || columns.expense !== undefined;
@@ -215,11 +271,22 @@ export function parseType(raw: string): "income" | "expense" | null {
 
 const cell = (r: string[], i: number | undefined) => (i === undefined ? "" : String(r[i] ?? "").trim());
 
-export function parseTable(kind: ImportKind, table: string[][], opts: { dayFirst?: boolean } = {}): {
-  rows: ParsedRow<ImportRow>[];
-  error?: string;
-  periodTotals: number;
-} {
+/**
+ * Parses one already-located table (header row found, columns mapped).
+ * Shared by `parseTable` (single sheet/CSV) and `parseWorkbook` (multi-sheet
+ * .xlsx, one call per contributing sheet) so both apply identical row rules.
+ *
+ * `forcedType`, set only for `transactions`, is used when a sheet has no
+ * Type/Income/Expense column of its own but its role is known from context
+ * (e.g. a workbook's dedicated "Expense Register" tab) — it's a floor, not
+ * an override: a row's own Type/Income/Expense column, or a negative
+ * amount, still wins.
+ */
+function parseSingleTable(
+  kind: ImportKind,
+  table: string[][],
+  opts: { dayFirst?: boolean; forcedType?: "income" | "expense"; sheet?: string; rowBudget?: number },
+): { rows: ParsedRow<ImportRow>[]; error?: string; periodTotals: number } {
   const detected = detectColumns(table);
   if (!detected) {
     return { rows: [], periodTotals: 0, error: "Couldn't find the header row. The sheet needs a Date column and an Amount (or Income / Expense) column — download the template to see the layout." };
@@ -227,6 +294,7 @@ export function parseTable(kind: ImportKind, table: string[][], opts: { dayFirst
   const { headerIndex, columns: c } = detected;
   const body = table.slice(headerIndex + 1);
   const dayFirst = opts.dayFirst ?? true;
+  const rowBudget = opts.rowBudget ?? MAX_IMPORT_ROWS;
   const out: ParsedRow<ImportRow>[] = [];
   let periodTotals = 0;
 
@@ -238,7 +306,7 @@ export function parseTable(kind: ImportKind, table: string[][], opts: { dayFirst
     const r = body[i] ?? [];
     const line = headerIndex + i + 2; // 1-based, as the spreadsheet shows it
     if (r.every((x) => !String(x ?? "").trim())) continue;
-    if (out.length >= MAX_IMPORT_ROWS) {
+    if (out.length >= rowBudget) {
       return { rows: out, periodTotals, error: `Only the first ${MAX_IMPORT_ROWS} rows are read in one import — split the sheet and import the rest separately.` };
     }
     const errors: string[] = [];
@@ -264,13 +332,14 @@ export function parseTable(kind: ImportKind, table: string[][], opts: { dayFirst
       else if (amount === 0) errors.push("Amount is empty or zero.");
       if (!type && !Number.isNaN(amount) && amount !== 0) {
         if (c.type !== undefined && cell(r, c.type)) errors.push(`Type "${cell(r, c.type)}" should be Income or Expense.`);
+        else if (opts.forcedType && amount > 0) { type = opts.forcedType; notes.push(`No Type column — treated as ${type} (sheet: ${opts.sheet})`); }
         else { type = amount < 0 ? "expense" : "income"; notes.push(`No type given — treated as ${type} from the sign`); }
       }
       if (amount < 0) amount = -amount;
       const tax = Math.abs(parseAmount(cell(r, c.tax)) || 0);
       if (tax && tax >= amount) errors.push("Tax can't be as large as the whole amount (Amount should include tax).");
       out.push({
-        line, errors, notes,
+        line, errors, notes, sheet: opts.sheet,
         row: errors.length ? null : { line, date: d!.date, description, amount, type: type!, category, tax },
       });
       continue;
@@ -319,7 +388,7 @@ export function parseTable(kind: ImportKind, table: string[][], opts: { dayFirst
     }
     if (paidDate && d && paidDate < d.date) errors.push("Paid date is before the date.");
     out.push({
-      line, errors, notes,
+      line, errors, notes, sheet: opts.sheet,
       row: errors.length ? null : {
         line, date: d!.date, dueDate, party, ref: cell(r, c.ref).slice(0, 60), description, amount, taxRate,
         paid, paidDate: paid ? paidDate ?? d!.date : null, category,
@@ -327,6 +396,151 @@ export function parseTable(kind: ImportKind, table: string[][], opts: { dayFirst
     });
   }
   return { rows: out, periodTotals };
+}
+
+export function parseTable(kind: ImportKind, table: string[][], opts: { dayFirst?: boolean } = {}): {
+  rows: ParsedRow<ImportRow>[];
+  error?: string;
+  periodTotals: number;
+} {
+  return parseSingleTable(kind, table, opts);
+}
+
+/** A sheet name that unambiguously means "every row here is income" or
+ *  "every row here is expense" — used only when a matching sheet has no
+ *  Type/Income/Expense column of its own (a dedicated register tab, common
+ *  in real bookkeeping exports). Kept deliberately narrow: generic terms
+ *  like "summary", "statement", "report", "reconciliation", "receivable"
+ *  or "payable" are excluded on purpose, since those sheets often restate
+ *  figures that already appear elsewhere (recognizing them as income/
+ *  expense too would double-count the same money). */
+const INCOME_SHEET_HINT = /\b(income|revenue|sales)\b/i;
+const EXPENSE_SHEET_HINT = /\b(expenses?|purchases?|payroll)\b/i;
+const NON_TRANSACTION_SHEET_HINT = /\b(summary|statement|report|reconciliation|review|audit|duplicate|balance|schedule|dashboard|cover|master|control|log|source ?data|quality|receivable|payable|register of|forecast|budget|kpi)\b/i;
+
+function sheetTypeHint(name: string): "income" | "expense" | null {
+  if (NON_TRANSACTION_SHEET_HINT.test(name)) return null;
+  if (INCOME_SHEET_HINT.test(name)) return "income";
+  if (EXPENSE_SHEET_HINT.test(name)) return "expense";
+  return null;
+}
+
+/**
+ * Parses a multi-sheet .xlsx workbook for the `transactions` / `invoices` /
+ * `bills` importer. Real accounting exports are rarely one flat sheet: the
+ * data-carrying tab is often not first (a cover page or dashboard usually
+ * is), and it's common to split income and expenses into two separate
+ * registers rather than one sheet with a Type column.
+ *
+ * Strategy: search every sheet for a valid header (same rules as a single
+ * sheet), and only put a sheet's rows in the import when we can be
+ * confident about what they are — either the sheet has its own
+ * Type/Income/Expense column, or its name unambiguously says "income" or
+ * "expense" (see sheetTypeHint) and it actually produced at least one good
+ * row. A matching sheet whose role we can't determine safely is left out
+ * rather than guessed at, and reported in `skipped` so nothing silently
+ * vanishes — the alternative (merging it in anyway) risks double-counting
+ * money that's just as likely restated on a reconciliation/report tab.
+ */
+/** Fingerprint used only to spot one sheet restating another's rows (see
+ *  parseWorkbook) — deliberately looser than rowKeys' dedup fingerprint
+ *  (no description/category), since a category breakout sheet often
+ *  shortens or drops those while keeping the same date and amount. */
+function overlapKey(kind: ImportKind, row: ImportRow): string {
+  return "type" in row ? `${row.date}|${row.amount.toFixed(2)}` : `${row.date}|${row.amount.toFixed(2)}|${norm(row.party)}`;
+}
+
+export function parseWorkbook(
+  kind: ImportKind,
+  sheets: { name: string; rows: string[][] }[],
+  opts: { dayFirst?: boolean } = {},
+): {
+  rows: ParsedRow<ImportRow>[];
+  error?: string;
+  periodTotals: number;
+  sheetsUsed: string[];
+  skipped: { name: string; reason: "ambiguous" | "overlap" }[];
+} {
+  if (sheets.length <= 1) {
+    const r = parseSingleTable(kind, sheets[0]?.rows ?? [], opts);
+    return { ...r, sheetsUsed: r.error ? [] : [sheets[0]?.name ?? ""], skipped: [] };
+  }
+
+  const contributions: { name: string; result: ReturnType<typeof parseSingleTable> }[] = [];
+  const skipped: { name: string; reason: "ambiguous" | "overlap" }[] = [];
+  const seenKeys = new Set<string>();
+  let anyHeaderFound = false;
+
+  for (const sheet of sheets) {
+    const detected = detectColumns(sheet.rows);
+    if (!detected) continue;
+    anyHeaderFound = true;
+    const hasOwnType = detected.columns.type !== undefined || detected.columns.income !== undefined || detected.columns.expense !== undefined;
+    const hint = (kind === "transactions" && !hasOwnType ? sheetTypeHint(sheet.name) : undefined) ?? undefined;
+
+    if (kind === "transactions" && !hasOwnType && !hint) {
+      // Can't safely tell what this sheet's rows are — try it, and only
+      // keep it if it actually produces good rows (worth flagging), but
+      // never merge it blind: report it as skipped either way.
+      const probe = parseSingleTable(kind, sheet.rows, { ...opts, sheet: sheet.name });
+      if (probe.rows.some((r) => r.row)) skipped.push({ name: sheet.name, reason: "ambiguous" });
+      continue;
+    }
+
+    const result = parseSingleTable(kind, sheet.rows, { ...opts, forcedType: hint, sheet: sheet.name });
+    const good = result.rows.filter((r) => r.row);
+    if (!good.length) continue;
+
+    // Real exports often also carry per-category "breakout" sheets (Payroll,
+    // Utilities, a project cost centre…) that just re-list a slice of the
+    // main register's own rows for readability. Since those share tab
+    // wording with the register itself ("payroll" reads as an expense-sheet
+    // hint too), catch them by content instead of name: if most of a
+    // sheet's rows share their (date, amount) with rows a prior sheet
+    // already contributed, it's restating data, not adding it — merging it
+    // in would double-count that money.
+    const overlapping = good.filter((r) => seenKeys.has(overlapKey(kind, r.row!))).length;
+    if (good.length >= 2 && overlapping / good.length >= 0.4) {
+      skipped.push({ name: sheet.name, reason: "overlap" });
+      continue;
+    }
+
+    for (const r of good) seenKeys.add(overlapKey(kind, r.row!));
+    contributions.push({ name: sheet.name, result });
+  }
+
+  if (!contributions.length) {
+    return {
+      rows: [], periodTotals: 0, sheetsUsed: [], skipped,
+      error: anyHeaderFound
+        ? "Found header rows, but couldn't tell which sheet(s) hold the transactions — download the template to see the expected layout."
+        : "Couldn't find the header row. The sheet needs a Date column and an Amount (or Income / Expense) column — download the template to see the layout.",
+    };
+  }
+
+  let rows: ParsedRow<ImportRow>[] = [];
+  let periodTotals = 0;
+  for (const { result } of contributions) {
+    rows = rows.concat(result.rows);
+    periodTotals += result.periodTotals;
+  }
+
+  let error: string | undefined;
+  const goodCount = rows.filter((r) => r.row).length;
+  if (goodCount > MAX_IMPORT_ROWS) {
+    // Trim from the back, sheet by sheet, until the combined good-row count fits.
+    let kept = 0;
+    const trimmed: ParsedRow<ImportRow>[] = [];
+    for (const r of rows) {
+      if (r.row && kept >= MAX_IMPORT_ROWS) continue;
+      if (r.row) kept++;
+      trimmed.push(r);
+    }
+    rows = trimmed;
+    error = `Only the first ${MAX_IMPORT_ROWS} rows are read in one import — split the sheet and import the rest separately.`;
+  }
+
+  return { rows, error, periodTotals, sheetsUsed: contributions.map((c) => c.name), skipped };
 }
 
 /**

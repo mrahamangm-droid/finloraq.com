@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { MAX_IMPORT_ROWS, parseAmount, parseSheetDate, parseTable, parseType, rowKeys, TEMPLATES, type DocRow, type TxnRow } from "./rows";
+import { MAX_IMPORT_ROWS, parseAmount, parseSheetDate, parseTable, parseType, parseWorkbook, rowKeys, TEMPLATES, type DocRow, type TxnRow } from "./rows";
 import { parseCsv } from "../files/csv";
 
 describe("parseSheetDate", () => {
@@ -128,6 +128,108 @@ describe("parseTable", () => {
     ]);
     expect(error).toBeUndefined();
     expect(rows.length).toBe(2);
+  });
+});
+
+describe("parseWorkbook", () => {
+  const cover = { name: "01 Cover", rows: [["Company Name"], ["Generated for FY2023"]] };
+  const incomeRegister = {
+    name: "04 Income Register",
+    rows: [
+      ["INC ID", "Date", "Description (English)", "Amount Received (AED)"],
+      ["INC-1", "2023-01-05", "Sheikh Zayed payment", "52500"],
+      ["INC-2", "2023-02-10", "Cash sale", "20000"],
+    ],
+  };
+  const expenseRegister = {
+    name: "05 Expense Register",
+    rows: [
+      ["EXP ID", "Date", "Beneficiary (English)", "Amount Incl. VAT (AED)", "VAT (AED)", "P&L Category"],
+      ["EXP-1", "2023-01-06", "ADNOC (Fuel Station)", "100", "4.76", "Fuel"],
+      ["EXP-2", "2023-01-07", "Al Moazem Store", "2000", "95.24", "Materials"],
+    ],
+  };
+
+  it("finds the real data sheets when the first sheet is a non-data cover page", () => {
+    const { rows, error, sheetsUsed } = parseWorkbook("transactions", [cover, incomeRegister]);
+    expect(error).toBeUndefined();
+    expect(sheetsUsed).toEqual(["04 Income Register"]);
+    expect(rows.length).toBe(2);
+    expect(rows.every((r) => (r.row as TxnRow).type === "income")).toBe(true);
+  });
+
+  it("combines separate Income and Expense register sheets, inferring type from each sheet's name", () => {
+    const { rows, error, sheetsUsed, skipped } = parseWorkbook("transactions", [cover, incomeRegister, expenseRegister]);
+    expect(error).toBeUndefined();
+    expect(sheetsUsed).toEqual(["04 Income Register", "05 Expense Register"]);
+    expect(skipped).toEqual([]);
+    expect(rows.length).toBe(4);
+    const income = rows.filter((r) => (r.row as TxnRow)?.type === "income");
+    const expense = rows.filter((r) => (r.row as TxnRow)?.type === "expense");
+    expect(income.length).toBe(2);
+    expect(expense.length).toBe(2);
+    // The Expense Register's own "P&L Category" and "VAT (AED)" columns are still picked up.
+    expect((expense[0]!.row as TxnRow).category).toBe("Fuel");
+    expect((expense[0]!.row as TxnRow).tax).toBe(4.76);
+    expect((expense[0]!.row as TxnRow).amount).toBe(100);
+    // Every merged row is tagged with its source sheet for display.
+    expect(rows.every((r) => typeof r.sheet === "string" && r.sheet.length > 0)).toBe(true);
+  });
+
+  it("does not guess at a matching sheet whose role is ambiguous, and reports it as skipped", () => {
+    const ambiguous = {
+      name: "16 Accounts Receivable",
+      rows: [
+        ["Date", "Customer", "Amount"],
+        ["2023-01-05", "Acme LLC", "5000"],
+      ],
+    };
+    const { rows, sheetsUsed, skipped } = parseWorkbook("transactions", [cover, incomeRegister, ambiguous]);
+    expect(sheetsUsed).toEqual(["04 Income Register"]);
+    expect(skipped).toEqual([{ name: "16 Accounts Receivable", reason: "ambiguous" }]);
+    expect(rows.length).toBe(2); // only the Income Register rows, not Accounts Receivable's
+  });
+
+  it("skips a category-breakout sheet that just restates rows already pulled from another sheet", () => {
+    // A real-world pattern: alongside the main "Expense Register", a
+    // "Payroll" tab lists the same underlying transactions again (by date +
+    // amount) for readability. Its name hints "expense" just as strongly,
+    // but merging it in would double-count that money.
+    const expenseRegister = {
+      name: "05 Expense Register",
+      rows: [
+        ["EXP ID", "Date", "Beneficiary", "Amount (AED)"],
+        ["EXP-1", "2023-01-24", "Payroll arrears", "13500"],
+        ["EXP-2", "2023-01-29", "Payroll deposit fees", "31.5"],
+        ["EXP-3", "2023-01-05", "ADNOC fuel", "100"],
+      ],
+    };
+    const payrollBreakout = {
+      name: "09 Payroll",
+      rows: [
+        ["EXP ID", "Date", "Beneficiary", "Amount (AED)"],
+        ["EXP-1", "2023-01-24", "Payroll arrears", "13500"],
+        ["EXP-2", "2023-01-29", "Payroll deposit fees", "31.5"],
+      ],
+    };
+    const { rows, sheetsUsed, skipped } = parseWorkbook("transactions", [cover, incomeRegister, expenseRegister, payrollBreakout]);
+    expect(sheetsUsed).toEqual(["04 Income Register", "05 Expense Register"]);
+    expect(skipped).toEqual([{ name: "09 Payroll", reason: "overlap" }]);
+    // Only the 3 Expense Register rows + 2 Income Register rows — Payroll's restated 2 are not added again.
+    expect(rows.filter((r) => r.row).length).toBe(5);
+  });
+
+  it("behaves exactly like parseTable for a single sheet (no sheet tagging)", () => {
+    const single = parseWorkbook("transactions", [incomeRegister]);
+    const direct = parseTable("transactions", incomeRegister.rows);
+    expect(single.rows.map((r) => r.row)).toEqual(direct.rows.map((r) => r.row));
+    expect(single.rows.every((r) => r.sheet === undefined)).toBe(true);
+  });
+
+  it("still reports the standard missing-header error when nothing matches", () => {
+    const { rows, error } = parseWorkbook("transactions", [cover, { name: "02 Dashboard", rows: [["KPI", "Value"], ["Revenue", "500000"]] }]);
+    expect(rows.length).toBe(0);
+    expect(error).toMatch(/couldn't find the header row/i);
   });
 });
 
