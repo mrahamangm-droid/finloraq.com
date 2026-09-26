@@ -54,6 +54,23 @@ async function loadTargets(companyId: string) {
   });
 }
 
+/**
+ * The set loadTargets() returns includes a handful of records that look
+ * genuine rather than duplicate-import artifacts: real customer invoices
+ * (sourceType INVOICE — confirmed against the Sales page: real customer
+ * names, real due dates), and at least one MANUAL entry that's the opening
+ * bank balance. Every confirmed duplicate-import posting in this ledger
+ * (income and expense alike — this app's own importer tags both as
+ * sourceType EXPENSE) falls under sourceType EXPENSE. Restricting the
+ * reversal to that sourceType is the conservative choice: worst case it
+ * misses something that also needs reversing (nothing is lost — it just
+ * stays for a follow-up pass), never that it wrongly reverses a real
+ * invoice, receipt or opening balance.
+ */
+function onlyDuplicateImportArtifacts(targets: Awaited<ReturnType<typeof loadTargets>>) {
+  return targets.filter((e) => e.sourceType === "EXPENSE");
+}
+
 function summarize(targets: Awaited<ReturnType<typeof loadTargets>>) {
   let income = 0;
   let expense = 0;
@@ -77,9 +94,16 @@ export async function GET() {
 
   const targets = await loadTargets(ctx.active.companyId);
   const { income, expense } = summarize(targets);
+  const nonExpense = targets.filter((e) => e.sourceType !== "EXPENSE");
+  const willActuallyReverse = onlyDuplicateImportArtifacts(targets);
+  const willReverseTotals = summarize(willActuallyReverse);
 
   return NextResponse.json({
     dryRun: true,
+    note: "'willReverse*' is the exact scope POST executes (sourceType EXPENSE only). 'count'/'incomeToBeRemoved'/'expenseToBeRemoved' below describe everything in the 2023 date range for context, including the genuine records in nonExpenseFull that POST does NOT touch.",
+    willReverseCount: willActuallyReverse.length,
+    willReverseIncome: willReverseTotals.income,
+    willReverseExpense: willReverseTotals.expense,
     count: targets.length,
     incomeToBeRemoved: income,
     expenseToBeRemoved: expense,
@@ -92,6 +116,17 @@ export async function GET() {
       date: e.date,
       sourceType: e.sourceType,
       memo: e.memo,
+    })),
+    // Full detail on every non-EXPENSE entry in scope, so a human can check
+    // each one isn't a genuine record (a real invoice, a real receipt, an
+    // opening balance) before this route ever reverses anything.
+    nonExpenseFull: nonExpense.map((e) => ({
+      entryNumber: e.entryNumber,
+      date: e.date,
+      sourceType: e.sourceType,
+      sourceId: e.sourceId,
+      memo: e.memo,
+      lines: e.lines.map((l) => ({ account: l.account.code, accountName: l.account.name, debit: l.debit, credit: l.credit, description: l.description })),
     })),
   });
 }
@@ -113,7 +148,7 @@ export async function POST(req: Request) {
   const allowed = await can(ctx.active.id, "journals", "APPROVE");
   if (!allowed) return NextResponse.json({ error: "Requires the APPROVE permission on Journals." }, { status: 403 });
 
-  const allTargets = await loadTargets(ctx.active.companyId);
+  const allTargets = onlyDuplicateImportArtifacts(await loadTargets(ctx.active.companyId));
   const alreadyReversed = new Set(
     (
       await prisma.journalEntry.findMany({
