@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
+import type { Prisma } from "@prisma/client";
 import { requireTenantContext } from "@/lib/tenant";
 import { ForbiddenError, can } from "@/lib/rbac";
 import { prisma } from "@/lib/db";
@@ -143,33 +144,8 @@ export async function POST(req: Request) {
 
   const { income, expense } = summarize(targets);
 
-  const entryRows: {
-    id: string;
-    companyId: string;
-    periodId: string;
-    entryNumber: string;
-    date: Date;
-    sourceType: "REVERSAL";
-    sourceId: string;
-    memo: string;
-    status: "POSTED";
-    currency: string;
-    exchangeRate: unknown;
-    postedAt: Date;
-    postedBy: string;
-    createdBy: string;
-  }[] = [];
-  const lineRows: {
-    id: string;
-    journalEntryId: string;
-    accountId: string;
-    debit: unknown;
-    credit: unknown;
-    costCentreId: string | null;
-    departmentId: string | null;
-    projectId: string | null;
-    description: string | null;
-  }[] = [];
+  const entryRows: Prisma.JournalEntryCreateManyInput[] = [];
+  const lineRows: Prisma.JournalLineCreateManyInput[] = [];
 
   for (const orig of targets) {
     seq += 1;
