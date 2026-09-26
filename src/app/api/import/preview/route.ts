@@ -4,8 +4,8 @@ import { requireTenantContext } from "@/lib/tenant";
 import { ForbiddenError } from "@/lib/rbac";
 import { getPreferences } from "@/lib/customization/server";
 import { parseCsv } from "@/lib/files/csv";
-import { parseXlsxRows } from "@/lib/files/xlsx-lite";
-import { IMPORT_KINDS, parseTable, type ImportRow } from "@/lib/import/rows";
+import { parseXlsxWorkbook } from "@/lib/files/xlsx-lite";
+import { IMPORT_KINDS, parseWorkbook, type ImportRow } from "@/lib/import/rows";
 import { previewImport } from "@/lib/import/server";
 
 export const dynamic = "force-dynamic";
@@ -36,29 +36,37 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "That file is over 3 MB. Split it into smaller sheets (for example one per year)." }, { status: 413 });
   }
 
-  let table: string[][];
+  let sheets: { name: string; rows: string[][] }[];
   try {
     const isXlsx = buffer.subarray(0, 2).toString("latin1") === "PK";
-    if (isXlsx) table = parseXlsxRows(buffer);
+    if (isXlsx) sheets = parseXlsxWorkbook(buffer);
     else if (/\.xls$/i.test(fileName)) return NextResponse.json({ error: "Old .xls files can't be read — in Excel use File → Save As → .xlsx or .csv." }, { status: 400 });
-    else table = parseCsv(buffer.toString("utf8"));
+    else sheets = [{ name: "", rows: parseCsv(buffer.toString("utf8")) }];
   } catch {
     return NextResponse.json({ error: "Couldn't read that file. Upload a .csv or .xlsx sheet." }, { status: 400 });
   }
 
   const prefs = await getPreferences(ctx.userId);
-  const { rows, error, periodTotals } = parseTable(kind, table, { dayFirst: prefs.dateFormat !== "MM/DD/YYYY" });
+  const { rows, error, periodTotals, sheetsUsed, skipped } = parseWorkbook(kind, sheets, { dayFirst: prefs.dateFormat !== "MM/DD/YYYY" });
   if (!rows.length) return NextResponse.json({ error: error ?? "No rows found in that sheet." }, { status: 400 });
 
   const good = rows.filter((r) => r.row).map((r) => r.row as ImportRow);
   const preview = await previewImport({ companyId: ctx.active.companyId, membershipId: ctx.active.id, userId: ctx.userId }, kind, good);
 
+  const sheetNote = sheetsUsed.length > 1 ? `Read from ${sheetsUsed.length} sheets: ${sheetsUsed.join(", ")}.` : null;
+  const ambiguous = skipped.filter((s) => s.reason === "ambiguous").map((s) => s.name);
+  const overlapping = skipped.filter((s) => s.reason === "overlap").map((s) => s.name);
+  const ambiguousNote = ambiguous.length ? `Didn't import "${ambiguous.join('", "')}" — couldn't tell whether ${ambiguous.length === 1 ? "its rows were" : "their rows were"} income or expense. Add a Type column and import ${ambiguous.length === 1 ? "it" : "them"} separately if there's data to bring in.` : null;
+  const overlapNote = overlapping.length ? `Skipped "${overlapping.join('", "')}" — it looked like a restatement of rows already read from another sheet, so it was left out to avoid double-counting.` : null;
+  const info = [sheetNote, ambiguousNote, overlapNote].filter(Boolean).join(" ") || null;
+
   return NextResponse.json({
     kind,
     warning: error ?? null,
+    info,
     periodTotals,
     currency: ctx.active.company.baseCurrency,
-    rows: rows.map((r) => ({ line: r.line, errors: r.errors, notes: r.notes, row: r.row })),
+    rows: rows.map((r) => ({ line: r.line, errors: r.errors, notes: r.notes, row: r.row, sheet: r.sheet })),
     ...preview,
   });
 }
