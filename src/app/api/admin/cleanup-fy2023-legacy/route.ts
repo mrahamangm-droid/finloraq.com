@@ -55,20 +55,45 @@ async function loadTargets(companyId: string) {
 }
 
 /**
- * The set loadTargets() returns includes a handful of records that look
- * genuine rather than duplicate-import artifacts: real customer invoices
+ * Reliable duplicate-import detection.
+ *
+ * The set loadTargets() returns includes a handful of records that are
+ * genuine rather than duplicate-import artifacts: 2 real customer invoices
  * (sourceType INVOICE — confirmed against the Sales page: real customer
- * names, real due dates), and at least one MANUAL entry that's the opening
- * bank balance. Every confirmed duplicate-import posting in this ledger
- * (income and expense alike — this app's own importer tags both as
- * sourceType EXPENSE) falls under sourceType EXPENSE. Restricting the
- * reversal to that sourceType is the conservative choice: worst case it
- * misses something that also needs reversing (nothing is lost — it just
- * stays for a follow-up pass), never that it wrongly reverses a real
- * invoice, receipt or opening balance.
+ * names, real due dates) and 1 real MANUAL entry (the opening RAK Bank
+ * balance). Neither of those ever carries "(imported)" in its memo.
+ *
+ * Every confirmed duplicate-import posting in this ledger DOES carry
+ * "(imported)" in its memo — this is true not only for the EXPENSE-tagged
+ * entries but also for 66 RECEIPT-tagged entries, which turn out to be 33
+ * income transactions each posted twice (once in English to account 4010
+ * "Project Income" referencing an INC23-#### number, once in Arabic to
+ * account 4000 "Sales Revenue" with no such reference) — the same
+ * English/Arabic duplication pattern as the expense side. An initial,
+ * more conservative version of this filter used sourceType === "EXPENSE"
+ * alone, which correctly excluded the genuine invoices/opening-balance but
+ * also missed all 66 of these income duplicates. The "(imported)" memo tag
+ * is the precise boundary: it catches every duplicate-import posting,
+ * income and expense alike, while still excluding the two real invoices
+ * and the real opening balance (none of which carry that tag).
+ *
+ * One further entry is special-cased: JE-005282, a pre-existing MANUAL
+ * entry memo'd "Correction: reverse duplicate FY2023 income import (33
+ * rows posted twice - see 4000 vs 4010)". Someone (or an earlier pass)
+ * already tried to fix this manually, but it debits Project Income and
+ * credits BANK for AED 2,086,726.93 — that's not a valid reversal of a
+ * duplicate revenue posting, it actually removes real cash from the books.
+ * It needs to be reversed along with everything else rather than left in
+ * place, so it's matched explicitly by entry number since it doesn't carry
+ * the "(imported)" tag other artifacts do.
  */
 function onlyDuplicateImportArtifacts(targets: Awaited<ReturnType<typeof loadTargets>>) {
-  return targets.filter((e) => e.sourceType === "EXPENSE");
+  return targets.filter(
+    (e) =>
+      e.sourceType === "EXPENSE" ||
+      (e.sourceType === "RECEIPT" && !!e.memo?.includes("(imported)")) ||
+      e.entryNumber === "JE-005282",
+  );
 }
 
 function summarize(targets: Awaited<ReturnType<typeof loadTargets>>) {
@@ -94,13 +119,13 @@ export async function GET() {
 
   const targets = await loadTargets(ctx.active.companyId);
   const { income, expense } = summarize(targets);
-  const nonExpense = targets.filter((e) => e.sourceType !== "EXPENSE");
   const willActuallyReverse = onlyDuplicateImportArtifacts(targets);
   const willReverseTotals = summarize(willActuallyReverse);
+  const excluded = targets.filter((e) => !willActuallyReverse.includes(e));
 
   return NextResponse.json({
     dryRun: true,
-    note: "'willReverse*' is the exact scope POST executes (sourceType EXPENSE only). 'count'/'incomeToBeRemoved'/'expenseToBeRemoved' below describe everything in the 2023 date range for context, including the genuine records in nonExpenseFull that POST does NOT touch.",
+    note: "'willReverse*' is the exact scope POST executes (EXPENSE entries, RECEIPT entries whose memo carries \"(imported)\", and the one special-cased broken MANUAL correction JE-005282 — see onlyDuplicateImportArtifacts()). 'count'/'incomeToBeRemoved'/'expenseToBeRemoved' below describe everything in the 2023 date range for context, including the genuine records in excludedFull that POST does NOT touch.",
     willReverseCount: willActuallyReverse.length,
     willReverseIncome: willReverseTotals.income,
     willReverseExpense: willReverseTotals.expense,
@@ -117,10 +142,10 @@ export async function GET() {
       sourceType: e.sourceType,
       memo: e.memo,
     })),
-    // Full detail on every non-EXPENSE entry in scope, so a human can check
-    // each one isn't a genuine record (a real invoice, a real receipt, an
-    // opening balance) before this route ever reverses anything.
-    nonExpenseFull: nonExpense.map((e) => ({
+    // Full detail on every entry EXCLUDED from the reversal scope, so a
+    // human can check each one really is a genuine record (a real invoice,
+    // a real opening balance) before this route ever reverses anything.
+    excludedFull: excluded.map((e) => ({
       entryNumber: e.entryNumber,
       date: e.date,
       sourceType: e.sourceType,
