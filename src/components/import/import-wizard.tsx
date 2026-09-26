@@ -174,7 +174,7 @@ export function ImportWizard({
       <section className="rounded-lg border border-border bg-card p-4">
         <h2 className="text-sm font-semibold text-card-foreground">2. Upload the sheet</h2>
         <p className="mt-1 text-xs text-muted-foreground">
-          Excel (.xlsx) or CSV, first sheet, up to 5,000 rows. Column names are matched automatically (Date, Amount, Type,
+          Excel (.xlsx) or CSV, first sheet, up to 10,000 rows. Column names are matched automatically (Date, Amount, Type,
           Category, Customer…). Dates like <b>2023-03-14</b>, <b>14/03/2023</b>, <b>Mar 2023</b>, <b>2023-Q1</b> or just <b>2022</b> all work —
           a month, quarter or year on its own is treated as a total for that period and dated on its last day.
           Slashed dates are read as {dateFormat === "MM/DD/YYYY" ? "month/day/year" : "day/month/year"} (change this under My preferences). Amounts are in {currency}.
