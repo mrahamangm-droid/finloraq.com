@@ -15,7 +15,7 @@ import { isoDay, parseIsoDay, periodEndDay } from "@/lib/periods";
 export const IMPORT_KINDS = ["transactions", "invoices", "bills"] as const;
 export type ImportKind = (typeof IMPORT_KINDS)[number];
 
-export const MAX_IMPORT_ROWS = 5000;
+export const MAX_IMPORT_ROWS = 10000;
 
 export interface TxnRow {
   line: number;
@@ -58,32 +58,54 @@ export interface ParsedRow<T> {
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9%]/g, "");
 
 const ALIASES: Record<string, string[]> = {
-  date: ["date", "transactiondate", "txndate", "invoicedate", "billdate", "issuedate", "period", "month", "year", "week", "day", "postingdate", "valuedate"],
-  dueDate: ["duedate", "due", "paymentdue", "dueon"],
-  description: ["description", "details", "memo", "narration", "particulars", "item", "notes", "note", "remarks"],
-  amount: ["amount", "total", "value", "net", "subtotal", "netamount", "amountbeforetax", "sum"],
-  income: ["income", "revenue", "sales", "moneyin", "in", "credit", "receipts", "received"],
-  expense: ["expense", "expenses", "cost", "costs", "moneyout", "out", "debit", "spent", "payments"],
-  type: ["type", "kind", "direction", "inout", "incomeexpense", "transactiontype", "drcr"],
-  category: ["category", "account", "accountcode", "accountname", "head", "ledger", "expensecategory", "incomecategory", "class"],
+  date: ["date", "transactiondate", "txndate", "invoicedate", "billdate", "issuedate", "period", "month", "year", "week", "day", "postingdate", "valuedate", "entrydate", "voucherdate", "trandate", "activitydate"],
+  dueDate: ["duedate", "due", "paymentdue", "dueon", "duebydate"],
+  description: ["description", "details", "memo", "narration", "particulars", "item", "notes", "note", "remarks", "transactiondetails"],
+  amount: ["amount", "total", "value", "net", "subtotal", "netamount", "amountbeforetax", "sum", "grandtotal", "amountaed"],
+  income: ["income", "revenue", "sales", "moneyin", "in", "credit", "cr", "receipts", "received", "deposit", "deposits", "inflow"],
+  expense: ["expense", "expenses", "cost", "costs", "moneyout", "out", "debit", "dr", "spent", "payments", "withdrawal", "withdrawals", "outflow"],
+  type: ["type", "kind", "direction", "inout", "incomeexpense", "transactiontype", "drcr", "entrytype"],
+  category: ["category", "account", "accountcode", "accountname", "head", "ledger", "expensecategory", "incomecategory", "class", "accounthead", "costcenter"],
   tax: ["tax", "vat", "vatamount", "taxamount", "gst"],
   taxRate: ["taxrate", "vatrate", "tax%", "vat%", "taxpercent", "vatpercent", "gstrate"],
-  party: ["customer", "client", "supplier", "vendor", "payee", "party", "name", "customername", "suppliername", "vendorname"],
-  ref: ["invoice", "invoiceno", "invoicenumber", "billno", "billnumber", "bill", "number", "ref", "reference", "docno", "no"],
+  party: ["customer", "client", "supplier", "vendor", "payee", "party", "name", "customername", "suppliername", "vendorname", "partyname"],
+  ref: ["invoice", "invoiceno", "invoicenumber", "billno", "billnumber", "bill", "number", "ref", "reference", "docno", "no", "voucherno", "transactionid"],
   paid: ["paid", "amountpaid", "paidamount", "payment", "received", "settled"],
   paidDate: ["paiddate", "paymentdate", "datepaid", "settleddate", "receiveddate"],
 };
 
-/** Finds the header row (first row that names a date and an amount-like column) and maps fields to column indexes. */
+/** How many leading rows (title lines, company name, generated-on notes, blank
+ *  spacer rows…) a real-world export can carry before the actual header. */
+const MAX_HEADER_SEARCH_ROWS = 30;
+
+/**
+ * Finds the header row and maps fields to column indexes. Two passes per
+ * candidate row: an exact match against ALIASES (so "Paid date" isn't taken
+ * as "date"), then a looser pass for anything still unmatched — a header
+ * like "Amount (AED)" or "Transaction Date" normalizes to "amountaed" /
+ * "transactiondate", which doesn't equal an alias but does start with one,
+ * so real-world column names with units, currency codes or extra words
+ * still resolve instead of failing the whole import.
+ */
 export function detectColumns(table: string[][]): { headerIndex: number; columns: Partial<Record<keyof typeof ALIASES, number>> } | null {
-  for (let h = 0; h < Math.min(table.length, 10); h++) {
+  for (let h = 0; h < Math.min(table.length, MAX_HEADER_SEARCH_ROWS); h++) {
     const header = (table[h] ?? []).map((c) => norm(String(c ?? "")));
+    if (header.every((c) => !c)) continue; // blank spacer row — never a header
     const columns: Partial<Record<keyof typeof ALIASES, number>> = {};
-    // Exact alias matches first, so "Paid date" isn't taken as "date".
+    const used = () => new Set(Object.values(columns));
+
     for (const [field, aliases] of Object.entries(ALIASES)) {
-      const i = header.findIndex((c, idx) => aliases.includes(c) && !Object.values(columns).includes(idx));
+      const taken = used();
+      const i = header.findIndex((c, idx) => aliases.includes(c) && !taken.has(idx));
       if (i >= 0) columns[field as keyof typeof ALIASES] = i;
     }
+    for (const [field, aliases] of Object.entries(ALIASES)) {
+      if (columns[field as keyof typeof ALIASES] !== undefined) continue;
+      const taken = used();
+      const i = header.findIndex((c, idx) => c.length >= 3 && !taken.has(idx) && aliases.some((a) => a.length >= 3 && (c.startsWith(a) || a.startsWith(c))));
+      if (i >= 0) columns[field as keyof typeof ALIASES] = i;
+    }
+
     const hasMoney = columns.amount !== undefined || columns.income !== undefined || columns.expense !== undefined;
     if (columns.date !== undefined && hasMoney) return { headerIndex: h, columns };
   }

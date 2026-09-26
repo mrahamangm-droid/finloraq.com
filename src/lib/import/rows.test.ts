@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseAmount, parseSheetDate, parseTable, parseType, rowKeys, TEMPLATES, type DocRow, type TxnRow } from "./rows";
+import { MAX_IMPORT_ROWS, parseAmount, parseSheetDate, parseTable, parseType, rowKeys, TEMPLATES, type DocRow, type TxnRow } from "./rows";
 import { parseCsv } from "../files/csv";
 
 describe("parseSheetDate", () => {
@@ -86,6 +86,54 @@ describe("parseTable", () => {
 
   it("explains a missing header", () => {
     expect(Boolean(parseTable("transactions", [["foo", "bar"], ["1", "2"]]).error)).toBe(true);
+  });
+
+  it("finds the header past title rows, blank spacer rows and an opening-balance line", () => {
+    const table = [
+      ["MADEEN BUILDING CONTRACTING LLC"],
+      ["Opening Balance and FY2023 Ledger"],
+      ["Generated on 2026-09-26"],
+      [""],
+      ["Opening Balance", "", "", "125000.00"],
+      [""],
+      ["", "", "", ""],
+      ["Voucher Date", "Particulars", "Debit", "Credit"],
+      ["2023-01-05", "Cash sale", "", "5000"],
+      ["2023-01-10", "Office rent", "2000", ""],
+    ];
+    const { rows, error } = parseTable("transactions", table);
+    expect(error).toBeUndefined();
+    expect(rows.length).toBe(2);
+    expect((rows[0]!.row as TxnRow).type).toBe("income");
+    expect((rows[0]!.row as TxnRow).amount).toBe(5000);
+    expect((rows[1]!.row as TxnRow).type).toBe("expense");
+    expect((rows[1]!.row as TxnRow).amount).toBe(2000);
+  });
+
+  it("matches header names with extra words, units or currency codes", () => {
+    const { rows, error } = parseTable("transactions", [
+      ["Transaction Date", "Category", "Type", "Amount (AED)"],
+      ["2023-02-01", "Sales", "Income", "1000"],
+    ]);
+    expect(error).toBeUndefined();
+    expect((rows[0]!.row as TxnRow).amount).toBe(1000);
+  });
+
+  it("skips fully blank rows instead of flagging them as errors", () => {
+    const { rows, error } = parseTable("transactions", [
+      ["Date", "Type", "Category", "Amount"],
+      ["2023-05-01", "Income", "", "100"],
+      ["", "", "", ""],
+      ["2023-05-02", "Expense", "Fuel", "50"],
+    ]);
+    expect(error).toBeUndefined();
+    expect(rows.length).toBe(2);
+  });
+});
+
+describe("MAX_IMPORT_ROWS", () => {
+  it("is 10,000", () => {
+    expect(MAX_IMPORT_ROWS).toBe(10000);
   });
 });
 
