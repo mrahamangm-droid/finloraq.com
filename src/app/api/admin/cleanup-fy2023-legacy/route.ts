@@ -108,13 +108,44 @@ function summarize(targets: Awaited<ReturnType<typeof loadTargets>>) {
   return { income, expense };
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   let ctx;
   try {
     ctx = await requireTenantContext();
   } catch (err) {
     if (err instanceof ForbiddenError) return NextResponse.json({ error: err.message }, { status: 403 });
     throw err;
+  }
+
+  // Read-only diagnostic: inspect the two clean-import DRAFT entries' actual
+  // line structure, to decide whether they can be split into one entry per
+  // transaction from their own data (vs needing the original source file).
+  // Purely a GET read — no state change, unlike the confirm-gated POST above.
+  if (new URL(req.url).searchParams.get("inspect") === "drafts") {
+    const drafts = await prisma.journalEntry.findMany({
+      where: { companyId: ctx.active.companyId, status: "DRAFT" },
+      include: { lines: { include: { account: true } } },
+      orderBy: { date: "asc" },
+    });
+    return NextResponse.json({
+      draftCount: drafts.length,
+      drafts: drafts.map((d) => ({
+        id: d.id,
+        entryNumber: d.entryNumber,
+        date: d.date,
+        sourceType: d.sourceType,
+        sourceId: d.sourceId,
+        memo: d.memo,
+        lineCount: d.lines.length,
+        lines: d.lines.map((l) => ({
+          account: l.account.code,
+          accountName: l.account.name,
+          debit: l.debit,
+          credit: l.credit,
+          description: l.description,
+        })),
+      })),
+    });
   }
 
   const targets = await loadTargets(ctx.active.companyId);
