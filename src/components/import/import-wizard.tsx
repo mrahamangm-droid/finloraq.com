@@ -12,10 +12,12 @@ interface PreviewRow {
   errors: string[];
   notes: string[];
   row: Record<string, unknown> | null;
+  sheet?: string;
 }
 interface PreviewResponse {
   kind: Kind;
   warning: string | null;
+  info: string | null;
   periodTotals: number;
   currency: string;
   rows: PreviewRow[];
@@ -174,7 +176,9 @@ export function ImportWizard({
       <section className="rounded-lg border border-border bg-card p-4">
         <h2 className="text-sm font-semibold text-card-foreground">2. Upload the sheet</h2>
         <p className="mt-1 text-xs text-muted-foreground">
-          Excel (.xlsx) or CSV, first sheet, up to 10,000 rows. Column names are matched automatically (Date, Amount, Type,
+          Excel (.xlsx) or CSV, up to 10,000 rows. If the sheet you need isn&apos;t first, or income and expenses are on
+          separate tabs (e.g. an &quot;Income Register&quot; and &quot;Expense Register&quot;), every tab is checked automatically.
+          Column names are matched automatically (Date, Amount, Type,
           Category, Customer…). Dates like <b>2023-03-14</b>, <b>14/03/2023</b>, <b>Mar 2023</b>, <b>2023-Q1</b> or just <b>2022</b> all work —
           a month, quarter or year on its own is treated as a total for that period and dated on its last day.
           Slashed dates are read as {dateFormat === "MM/DD/YYYY" ? "month/day/year" : "day/month/year"} (change this under My preferences). Amounts are in {currency}.
@@ -200,6 +204,7 @@ export function ImportWizard({
         <section className="space-y-4 rounded-lg border border-border bg-card p-4">
           <h2 className="text-sm font-semibold text-card-foreground">3. Check before importing</h2>
           {preview.warning && <p className="text-sm text-destructive">{preview.warning}</p>}
+          {preview.info && <p className="text-sm text-muted-foreground">{preview.info}</p>}
 
           <div className="grid gap-3 sm:grid-cols-4">
             <Stat label="Ready to import" value={String(toImport.length)} tone="ok" />
@@ -272,8 +277,8 @@ export function ImportWizard({
                   const dup = r.row ? preview.duplicates[k++] : false;
                   const row = r.row ?? {};
                   return (
-                    <tr key={r.line} className={`border-t border-border ${r.errors.length ? "bg-destructive/5" : ""}`}>
-                      <td className="px-2 py-1 text-muted-foreground">{r.line}</td>
+                    <tr key={`${r.sheet ?? ""}-${r.line}`} className={`border-t border-border ${r.errors.length ? "bg-destructive/5" : ""}`}>
+                      <td className="px-2 py-1 text-muted-foreground">{r.sheet ? `${r.sheet} · ` : ""}{r.line}</td>
                       <td className="px-2 py-1 whitespace-nowrap">{String(row.date ?? "—")}</td>
                       <td className="px-2 py-1">{String(row.type ?? row.party ?? "—")}</td>
                       <td className="max-w-[14rem] truncate px-2 py-1">{String((preview.kind === "invoices" ? row.description : row.category) || "—")}</td>
