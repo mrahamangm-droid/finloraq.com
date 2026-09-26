@@ -137,6 +137,36 @@ describe("parseXlsxRows", () => {
     expect(rows[1]?.[2]).toBe("1200.5");
   });
 
+  it("reads the workbook's first VISIBLE TAB via workbook.xml + rels, even when that isn't sheet1.xml", () => {
+    // A workbook where the sheets were reordered in Excel: the first tab
+    // ("Ledger") is physically stored as sheet2.xml, and sheet1.xml is a
+    // sheet that now comes second. The lowest-filename heuristic alone
+    // would (wrongly) read sheet1.xml.
+    const otherSheetXml = `<?xml version="1.0"?><worksheet><sheetData><row r="1"><c r="A1"><v>999</v></c></row></sheetData></worksheet>`;
+    const workbookXml = `<?xml version="1.0"?><workbook xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Ledger" sheetId="1" r:id="rId1"/><sheet name="Old" sheetId="2" r:id="rId2"/></sheets></workbook>`;
+    const relsXml = `<?xml version="1.0"?><Relationships><Relationship Id="rId1" Type="worksheet" Target="worksheets/sheet2.xml"/><Relationship Id="rId2" Type="worksheet" Target="worksheets/sheet1.xml"/></Relationships>`;
+    const zip = buildZip([
+      { name: "xl/workbook.xml", data: workbookXml, method: 8 },
+      { name: "xl/_rels/workbook.xml.rels", data: relsXml, method: 8 },
+      { name: "xl/sharedStrings.xml", data: SHARED_STRINGS_XML, method: 8 },
+      { name: "xl/styles.xml", data: STYLES_XML, method: 8 },
+      { name: "xl/worksheets/sheet1.xml", data: otherSheetXml, method: 8 },
+      { name: "xl/worksheets/sheet2.xml", data: SHEET_XML, method: 8 },
+    ]);
+    const rows = parseXlsxRows(zip);
+    expect(rows[1]?.[0]).toBe("Acme, Inc."); // came from SHEET_XML (sheet2.xml), the real first tab
+  });
+
+  it("falls back to the filename heuristic when workbook.xml or its rels are malformed", () => {
+    const zip = buildZip([
+      { name: "xl/workbook.xml", data: "<not-valid-xml", method: 0 },
+      { name: "xl/_rels/workbook.xml.rels", data: "<also-not-valid", method: 0 },
+      { name: "xl/worksheets/sheet1.xml", data: SHEET_XML, method: 0 },
+    ]);
+    const rows = parseXlsxRows(zip);
+    expect(rows[1]?.[2]).toBe("1200.5");
+  });
+
   it("throws a clear error for a file with no worksheet part", () => {
     const zip = buildZip([{ name: "xl/workbook.xml", data: "<workbook/>", method: 0 }]);
     expect(() => parseXlsxRows(zip)).toThrow(/no worksheet/i);

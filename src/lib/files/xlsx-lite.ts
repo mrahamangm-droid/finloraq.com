@@ -1,4 +1,5 @@
 import { inflateRawSync } from "node:zlib";
+import { posix as posixPath } from "node:path";
 
 /**
  * Minimal, dependency-free .xlsx (Office Open XML spreadsheet) reader for
@@ -241,6 +242,52 @@ function parseSheetRows(sheetXml: string, sharedStrings: string[], dateStyleLook
   return rows;
 }
 
+/**
+ * Finds the worksheet part for the workbook's *first tab*, the way Excel
+ * shows it — not the lowest `sheetN.xml` filename, which is only the same
+ * thing until someone adds, deletes or reorders sheets (Excel doesn't
+ * renumber the underlying files, so a workbook whose first visible tab is
+ * "Ledger" can easily be stored as sheet3.xml while sheet1.xml is a sheet
+ * that was moved later or is hidden). The true order lives in
+ * xl/workbook.xml's <sheets> list, resolved to a file name via each
+ * sheet's relationship ID in xl/_rels/workbook.xml.rels.
+ */
+function findFirstSheetEntry(entries: ZipEntry[], byName: Map<string, ZipEntry>, buffer: Buffer): ZipEntry | undefined {
+  const workbookEntry = byName.get("xl/workbook.xml");
+  const relsEntry = byName.get("xl/_rels/workbook.xml.rels");
+  if (workbookEntry && relsEntry) {
+    try {
+      const workbookXml = readZipEntryData(buffer, workbookEntry).toString("utf8");
+      const sheetsBlock = workbookXml.match(/<sheets>([\s\S]*?)<\/sheets>/)?.[1] ?? "";
+      const firstSheetTag = sheetsBlock.match(/<sheet\b[^>]*\/>/)?.[0];
+      const rId = firstSheetTag?.match(/r:id="([^"]+)"/)?.[1];
+      if (rId) {
+        const relsXml = readZipEntryData(buffer, relsEntry).toString("utf8");
+        const relTag = new RegExp(`<Relationship\\b[^>]*\\bId="${rId}"[^>]*/?>`).exec(relsXml)?.[0];
+        const target = relTag?.match(/Target="([^"]+)"/)?.[1];
+        if (target) {
+          const resolved = target.startsWith("/") ? target.slice(1) : posixPath.normalize(posixPath.join("xl", target));
+          const byOrder = byName.get(resolved);
+          if (byOrder) return byOrder;
+        }
+      }
+    } catch {
+      // Malformed workbook.xml/rels — fall through to the filename heuristic below.
+    }
+  }
+
+  return (
+    byName.get("xl/worksheets/sheet1.xml") ??
+    entries
+      .filter((e) => /^xl\/worksheets\/sheet\d+\.xml$/i.test(e.name))
+      .sort((a, b) => {
+        const na = Number(a.name.match(/(\d+)/)?.[1] ?? 0);
+        const nb = Number(b.name.match(/(\d+)/)?.[1] ?? 0);
+        return na - nb;
+      })[0]
+  );
+}
+
 /** Reads the first worksheet of a .xlsx file into rows of cell text.
  *  Date-formatted cells come back as YYYY-MM-DD; everything else comes
  *  back as whatever text/number Excel stored, verbatim. Throws if the
@@ -249,15 +296,7 @@ export function parseXlsxRows(buffer: Buffer): string[][] {
   const entries = readZipEntries(buffer);
   const byName = new Map(entries.map((e) => [e.name, e]));
 
-  const sheetEntry =
-    byName.get("xl/worksheets/sheet1.xml") ??
-    entries
-      .filter((e) => /^xl\/worksheets\/sheet\d+\.xml$/i.test(e.name))
-      .sort((a, b) => {
-        const na = Number(a.name.match(/(\d+)/)?.[1] ?? 0);
-        const nb = Number(b.name.match(/(\d+)/)?.[1] ?? 0);
-        return na - nb;
-      })[0];
+  const sheetEntry = findFirstSheetEntry(entries, byName, buffer);
 
   if (!sheetEntry) {
     throw new Error("This .xlsx file has no worksheet Finloraq can read (no xl/worksheets/sheet*.xml part found).");
