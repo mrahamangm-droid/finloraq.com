@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
+import { findUserByEmail } from "@/lib/userLookup";
 import { hashPassword, isPasswordStrong } from "@/lib/password";
 import { recordAuditEvent } from "@/lib/audit";
 import { checkRateLimit, clientIpFromHeaders } from "@/lib/rateLimit";
@@ -51,7 +52,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "This reset link is invalid or has expired. Request a new one." }, { status: 400 });
   }
 
-  const user = await prisma.user.findUnique({ where: { email } });
+  const user = await findUserByEmail(email);
   if (!user || !user.isActive) {
     // Token existed but the account doesn't/is disabled — consume it
     // anyway so it can't be probed further.
