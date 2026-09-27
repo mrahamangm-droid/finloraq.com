@@ -25,13 +25,13 @@ export type ExpenseRowData = {
 export function ExpenseRow({
   expense,
   canEdit,
-  money,
-  date,
+  moneyDisplay,
+  dateDisplay,
 }: {
   expense: ExpenseRowData;
   canEdit: boolean;
-  money: (n: number) => string;
-  date: (d: string) => string;
+  moneyDisplay: string;
+  dateDisplay: string;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -99,9 +99,9 @@ export function ExpenseRow({
 
   return (
     <tr className="border-b border-border last:border-0">
-      <td className="px-4 py-2 text-muted-foreground">{date(expense.date)}</td>
+      <td className="px-4 py-2 text-muted-foreground">{dateDisplay}</td>
       <td className="px-4 py-2 text-card-foreground">{expense.memo}</td>
-      <td className="px-4 py-2 text-right text-card-foreground">{money(expense.amount)}</td>
+      <td className="px-4 py-2 text-right text-card-foreground">{moneyDisplay}</td>
       <td className="px-4 py-2">
         <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${expense.status === "POSTED" ? "bg-success/10 text-success" : expense.status === "REVERSED" ? "bg-destructive/10 text-destructive" : "bg-muted text-muted-foreground"}`}>
           {expense.status}
