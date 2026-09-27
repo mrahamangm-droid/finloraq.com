@@ -8,6 +8,7 @@ import { verifyPassword } from "@/lib/password";
 import { recordAuditEvent } from "@/lib/audit";
 import { verifyTotpToken, verifyBackupCode } from "@/lib/mfa";
 import { checkRateLimit } from "@/lib/rateLimit";
+import { findUserByEmail } from "@/lib/userLookup";
 
 const credentialsSchema = z.object({
   email: z.string().email(),
@@ -74,12 +75,12 @@ export const authOptions: NextAuthOptions = {
         // in-memory-per-instance limitation) — 10 attempts per 15 minutes
         // is generous for a real user who mistyped a password, tight
         // enough to blunt an online guessing attack against one account.
-        const limit = checkRateLimit(`login:${email.toLowerCase()}`, 10, 15 * 60 * 1000);
+        const limit = checkRateLimit(`login:${email.trim().toLowerCase()}`, 10, 15 * 60 * 1000);
         if (!limit.allowed) {
           throw new Error("Too many sign-in attempts. Try again in a few minutes.");
         }
 
-        const user = await prisma.user.findUnique({ where: { email } });
+        const user = await findUserByEmail(email);
 
         // Constant-shape response whether the user exists or not — avoid
         // leaking account existence through response timing/shape. A
