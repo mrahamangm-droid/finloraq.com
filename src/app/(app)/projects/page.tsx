@@ -71,7 +71,9 @@ export default async function ProjectsPage({ searchParams = {} }: { searchParams
                   key={p.project.id}
                   p={p}
                   customers={customers.map((c) => ({ id: c.id, name: c.name }))}
-                  money={fmt.money}
+                  revenueDisplay={fmt.money(p.revenue)}
+                  costDisplay={fmt.money(p.cost)}
+                  marginDisplay={fmt.money(p.margin)}
                   canEdit={canEdit}
                   canDelete={canDelete}
                 />

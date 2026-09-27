@@ -3,8 +3,9 @@ import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/rbac";
 import { recordAuditEvent } from "@/lib/audit";
 import { postJournalEntry, buildBillPosting, buildSupplierPaymentPosting, InvalidLineError } from "@/lib/ledger";
-import { money, roundMoney, sum } from "@/lib/currency";
+import { roundMoney, sum } from "@/lib/currency";
 import { nextDocumentNumber } from "@/lib/numbering";
+import { computeTaxedLines } from "@/lib/taxCalc";
 
 export interface BillLineInput {
   description: string;
@@ -29,21 +30,7 @@ export async function createBill(params: {
     throw new InvalidLineError("A bill needs at least one line.");
   }
 
-  const taxCodes = await prisma.taxCode.findMany({
-    where: { companyId: params.companyId, id: { in: params.lines.map((l) => l.taxCodeId).filter(Boolean) as string[] } },
-  });
-  const taxCodeById = new Map(taxCodes.map((t) => [t.id, t]));
-
-  const computedLines = params.lines.map((l) => {
-    const lineTotal = roundMoney(money(l.quantity).times(l.unitPrice));
-    const taxCode = l.taxCodeId ? taxCodeById.get(l.taxCodeId) : undefined;
-    const lineTax = taxCode ? roundMoney(lineTotal.times(taxCode.rate)) : roundMoney(0);
-    return { ...l, lineTotal, lineTax };
-  });
-
-  const subtotal = roundMoney(sum(computedLines.map((l) => l.lineTotal)));
-  const taxTotal = roundMoney(sum(computedLines.map((l) => l.lineTax)));
-  const total = roundMoney(subtotal.plus(taxTotal));
+  const { lines: computedLines, subtotal, taxTotal, total } = await computeTaxedLines(prisma, params.companyId, params.lines);
 
   const bill = await prisma.$transaction(async (tx) => {
     const billNumber = await nextDocumentNumber(tx, params.companyId, "BILL", () =>
@@ -64,10 +51,10 @@ export async function createBill(params: {
         status: "DRAFT",
         lines: {
           create: computedLines.map((l) => ({
-            description: l.description,
-            quantity: l.quantity,
-            unitPrice: l.unitPrice,
-            taxCodeId: l.taxCodeId,
+            description: l.line.description,
+            quantity: l.line.quantity,
+            unitPrice: l.line.unitPrice,
+            taxCodeId: l.line.taxCodeId,
             lineTotal: l.lineTotal,
           })),
         },
@@ -121,20 +108,11 @@ export async function updateBill(params: {
     if (params.lines.length === 0) {
       throw new InvalidLineError("A bill needs at least one line.");
     }
-    const taxCodes = await prisma.taxCode.findMany({
-      where: { companyId: params.companyId, id: { in: params.lines.map((l) => l.taxCodeId).filter(Boolean) as string[] } },
-    });
-    const taxCodeById = new Map(taxCodes.map((t) => [t.id, t]));
-    const computedLines = params.lines.map((l) => {
-      const lineTotal = roundMoney(money(l.quantity).times(l.unitPrice));
-      const taxCode = l.taxCodeId ? taxCodeById.get(l.taxCodeId) : undefined;
-      const lineTax = taxCode ? roundMoney(lineTotal.times(taxCode.rate)) : roundMoney(0);
-      return { ...l, lineTotal, lineTax };
-    });
-    subtotal = roundMoney(sum(computedLines.map((l) => l.lineTotal)));
-    taxTotal = roundMoney(sum(computedLines.map((l) => l.lineTax)));
-    total = roundMoney(subtotal.plus(taxTotal));
-    lineData = computedLines.map((l) => ({ description: l.description, quantity: l.quantity, unitPrice: l.unitPrice, taxCodeId: l.taxCodeId, lineTotal: l.lineTotal }));
+    const computedLines = await computeTaxedLines(prisma, params.companyId, params.lines);
+    subtotal = computedLines.subtotal;
+    taxTotal = computedLines.taxTotal;
+    total = computedLines.total;
+    lineData = computedLines.lines.map((l) => ({ description: l.line.description, quantity: l.line.quantity, unitPrice: l.line.unitPrice, taxCodeId: l.line.taxCodeId, lineTotal: l.lineTotal }));
   }
 
   const bill = await prisma.$transaction(async (tx) => {

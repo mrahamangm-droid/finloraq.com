@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Plus, Trash2 } from "lucide-react";
 import type { FieldDef } from "@/lib/customization/customFields";
 import { CustomFieldInputs } from "@/components/custom-fields/custom-field-inputs";
+import { MathInput } from "@/components/forms/math-input";
 
 type Line = { description: string; quantity: string; unitPrice: string; taxCodeId: string };
 const emptyLine = (): Line => ({ description: "", quantity: "1", unitPrice: "", taxCodeId: "" });
@@ -145,10 +146,10 @@ export function NewInvoiceForm({
                     <input value={line.description} onChange={(e) => updateLine(i, { description: e.target.value })} className="w-full rounded border border-border bg-background px-2 py-1 text-xs" />
                   </td>
                   <td className="px-3 py-1.5">
-                    <input type="number" step="1" value={line.quantity} onChange={(e) => updateLine(i, { quantity: e.target.value })} className="w-full rounded border border-border bg-background px-2 py-1 text-right text-xs" />
+                    <MathInput value={line.quantity} onChange={(v) => updateLine(i, { quantity: v })} className="w-full rounded border border-border bg-background px-2 py-1 text-right text-xs" />
                   </td>
                   <td className="px-3 py-1.5">
-                    <input type="number" step="0.01" value={line.unitPrice} onChange={(e) => updateLine(i, { unitPrice: e.target.value })} className="w-full rounded border border-border bg-background px-2 py-1 text-right text-xs" />
+                    <MathInput decimals={2} value={line.unitPrice} onChange={(v) => updateLine(i, { unitPrice: v })} className="w-full rounded border border-border bg-background px-2 py-1 text-right text-xs" />
                   </td>
                   <td className="px-3 py-1.5">
                     <select value={line.taxCodeId} onChange={(e) => updateLine(i, { taxCodeId: e.target.value })} className="w-full rounded border border-border bg-background px-2 py-1 text-xs">

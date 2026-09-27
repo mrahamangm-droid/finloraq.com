@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { MathInput } from "@/components/forms/math-input";
 
 type Txn = { id: string; date: string; description: string; amount: number; status: string };
 
@@ -115,7 +116,7 @@ export function BankTransactionPanel({ bankAccountId, transactions, canEdit = tr
       <form onSubmit={addTransaction} className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5 rounded-lg border border-border bg-card p-4">
         <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="rounded-md border border-border bg-background px-3 py-2 text-sm" />
         <input required placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)} className="sm:col-span-2 rounded-md border border-border bg-background px-3 py-2 text-sm" />
-        <input required type="number" step="0.01" placeholder="Amount (+ in / − out)" value={amount} onChange={(e) => setAmount(e.target.value)} className="rounded-md border border-border bg-background px-3 py-2 text-sm" />
+        <MathInput required decimals={2} placeholder="Amount (+ in / − out)" value={amount} onChange={setAmount} className="rounded-md border border-border bg-background px-3 py-2 text-sm" />
         <button type="submit" disabled={loading === "add"} className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
           Add
         </button>
@@ -145,7 +146,7 @@ export function BankTransactionPanel({ bankAccountId, transactions, canEdit = tr
                       <div className="grid grid-cols-1 gap-2 sm:grid-cols-4">
                         <input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} className="rounded border border-border bg-background px-2 py-1 text-sm" />
                         <input value={editDescription} onChange={(e) => setEditDescription(e.target.value)} placeholder="Description" className="rounded border border-border bg-background px-2 py-1 text-sm" />
-                        <input type="number" step="0.01" value={editAmount} onChange={(e) => setEditAmount(e.target.value)} placeholder="Amount" className="rounded border border-border bg-background px-2 py-1 text-sm" />
+                        <MathInput decimals={2} value={editAmount} onChange={setEditAmount} placeholder="Amount" className="rounded border border-border bg-background px-2 py-1 text-sm" />
                         <div className="flex items-center gap-3">
                           <button onClick={() => saveEdit(t.id)} disabled={loading === t.id} className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50">Save</button>
                           <button onClick={() => setEditingId(null)} className="text-xs font-medium text-muted-foreground hover:underline">Cancel</button>

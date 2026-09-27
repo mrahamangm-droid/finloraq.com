@@ -3,12 +3,23 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Trash2, Plus } from "lucide-react";
+import { MathInput } from "@/components/forms/math-input";
 
-type Line = { accountCode: string; debit: string; credit: string; description: string; costCentreId: string };
+type Line = { accountCode: string; debit: string; credit: string; description: string; costCentreId: string; projectId: string };
 
-const emptyLine = (): Line => ({ accountCode: "", debit: "", credit: "", description: "", costCentreId: "" });
+const emptyLine = (): Line => ({ accountCode: "", debit: "", credit: "", description: "", costCentreId: "", projectId: "" });
 
-export function NewJournalEntryForm({ costCentres }: { costCentres: { id: string; name: string; code: string }[] }) {
+export function NewJournalEntryForm({
+  costCentres,
+  projects = [],
+}: {
+  costCentres: { id: string; name: string; code: string }[];
+  /** Tagging a line to a project here is how a direct, manually-posted
+   *  expense/cost gets counted in that project's profitability — see
+   *  projectProfitability() in src/lib/projects.ts, which sums these
+   *  lines alongside the project's linked invoices/bills. */
+  projects?: { id: string; name: string; code: string }[];
+}) {
   const router = useRouter();
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [memo, setMemo] = useState("");
@@ -45,6 +56,7 @@ export function NewJournalEntryForm({ costCentres }: { costCentres: { id: string
             credit: l.credit ? parseFloat(l.credit) : undefined,
             description: l.description || undefined,
             costCentreId: l.costCentreId || undefined,
+            projectId: l.projectId || undefined,
           })),
       }),
     });
@@ -92,6 +104,7 @@ export function NewJournalEntryForm({ costCentres }: { costCentres: { id: string
                 <th className="px-3 py-2">Account code</th>
                 <th className="px-3 py-2">Description</th>
                 <th className="px-3 py-2">Cost centre</th>
+                {projects.length > 0 && <th className="px-3 py-2">Project</th>}
                 <th className="w-28 px-3 py-2 text-right">Debit</th>
                 <th className="w-28 px-3 py-2 text-right">Credit</th>
                 <th className="w-10" />
@@ -125,21 +138,31 @@ export function NewJournalEntryForm({ costCentres }: { costCentres: { id: string
                       {costCentres.map((cc) => <option key={cc.id} value={cc.id}>{cc.code}</option>)}
                     </select>
                   </td>
+                  {projects.length > 0 && (
+                    <td className="px-3 py-1.5">
+                      <select
+                        value={line.projectId}
+                        onChange={(e) => updateLine(i, { projectId: e.target.value })}
+                        className="w-full rounded border border-border bg-background px-2 py-1 text-xs"
+                      >
+                        <option value="">—</option>
+                        {projects.map((p) => <option key={p.id} value={p.id}>{p.code}</option>)}
+                      </select>
+                    </td>
+                  )}
                   <td className="px-3 py-1.5">
-                    <input
-                      type="number"
-                      step="0.01"
+                    <MathInput
+                      decimals={2}
                       value={line.debit}
-                      onChange={(e) => updateLine(i, { debit: e.target.value, credit: "" })}
+                      onChange={(v) => updateLine(i, { debit: v, credit: "" })}
                       className="w-full rounded border border-border bg-background px-2 py-1 text-right text-xs"
                     />
                   </td>
                   <td className="px-3 py-1.5">
-                    <input
-                      type="number"
-                      step="0.01"
+                    <MathInput
+                      decimals={2}
                       value={line.credit}
-                      onChange={(e) => updateLine(i, { credit: e.target.value, debit: "" })}
+                      onChange={(v) => updateLine(i, { credit: v, debit: "" })}
                       className="w-full rounded border border-border bg-background px-2 py-1 text-right text-xs"
                     />
                   </td>

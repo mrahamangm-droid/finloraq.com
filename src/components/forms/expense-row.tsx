@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ExpenseRowActions } from "@/components/forms/expense-row-actions";
+import { MathInput } from "@/components/forms/math-input";
 
 export type ExpenseRowData = {
   id: string;
@@ -77,8 +78,8 @@ export function ExpenseRow({
         </td>
         <td className="px-4 py-2 text-right">
           <div className="flex items-center justify-end gap-1">
-            <input type="number" step="0.01" value={form.amount} onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))} className="w-24 rounded border border-border bg-background px-2 py-1 text-right text-xs" />
-            <input type="number" step="0.01" placeholder="Tax" value={form.taxAmount} onChange={(e) => setForm((f) => ({ ...f, taxAmount: e.target.value }))} className="w-20 rounded border border-border bg-background px-2 py-1 text-right text-xs" />
+            <MathInput decimals={2} value={form.amount} onChange={(v) => setForm((f) => ({ ...f, amount: v }))} className="w-24 rounded border border-border bg-background px-2 py-1 text-right text-xs" />
+            <MathInput decimals={2} placeholder="Tax" value={form.taxAmount} onChange={(v) => setForm((f) => ({ ...f, taxAmount: v }))} className="w-20 rounded border border-border bg-background px-2 py-1 text-right text-xs" />
           </div>
         </td>
         <td className="px-4 py-2" colSpan={2}>

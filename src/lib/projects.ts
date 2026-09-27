@@ -105,28 +105,44 @@ export async function updateProject(params: {
  * Revenue = posted (SENT/PARTIALLY_PAID/PAID/OVERDUE) invoices linked to
  * this project, at their subtotal (pre-tax — tax isn't the company's
  * revenue). Cost = posted (APPROVED/PARTIALLY_PAID/PAID/OVERDUE) bills
- * linked to this project, at their subtotal. Both read the source
- * documents directly rather than re-deriving from journal lines, since
- * projectId lives on Invoice/Bill, not on JournalLine in this schema —
- * documented as a known limitation below (direct expenses coded to a
- * project via a JournalLine.projectId aren't counted here yet).
+ * linked to this project, at their subtotal, PLUS any direct cost posted
+ * straight to the ledger with this project tagged on the line
+ * (JournalLine.projectId — the manual journal entry form lets a line be
+ * coded to a project; see new-journal-entry-form.tsx). That direct-cost
+ * figure is read from POSTED lines against EXPENSE-type accounts only,
+ * net of debit minus credit (so a correcting/reversing line on the same
+ * account nets out rather than double-counting) — invoice/bill postings
+ * never set JournalLine.projectId themselves (nothing in
+ * buildInvoicePosting/buildBillPosting does), so there's no risk of
+ * double-counting a bill's cost that's already captured via the `bills`
+ * query above.
  */
 export type ProjectProfitability = Awaited<ReturnType<typeof projectProfitability>>;
 
 export async function projectProfitability(companyId: string, projectId: string) {
   const project = await prisma.project.findFirstOrThrow({ where: { id: projectId, companyId } });
 
-  const [invoices, bills] = await Promise.all([
+  const [invoices, bills, directCostLines] = await Promise.all([
     prisma.invoice.findMany({
       where: { companyId, projectId, status: { in: ["SENT", "PARTIALLY_PAID", "PAID", "OVERDUE"] } },
     }),
     prisma.bill.findMany({
       where: { companyId, projectId, status: { in: ["APPROVED", "PARTIALLY_PAID", "PAID", "OVERDUE"] } },
     }),
+    prisma.journalLine.findMany({
+      where: {
+        projectId,
+        account: { companyId, type: "EXPENSE" },
+        journalEntry: { companyId, status: "POSTED" },
+      },
+      select: { debit: true, credit: true },
+    }),
   ]);
 
   const revenue = sum(invoices.map((i) => i.subtotal)).toNumber();
-  const cost = sum(bills.map((b) => b.subtotal)).toNumber();
+  const billCost = sum(bills.map((b) => b.subtotal)).toNumber();
+  const directCost = sum(directCostLines.map((l) => l.debit)).minus(sum(directCostLines.map((l) => l.credit))).toNumber();
+  const cost = billCost + directCost;
   const margin = revenue - cost;
   const budget = project.budget?.toNumber() ?? null;
 
@@ -134,6 +150,7 @@ export async function projectProfitability(companyId: string, projectId: string)
     project,
     revenue,
     cost,
+    directCost,
     margin,
     marginPct: revenue > 0 ? (margin / revenue) * 100 : 0,
     budget,

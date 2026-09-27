@@ -10,6 +10,11 @@ const lineSchema = z.object({
   credit: z.number().min(0).optional(),
   description: z.string().optional(),
   costCentreId: z.string().optional(),
+  // Tags this line to a Project (ledger.ts already persists and reverses
+  // this field; projectProfitability() in src/lib/projects.ts reads it
+  // back to count direct expenses coded to a project, alongside the
+  // project's own invoices/bills).
+  projectId: z.string().optional(),
 });
 
 const createSchema = z.object({

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { MathInput } from "@/components/forms/math-input";
 
 export function BillActions({
   billId,
@@ -95,7 +96,7 @@ export function BillActions({
         <div className="flex items-end gap-2">
           <div>
             <label className="mb-1 block text-xs font-medium text-card-foreground">Payment amount</label>
-            <input type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-32 rounded-md border border-border bg-background px-3 py-2 text-sm" />
+            <MathInput decimals={2} value={amount} onChange={setAmount} className="w-32 rounded-md border border-border bg-background px-3 py-2 text-sm" />
           </div>
           <button onClick={recordPayment} disabled={loading} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
             {loading ? "Recording…" : "Record Payment"}

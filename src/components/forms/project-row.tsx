@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { ProjectProfitability } from "@/lib/projects";
+import { MathInput } from "@/components/forms/math-input";
 
 const input = "w-full rounded-md border border-border bg-background px-2 py-1 text-sm";
 
@@ -17,13 +18,17 @@ const input = "w-full rounded-md border border-border bg-background px-2 py-1 te
 export function ProjectRow({
   p,
   customers,
-  money,
+  revenueDisplay,
+  costDisplay,
+  marginDisplay,
   canEdit,
   canDelete,
 }: {
   p: ProjectProfitability;
   customers: { id: string; name: string }[];
-  money: (n: number) => string;
+  revenueDisplay: string;
+  costDisplay: string;
+  marginDisplay: string;
   canEdit: boolean;
   canDelete: boolean;
 }) {
@@ -92,7 +97,7 @@ export function ProjectRow({
               <option value="">No customer</option>
               {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
-            <input type="number" step="0.01" placeholder="Budget (optional)" value={budget} onChange={(e) => setBudget(e.target.value)} className={input} />
+            <MathInput decimals={2} placeholder="Budget (optional)" value={budget} onChange={setBudget} className={input} />
             <div className="flex items-center gap-3 lg:col-span-4">
               <button type="submit" disabled={loading} className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50">
                 Save
@@ -114,9 +119,9 @@ export function ProjectRow({
         <Link href={`/projects/${p.project.id}`} className="text-primary">{p.project.name}</Link>
         <span className="ml-1 font-mono text-xs text-muted-foreground">{p.project.code}</span>
       </td>
-      <td className="px-4 py-2 text-right text-card-foreground">{money(p.revenue)}</td>
-      <td className="px-4 py-2 text-right text-card-foreground">{money(p.cost)}</td>
-      <td className={`px-4 py-2 text-right font-medium ${p.margin < 0 ? "text-destructive" : "text-success"}`}>{money(p.margin)}</td>
+      <td className="px-4 py-2 text-right text-card-foreground">{revenueDisplay}</td>
+      <td className="px-4 py-2 text-right text-card-foreground">{costDisplay}</td>
+      <td className={`px-4 py-2 text-right font-medium ${p.margin < 0 ? "text-destructive" : "text-success"}`}>{marginDisplay}</td>
       <td className="px-4 py-2 text-right text-muted-foreground">{p.budget !== null ? p.budget.toFixed(2) : "—"}</td>
       <td className="px-4 py-2 text-right text-muted-foreground">{p.budgetVariance !== null ? p.budgetVariance.toFixed(2) : "—"}</td>
       {(canDelete || canEdit) && (
