@@ -21,7 +21,7 @@ const schema = z.object({
       taxCodeId: z.string().optional(),
     })
   ).min(1),
-  customFields: z.record(z.union([z.string(), z.number(), z.boolean(), z.null()])).optional(),
+  customFields: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])).optional(),
 });
 
 export async function GET() {
