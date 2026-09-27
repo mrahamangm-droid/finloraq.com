@@ -5,6 +5,8 @@ import { hashPassword, isPasswordStrong } from "@/lib/password";
 import { recordAuditEvent } from "@/lib/audit";
 import { findUserByEmail, normalizeEmail } from "@/lib/userLookup";
 import { checkRateLimit, clientIpFromHeaders } from "@/lib/rateLimit";
+import { sendVerificationEmail, verificationRequiredFor } from "@/lib/emailVerification";
+import { isEmailConfigured } from "@/lib/email";
 
 const schema = z.object({
   name: z.string().trim().min(1).max(200),
@@ -65,5 +67,15 @@ export async function POST(req: Request) {
     entityId: user.id,
   });
 
-  return NextResponse.json({ ok: true });
+  // Confirmation email. A send failure must not fail the signup itself —
+  // the user can request another link from the sign-in page.
+  if (isEmailConfigured() || process.env.REQUIRE_EMAIL_VERIFICATION === "true") {
+    try {
+      await sendVerificationEmail(email);
+    } catch (err) {
+      console.error("[register] verification email failed", err);
+    }
+  }
+
+  return NextResponse.json({ ok: true, verifyEmail: verificationRequiredFor(user) });
 }
