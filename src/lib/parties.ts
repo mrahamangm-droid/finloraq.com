@@ -80,6 +80,61 @@ export async function updateCustomerFromReview(params: {
   return customer;
 }
 
+/** Thrown for a bad edit (e.g. clearing a required field) — distinct from
+ *  ForbiddenError (permission) and PartyInUseError (delete blocked by
+ *  history) so callers can surface a clean inline message for each. */
+export class PartyValidationError extends Error {}
+
+/**
+ * Full edit of a customer's own record, from the Customers page — distinct
+ * from updateCustomerFromReview() above, which only ever fills in fields a
+ * human confirmed from an extracted document. Any field left `undefined`
+ * is left untouched; pass an empty string explicitly to clear one.
+ */
+export async function updateCustomer(params: {
+  companyId: string;
+  membershipId: string;
+  userId: string;
+  customerId: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+  taxRegNumber?: string;
+  paymentTermsDays?: number;
+}) {
+  await requirePermission(params.membershipId, "customers", "EDIT");
+
+  const before = await prisma.customer.findFirst({ where: { id: params.customerId, companyId: params.companyId } });
+  if (!before) throw new Error("Customer not found.");
+
+  if (params.name !== undefined && params.name.trim() === "") {
+    throw new PartyValidationError("Customer name can't be empty.");
+  }
+
+  const customer = await prisma.customer.update({
+    where: { id: params.customerId },
+    data: {
+      name: params.name !== undefined ? params.name.trim() : undefined,
+      email: params.email !== undefined ? params.email : undefined,
+      phone: params.phone !== undefined ? params.phone : undefined,
+      taxRegNumber: params.taxRegNumber !== undefined ? params.taxRegNumber : undefined,
+      paymentTermsDays: params.paymentTermsDays !== undefined ? params.paymentTermsDays : undefined,
+    },
+  });
+
+  await recordAuditEvent({
+    companyId: params.companyId,
+    userId: params.userId,
+    action: "customer.updated",
+    entityType: "Customer",
+    entityId: customer.id,
+    previousValue: { name: before.name, email: before.email, phone: before.phone, taxRegNumber: before.taxRegNumber, paymentTermsDays: before.paymentTermsDays },
+    newValue: { name: customer.name, email: customer.email, phone: customer.phone, taxRegNumber: customer.taxRegNumber, paymentTermsDays: customer.paymentTermsDays },
+  });
+
+  return customer;
+}
+
 /** Thrown when a delete is refused because the record has history attached to it. */
 export class PartyInUseError extends Error {}
 
@@ -149,6 +204,55 @@ export async function setCustomerActive(params: {
   });
 
   return updated;
+}
+
+/**
+ * Full edit of a supplier's own record, from the Suppliers page. Mirrors
+ * updateCustomer() above. Any field left `undefined` is left untouched;
+ * pass an empty string explicitly to clear one.
+ */
+export async function updateSupplier(params: {
+  companyId: string;
+  membershipId: string;
+  userId: string;
+  supplierId: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+  taxRegNumber?: string;
+  paymentTermsDays?: number;
+}) {
+  await requirePermission(params.membershipId, "suppliers", "EDIT");
+
+  const before = await prisma.supplier.findFirst({ where: { id: params.supplierId, companyId: params.companyId } });
+  if (!before) throw new Error("Supplier not found.");
+
+  if (params.name !== undefined && params.name.trim() === "") {
+    throw new PartyValidationError("Supplier name can't be empty.");
+  }
+
+  const supplier = await prisma.supplier.update({
+    where: { id: params.supplierId },
+    data: {
+      name: params.name !== undefined ? params.name.trim() : undefined,
+      email: params.email !== undefined ? params.email : undefined,
+      phone: params.phone !== undefined ? params.phone : undefined,
+      taxRegNumber: params.taxRegNumber !== undefined ? params.taxRegNumber : undefined,
+      paymentTermsDays: params.paymentTermsDays !== undefined ? params.paymentTermsDays : undefined,
+    },
+  });
+
+  await recordAuditEvent({
+    companyId: params.companyId,
+    userId: params.userId,
+    action: "supplier.updated",
+    entityType: "Supplier",
+    entityId: supplier.id,
+    previousValue: { name: before.name, email: before.email, phone: before.phone, taxRegNumber: before.taxRegNumber, paymentTermsDays: before.paymentTermsDays },
+    newValue: { name: supplier.name, email: supplier.email, phone: supplier.phone, taxRegNumber: supplier.taxRegNumber, paymentTermsDays: supplier.paymentTermsDays },
+  });
+
+  return supplier;
 }
 
 export async function createSupplier(params: {

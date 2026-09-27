@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 
 type Txn = { id: string; date: string; description: string; amount: number; status: string };
 
-export function BankTransactionPanel({ bankAccountId, transactions }: { bankAccountId: string; transactions: Txn[] }) {
+export function BankTransactionPanel({ bankAccountId, transactions, canEdit = true, canDelete = true }: { bankAccountId: string; transactions: Txn[]; canEdit?: boolean; canDelete?: boolean }) {
   const router = useRouter();
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [description, setDescription] = useState("");
@@ -13,6 +13,10 @@ export function BankTransactionPanel({ bankAccountId, transactions }: { bankAcco
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<string | null>(null);
   const [entryNumbers, setEntryNumbers] = useState<Record<string, string>>({});
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDate, setEditDate] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editAmount, setEditAmount] = useState("");
 
   async function addTransaction(e: React.FormEvent) {
     e.preventDefault();
@@ -42,6 +46,46 @@ export function BankTransactionPanel({ bankAccountId, transactions }: { bankAcco
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ entryNumber: entryNumbers[txnId] ?? "" }),
     });
+    setLoading(null);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setError(data.error ?? "Something went wrong.");
+      return;
+    }
+    router.refresh();
+  }
+
+  function startEdit(t: Txn) {
+    setEditingId(t.id);
+    setEditDate(t.date);
+    setEditDescription(t.description);
+    setEditAmount(String(t.amount));
+    setError(null);
+  }
+
+  async function saveEdit(txnId: string) {
+    setLoading(txnId);
+    setError(null);
+    const res = await fetch(`/api/bank-transactions/${txnId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date: editDate, description: editDescription, amount: parseFloat(editAmount) }),
+    });
+    setLoading(null);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setError(data.error ?? "Something went wrong.");
+      return;
+    }
+    setEditingId(null);
+    router.refresh();
+  }
+
+  async function remove(txnId: string) {
+    if (!window.confirm("Delete this transaction? This can't be undone.")) return;
+    setLoading(txnId);
+    setError(null);
+    const res = await fetch(`/api/bank-transactions/${txnId}`, { method: "DELETE" });
     setLoading(null);
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
@@ -87,39 +131,68 @@ export function BankTransactionPanel({ bankAccountId, transactions }: { bankAcco
                 <th className="px-4 py-2 text-right">Amount</th>
                 <th className="px-4 py-2">Status</th>
                 <th className="px-4 py-2">Match to journal entry #</th>
+                {(canEdit || canDelete) && <th className="px-4 py-2"></th>}
               </tr>
             </thead>
             <tbody>
               {transactions.length === 0 && (
-                <tr><td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">No transactions yet.</td></tr>
+                <tr><td colSpan={5 + (canEdit || canDelete ? 1 : 0)} className="px-4 py-8 text-center text-muted-foreground">No transactions yet.</td></tr>
               )}
-              {transactions.map((t) => (
-                <tr key={t.id} className="border-b border-border last:border-0">
-                  <td className="px-4 py-2 text-muted-foreground">{t.date}</td>
-                  <td className="px-4 py-2 text-card-foreground">{t.description}</td>
-                  <td className={`px-4 py-2 text-right ${t.amount < 0 ? "text-destructive" : "text-success"}`}>{t.amount.toFixed(2)}</td>
-                  <td className="px-4 py-2">
-                    <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">{t.status}</span>
-                  </td>
-                  <td className="px-4 py-2">
-                    {t.status === "UNMATCHED" ? (
-                      <div className="flex gap-2">
-                        <input
-                          placeholder="JE-000123"
-                          value={entryNumbers[t.id] ?? ""}
-                          onChange={(e) => setEntryNumbers((prev) => ({ ...prev, [t.id]: e.target.value }))}
-                          className="w-28 rounded border border-border bg-background px-2 py-1 font-mono text-xs"
-                        />
-                        <button onClick={() => match(t.id)} disabled={loading === t.id} className="rounded-md border border-border px-2 py-1 text-xs font-medium text-foreground hover:bg-muted disabled:opacity-50">
-                          Match
-                        </button>
+              {transactions.map((t) =>
+                editingId === t.id ? (
+                  <tr key={t.id} className="border-b border-border bg-muted/20 last:border-0">
+                    <td colSpan={5 + (canEdit || canDelete ? 1 : 0)} className="px-4 py-3">
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-4">
+                        <input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} className="rounded border border-border bg-background px-2 py-1 text-sm" />
+                        <input value={editDescription} onChange={(e) => setEditDescription(e.target.value)} placeholder="Description" className="rounded border border-border bg-background px-2 py-1 text-sm" />
+                        <input type="number" step="0.01" value={editAmount} onChange={(e) => setEditAmount(e.target.value)} placeholder="Amount" className="rounded border border-border bg-background px-2 py-1 text-sm" />
+                        <div className="flex items-center gap-3">
+                          <button onClick={() => saveEdit(t.id)} disabled={loading === t.id} className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50">Save</button>
+                          <button onClick={() => setEditingId(null)} className="text-xs font-medium text-muted-foreground hover:underline">Cancel</button>
+                        </div>
                       </div>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
+                    </td>
+                  </tr>
+                ) : (
+                  <tr key={t.id} className="border-b border-border last:border-0">
+                    <td className="px-4 py-2 text-muted-foreground">{t.date}</td>
+                    <td className="px-4 py-2 text-card-foreground">{t.description}</td>
+                    <td className={`px-4 py-2 text-right ${t.amount < 0 ? "text-destructive" : "text-success"}`}>{t.amount.toFixed(2)}</td>
+                    <td className="px-4 py-2">
+                      <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">{t.status}</span>
+                    </td>
+                    <td className="px-4 py-2">
+                      {t.status === "UNMATCHED" ? (
+                        <div className="flex gap-2">
+                          <input
+                            placeholder="JE-000123"
+                            value={entryNumbers[t.id] ?? ""}
+                            onChange={(e) => setEntryNumbers((prev) => ({ ...prev, [t.id]: e.target.value }))}
+                            className="w-28 rounded border border-border bg-background px-2 py-1 font-mono text-xs"
+                          />
+                          <button onClick={() => match(t.id)} disabled={loading === t.id} className="rounded-md border border-border px-2 py-1 text-xs font-medium text-foreground hover:bg-muted disabled:opacity-50">
+                            Match
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </td>
+                    {(canEdit || canDelete) && (
+                      <td className="px-4 py-2">
+                        {t.status === "UNMATCHED" ? (
+                          <div className="flex items-center justify-end gap-3">
+                            {canEdit && <button onClick={() => startEdit(t)} className="text-xs font-medium text-foreground hover:underline">Edit</button>}
+                            {canDelete && <button onClick={() => remove(t.id)} disabled={loading === t.id} className="text-xs font-medium text-destructive hover:underline disabled:opacity-50">Delete</button>}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </td>
                     )}
-                  </td>
-                </tr>
-              ))}
+                  </tr>
+                )
+              )}
             </tbody>
           </table>
         </div>

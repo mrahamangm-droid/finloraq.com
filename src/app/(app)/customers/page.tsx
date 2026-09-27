@@ -2,23 +2,23 @@ import { requireTenantContext } from "@/lib/tenant";
 import { prisma } from "@/lib/db";
 import { can } from "@/lib/rbac";
 import { fieldDefs } from "@/lib/customization/server";
-import { displayFieldValue } from "@/lib/customization/customFields";
-import { CustomFieldInputs, fieldValues } from "@/components/custom-fields/custom-field-inputs";
+import { CustomFieldInputs } from "@/components/custom-fields/custom-field-inputs";
 import { createCustomerAction } from "./actions";
 import { FileIntelligencePanel, type QueueDocument } from "@/components/customers/file-intelligence-panel";
-import { CustomerRowActions } from "@/components/customers/customer-row-actions";
+import { CustomerRow } from "@/components/customers/customer-row";
 
 export default async function CustomersPage({ searchParams }: { searchParams: { archived?: string } }) {
   const { active } = await requireTenantContext();
   const showArchived = searchParams.archived === "1";
 
-  const [customers, defs, canDelete, archivedCount] = await Promise.all([
+  const [customers, defs, canDelete, canEdit, archivedCount] = await Promise.all([
     prisma.customer.findMany({
       where: { companyId: active.companyId, isActive: !showArchived },
       orderBy: { createdAt: "desc" },
     }),
     fieldDefs(active.companyId, "CUSTOMER"),
     can(active.id, "customers", "DELETE"),
+    can(active.id, "customers", "EDIT"),
     prisma.customer.count({ where: { companyId: active.companyId, isActive: false } }),
   ]);
 
@@ -76,30 +76,19 @@ export default async function CustomersPage({ searchParams }: { searchParams: { 
                 <th className="px-4 py-2">Phone</th>
                 <th className="px-4 py-2">Terms</th>
                 {defs.map((d) => <th key={d.key} className="px-4 py-2">{d.label}</th>)}
-                {canDelete && <th className="px-4 py-2"></th>}
+                {(canDelete || canEdit) && <th className="px-4 py-2"></th>}
               </tr>
             </thead>
             <tbody>
               {customers.length === 0 && (
                 <tr>
-                  <td colSpan={4 + defs.length + (canDelete ? 1 : 0)} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={4 + defs.length + (canDelete || canEdit ? 1 : 0)} className="px-4 py-8 text-center text-muted-foreground">
                     {showArchived ? "No archived customers." : "No customers yet."}
                   </td>
                 </tr>
               )}
               {customers.map((c) => (
-                <tr key={c.id} className="border-b border-border last:border-0">
-                  <td className="px-4 py-2 text-card-foreground">{c.name}</td>
-                  <td className="px-4 py-2 text-muted-foreground">{c.email ?? "—"}</td>
-                  <td className="px-4 py-2 text-muted-foreground">{c.phone ?? "—"}</td>
-                  <td className="px-4 py-2 text-muted-foreground">{c.paymentTermsDays} days</td>
-                  {defs.map((d) => <td key={d.key} className="px-4 py-2 text-muted-foreground">{displayFieldValue(fieldValues(c.customFields)[d.key])}</td>)}
-                  {canDelete && (
-                    <td className="px-4 py-2">
-                      <CustomerRowActions customerId={c.id} name={c.name} isActive={c.isActive} />
-                    </td>
-                  )}
-                </tr>
+                <CustomerRow key={c.id} customer={c} defs={defs} canEdit={canEdit} canDelete={canDelete} />
               ))}
             </tbody>
           </table>

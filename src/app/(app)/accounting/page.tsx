@@ -1,14 +1,30 @@
 import Link from "next/link";
 import { requireTenantContext } from "@/lib/tenant";
 import { prisma } from "@/lib/db";
+import { can } from "@/lib/rbac";
+import { NewAccountForm } from "@/components/forms/new-account-form";
+import { AccountRow } from "@/components/forms/account-row";
 
 export default async function ChartOfAccountsPage() {
   const { active } = await requireTenantContext();
 
-  const accounts = await prisma.account.findMany({
-    where: { companyId: active.companyId },
-    orderBy: { code: "asc" },
+  const [accounts, canCreate, canEdit, canDelete] = await Promise.all([
+    prisma.account.findMany({
+      where: { companyId: active.companyId },
+      orderBy: { code: "asc" },
+    }),
+    can(active.id, "accounting", "CREATE"),
+    can(active.id, "accounting", "EDIT"),
+    can(active.id, "accounting", "DELETE"),
+  ]);
+
+  // Which accounts already have posted/draft journal lines against them —
+  // those lock their code/type in the edit row (see updateAccount()).
+  const used = await prisma.journalLine.groupBy({
+    by: ["accountId"],
+    where: { accountId: { in: accounts.map((a) => a.id) } },
   });
+  const lockedIds = new Set(used.map((u) => u.accountId));
 
   const grouped = ["ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"] as const;
 
@@ -47,6 +63,8 @@ export default async function ChartOfAccountsPage() {
         </div>
       </div>
 
+      {canCreate && <NewAccountForm />}
+
       {grouped.map((type) => {
         const rows = accounts.filter((a) => a.type === type);
         if (rows.length === 0) return null;
@@ -59,13 +77,7 @@ export default async function ChartOfAccountsPage() {
               <table className="w-full text-sm">
                 <tbody>
                   {rows.map((a) => (
-                    <tr key={a.id} className="border-b border-border last:border-0">
-                      <td className="w-24 px-4 py-2 text-muted-foreground">{a.code}</td>
-                      <td className="px-4 py-2 text-card-foreground">{a.name}</td>
-                      <td className="px-4 py-2 text-right text-xs text-muted-foreground">
-                        {a.isSystem ? "System" : ""}
-                      </td>
-                    </tr>
+                    <AccountRow key={a.id} account={a} canEdit={canEdit} canDelete={canDelete} locked={lockedIds.has(a.id)} />
                   ))}
                 </tbody>
               </table>

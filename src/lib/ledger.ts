@@ -131,7 +131,7 @@ async function nextEntryNumber(tx: Prisma.TransactionClient, companyId: string):
   return `JE-${String(lastN + 1).padStart(6, "0")}`;
 }
 
-async function findOpenPeriod(tx: Prisma.TransactionClient, companyId: string, date: Date) {
+export async function findOpenPeriod(tx: Prisma.TransactionClient, companyId: string, date: Date) {
   const period = await tx.accountingPeriod.findFirst({
     where: { companyId, startDate: { lte: date }, endDate: { gte: date } },
   });

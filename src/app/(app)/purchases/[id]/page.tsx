@@ -2,11 +2,16 @@ import { notFound } from "next/navigation";
 import { requireTenantContext } from "@/lib/tenant";
 import { getFormatter } from "@/lib/customization/server";
 import { prisma } from "@/lib/db";
+import { can } from "@/lib/rbac";
 import { BillActions } from "@/components/forms/bill-actions";
 
 export default async function BillDetailPage({ params }: { params: { id: string } }) {
   const { active, userId } = await requireTenantContext();
-  const fmt = await getFormatter(userId);
+  const [fmt, canEdit, canDelete] = await Promise.all([
+    getFormatter(userId),
+    can(active.id, "bills", "EDIT"),
+    can(active.id, "bills", "DELETE"),
+  ]);
 
   const bill = await prisma.bill.findFirst({
     where: { id: params.id, companyId: active.companyId },
@@ -66,7 +71,7 @@ export default async function BillDetailPage({ params }: { params: { id: string 
         </div>
       </div>
 
-      <BillActions billId={bill.id} status={bill.status} balanceDue={balanceDue} />
+      <BillActions billId={bill.id} status={bill.status} balanceDue={balanceDue} canEdit={canEdit} canDelete={canDelete} />
     </div>
   );
 }

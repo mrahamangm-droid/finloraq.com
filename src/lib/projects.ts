@@ -37,6 +37,70 @@ export async function createProject(params: {
   return project;
 }
 
+/** Thrown for a bad edit, e.g. clearing the name or code. */
+export class ProjectValidationError extends Error {}
+
+/**
+ * Edits a project's own fields (name, code, linked customer, budget).
+ * Doesn't touch isActive (setProjectActive owns that) or history —
+ * invoices/bills already linked to this project keep pointing at the same
+ * row, so renaming or rebudgeting a project never disturbs past postings.
+ * Any field left `undefined` is left untouched.
+ */
+export async function updateProject(params: {
+  companyId: string;
+  membershipId: string;
+  userId: string;
+  projectId: string;
+  name?: string;
+  code?: string;
+  customerId?: string | null;
+  budget?: number | null;
+}) {
+  await requirePermission(params.membershipId, "projects", "EDIT");
+
+  const before = await prisma.project.findFirst({ where: { id: params.projectId, companyId: params.companyId } });
+  if (!before) throw new Error("Project not found.");
+
+  if (params.name !== undefined && params.name.trim() === "") {
+    throw new ProjectValidationError("Project name can't be empty.");
+  }
+  if (params.code !== undefined && params.code.trim() === "") {
+    throw new ProjectValidationError("Project code can't be empty.");
+  }
+
+  if (params.code !== undefined && params.code.trim() !== before.code) {
+    const clash = await prisma.project.findUnique({
+      where: { companyId_code: { companyId: params.companyId, code: params.code.trim() } },
+    });
+    if (clash && clash.id !== params.projectId) {
+      throw new ProjectValidationError(`Project code "${params.code.trim()}" is already in use.`);
+    }
+  }
+
+  const project = await prisma.project.update({
+    where: { id: params.projectId },
+    data: {
+      name: params.name !== undefined ? params.name.trim() : undefined,
+      code: params.code !== undefined ? params.code.trim() : undefined,
+      customerId: params.customerId !== undefined ? params.customerId : undefined,
+      budget: params.budget !== undefined ? params.budget : undefined,
+    },
+  });
+
+  await recordAuditEvent({
+    companyId: params.companyId,
+    userId: params.userId,
+    action: "project.updated",
+    entityType: "Project",
+    entityId: project.id,
+    previousValue: { name: before.name, code: before.code, customerId: before.customerId, budget: before.budget?.toString() ?? null },
+    newValue: { name: project.name, code: project.code, customerId: project.customerId, budget: project.budget?.toString() ?? null },
+  });
+
+  return project;
+}
+
 /**
  * Revenue = posted (SENT/PARTIALLY_PAID/PAID/OVERDUE) invoices linked to
  * this project, at their subtotal (pre-tax — tax isn't the company's
@@ -47,6 +111,8 @@ export async function createProject(params: {
  * documented as a known limitation below (direct expenses coded to a
  * project via a JournalLine.projectId aren't counted here yet).
  */
+export type ProjectProfitability = Awaited<ReturnType<typeof projectProfitability>>;
+
 export async function projectProfitability(companyId: string, projectId: string) {
   const project = await prisma.project.findFirstOrThrow({ where: { id: projectId, companyId } });
 

@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { requireTenantContext } from "@/lib/tenant";
 import { getFormatter } from "@/lib/customization/server";
 import { prisma } from "@/lib/db";
@@ -7,7 +6,7 @@ import { listProjectsWithProfitability, countArchivedProjects } from "@/lib/proj
 import { spendByCostCentre } from "@/lib/costCentres";
 import { NewProjectForm } from "@/components/forms/new-project-form";
 import { NewCostCentreForm } from "@/components/forms/new-cost-centre-form";
-import { ProjectRowActions } from "@/components/forms/project-row-actions";
+import { ProjectRow } from "@/components/forms/project-row";
 
 export default async function ProjectsPage({ searchParams = {} }: { searchParams?: { archived?: string } }) {
   const { active, userId } = await requireTenantContext();
@@ -16,12 +15,13 @@ export default async function ProjectsPage({ searchParams = {} }: { searchParams
   const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   const showArchived = searchParams.archived === "1";
 
-  const [customers, projects, costCentres, spend, canDelete, archivedCount] = await Promise.all([
+  const [customers, projects, costCentres, spend, canDelete, canEdit, archivedCount] = await Promise.all([
     prisma.customer.findMany({ where: { companyId: active.companyId }, orderBy: { name: "asc" } }),
     listProjectsWithProfitability(active.companyId, !showArchived),
     prisma.costCentre.findMany({ where: { companyId: active.companyId }, orderBy: { code: "asc" } }),
     spendByCostCentre(active.companyId, from, now),
     can(active.id, "projects", "DELETE"),
+    can(active.id, "projects", "EDIT"),
     countArchivedProjects(active.companyId),
   ]);
 
@@ -55,36 +55,26 @@ export default async function ProjectsPage({ searchParams = {} }: { searchParams
                 <th className="px-4 py-2 text-right">Margin</th>
                 <th className="px-4 py-2 text-right">Budget</th>
                 <th className="px-4 py-2 text-right">Budget variance</th>
-                {canDelete && <th className="px-4 py-2"></th>}
+                {(canDelete || canEdit) && <th className="px-4 py-2"></th>}
               </tr>
             </thead>
             <tbody>
               {projects.length === 0 && (
                 <tr>
-                  <td colSpan={6 + (canDelete ? 1 : 0)} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={6 + (canDelete || canEdit ? 1 : 0)} className="px-4 py-8 text-center text-muted-foreground">
                     {showArchived ? "No archived projects." : "No projects yet."}
                   </td>
                 </tr>
               )}
               {projects.map((p) => (
-                <tr key={p.project.id} className="border-b border-border last:border-0 hover:bg-muted/30">
-                  <td className="px-4 py-2">
-                    <Link href={`/projects/${p.project.id}`} className="text-primary">{p.project.name}</Link>
-                    <span className="ml-1 font-mono text-xs text-muted-foreground">{p.project.code}</span>
-                  </td>
-                  <td className="px-4 py-2 text-right text-card-foreground">{fmt.money(p.revenue)}</td>
-                  <td className="px-4 py-2 text-right text-card-foreground">{fmt.money(p.cost)}</td>
-                  <td className={`px-4 py-2 text-right font-medium ${p.margin < 0 ? "text-destructive" : "text-success"}`}>{fmt.money(p.margin)}</td>
-                  <td className="px-4 py-2 text-right text-muted-foreground">{p.budget !== null ? p.budget.toFixed(2) : "—"}</td>
-                  <td className="px-4 py-2 text-right text-muted-foreground">
-                    {p.budgetVariance !== null ? p.budgetVariance.toFixed(2) : "—"}
-                  </td>
-                  {canDelete && (
-                    <td className="px-4 py-2">
-                      <ProjectRowActions projectId={p.project.id} name={p.project.name} isActive={p.project.isActive} />
-                    </td>
-                  )}
-                </tr>
+                <ProjectRow
+                  key={p.project.id}
+                  p={p}
+                  customers={customers.map((c) => ({ id: c.id, name: c.name }))}
+                  money={fmt.money}
+                  canEdit={canEdit}
+                  canDelete={canDelete}
+                />
               ))}
             </tbody>
           </table>
