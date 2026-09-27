@@ -2,10 +2,6 @@
 const nextConfig = {
   reactStrictMode: true,
   experimental: {
-    // argon2 (native binary) was removed in favor of hash-wasm (WASM,
-    // no native build) — see src/lib/password.ts. @prisma/client stays
-    // external since it loads its query engine binary at runtime.
-    serverComponentsExternalPackages: ["@prisma/client"],
     // Next's default Server Action body limit is 1MB, too small for the
     // member-file uploads on Users & Roles (src/lib/memberFiles.ts caps
     // the actual file at 5MB) — raised to give multipart/other-field
@@ -13,14 +9,20 @@ const nextConfig = {
     serverActions: {
       bodySizeLimit: "8mb",
     },
-    // The one-off FY2023 admin route (src/app/api/admin/cleanup-fy2023-legacy)
-    // reads the committed source workbook via fs at request time; Next's
-    // automatic file tracing should already pick up the static
-    // path.join(process.cwd(), "data", ...) call, but this makes it explicit
-    // so the file is never silently dropped from the serverless bundle.
-    outputFileTracingIncludes: {
-      "/api/admin/cleanup-fy2023-legacy/route": ["./data/fy2023-source-workbook.xlsx"],
-    },
+  },
+  // argon2 (native binary) was removed in favor of hash-wasm (WASM,
+  // no native build) — see src/lib/password.ts. @prisma/client stays
+  // external since it loads its query engine binary at runtime.
+  // (Next 15 promoted this out of `experimental` as serverExternalPackages.)
+  serverExternalPackages: ["@prisma/client"],
+  // The one-off FY2023 admin route (src/app/api/admin/cleanup-fy2023-legacy)
+  // reads the committed source workbook via fs at request time; Next's
+  // automatic file tracing should already pick up the static
+  // path.join(process.cwd(), "data", ...) call, but this makes it explicit
+  // so the file is never silently dropped from the serverless bundle.
+  // (Top-level since Next 15; it was under `experimental` in 14.)
+  outputFileTracingIncludes: {
+    "/api/admin/cleanup-fy2023-legacy/route": ["./data/fy2023-source-workbook.xlsx"],
   },
   // One public address. Once CANONICAL_HOST is set in Vercel (e.g.
   // "finloraq.com", only after that domain is live), visits to the old

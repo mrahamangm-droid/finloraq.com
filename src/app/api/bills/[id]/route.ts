@@ -21,7 +21,8 @@ const patchSchema = z.object({
   ).min(1).optional(),
 });
 
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+export async function GET(_req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { active } = await requireTenantContext();
   const bill = await prisma.bill.findFirst({
     where: { id: params.id, companyId: active.companyId },
@@ -31,7 +32,8 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   return NextResponse.json(bill);
 }
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { active, userId } = await requireTenantContext();
   const parsed = patchSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
@@ -57,7 +59,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   }
 }
 
-export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(_req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { active, userId } = await requireTenantContext();
   try {
     await deleteBill({ companyId: active.companyId, membershipId: active.id, userId, billId: params.id });

@@ -9,7 +9,8 @@ import { displayFieldValue } from "@/lib/customization/customFields";
 import { fieldValues } from "@/components/custom-fields/custom-field-inputs";
 import { PaymentLinkButton } from "@/components/payments/payment-link-button";
 
-export default async function InvoiceDetailPage({ params }: { params: { id: string } }) {
+export default async function InvoiceDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { active, userId } = await requireTenantContext();
   const company = active.company;
 

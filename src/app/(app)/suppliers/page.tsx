@@ -6,7 +6,8 @@ import { CustomFieldInputs } from "@/components/custom-fields/custom-field-input
 import { createSupplierAction } from "./actions";
 import { SupplierRow } from "@/components/suppliers/supplier-row";
 
-export default async function SuppliersPage({ searchParams }: { searchParams: { archived?: string } }) {
+export default async function SuppliersPage(props: { searchParams: Promise<{ archived?: string }> }) {
+  const searchParams = await props.searchParams;
   const { active } = await requireTenantContext();
   const showArchived = searchParams.archived === "1";
 

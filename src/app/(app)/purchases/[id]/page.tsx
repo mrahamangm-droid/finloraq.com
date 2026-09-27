@@ -5,7 +5,8 @@ import { prisma } from "@/lib/db";
 import { can } from "@/lib/rbac";
 import { BillActions } from "@/components/forms/bill-actions";
 
-export default async function BillDetailPage({ params }: { params: { id: string } }) {
+export default async function BillDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { active, userId } = await requireTenantContext();
   const [fmt, canEdit, canDelete] = await Promise.all([
     getFormatter(userId),

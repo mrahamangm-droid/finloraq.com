@@ -3,7 +3,8 @@ import { requireTenantContext } from "@/lib/tenant";
 import { postInvoiceToLedger } from "@/lib/sales";
 import { InvalidLineError, DuplicatePostingError, PeriodLockedError } from "@/lib/ledger";
 
-export async function POST(_req: Request, { params }: { params: { id: string } }) {
+export async function POST(_req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { active, userId } = await requireTenantContext();
   try {
     const invoice = await postInvoiceToLedger({

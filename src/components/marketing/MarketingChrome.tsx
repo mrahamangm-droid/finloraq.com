@@ -78,6 +78,7 @@ export function MarketingHeader({ currentPath }: { currentPath: string }) {
               <span />
             </summary>
             <nav className="mnav-panel" aria-label="Main menu">
+              {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- full page load closes the <details> menu, see above */}
               <a href="/">Home</a>
               <a href="/how-it-works" aria-current={currentPath === "/how-it-works" ? "page" : undefined}>
                 How it works
@@ -92,6 +93,7 @@ export function MarketingHeader({ currentPath }: { currentPath: string }) {
                   {l.label}
                 </a>
               ))}
+              {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- full page load closes the <details> menu, see above */}
               <a href="/#pricing">Pricing</a>
               <div className="mnav-cta">
                 <a className="btn btn-ghost" href="/login">

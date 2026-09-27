@@ -4,7 +4,8 @@ import { getFormatter } from "@/lib/customization/server";
 import { projectProfitability } from "@/lib/projects";
 import { prisma } from "@/lib/db";
 
-export default async function ProjectDetailPage({ params }: { params: { id: string } }) {
+export default async function ProjectDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { active, userId } = await requireTenantContext();
   const fmt = await getFormatter(userId);
 

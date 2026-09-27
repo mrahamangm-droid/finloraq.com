@@ -9,11 +9,12 @@ import { CURRENCY_COOKIE, billingCurrencyForCountry, isBillingCurrency, type Bil
 
 export const dynamic = "force-dynamic";
 
-export default async function BillingPage({
-  searchParams,
-}: {
-  searchParams?: { checkout?: string; session_id?: string };
-}) {
+export default async function BillingPage(
+  props: {
+    searchParams?: Promise<{ checkout?: string; session_id?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const { active } = await requireTenantContext();
 
   // Returning from Stripe Checkout: sync right away so the new plan shows
@@ -37,10 +38,10 @@ export default async function BillingPage({
     await reconcileStripeMode(active.companyId).catch(() => undefined);
   }
 
-  const saved = cookies().get(CURRENCY_COOKIE)?.value?.toLowerCase();
+  const saved = (await cookies()).get(CURRENCY_COOKIE)?.value?.toLowerCase();
   const currency: BillingCurrency = isBillingCurrency(saved)
     ? saved
-    : billingCurrencyForCountry(headers().get("x-vercel-ip-country"));
+    : billingCurrencyForCountry((await headers()).get("x-vercel-ip-country"));
 
   const mode = stripeMode();
   const [snapshot, canEdit] = await Promise.all([

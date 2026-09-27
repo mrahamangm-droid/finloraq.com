@@ -16,7 +16,8 @@ import { DashboardCustomizer } from "@/components/dashboard/dashboard-customizer
 //
 // Which cards appear, their order, and the period for "Net profit" are each
 // user's own choice (the Customize button); see src/lib/customization/widgets.ts.
-export default async function DashboardPage({ searchParams = {} }: { searchParams?: PeriodParams }) {
+export default async function DashboardPage(props: { searchParams?: Promise<PeriodParams> }) {
+  const searchParams = (await props.searchParams) ?? {};
   const { active, userId } = await requireTenantContext();
   const companyId = active.companyId;
   const now = new Date();
