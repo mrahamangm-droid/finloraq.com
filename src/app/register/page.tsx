@@ -3,6 +3,7 @@
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { GoogleButton } from "@/components/auth/google-button";
 
 export default function RegisterPage() {
   return (
@@ -20,6 +21,7 @@ function RegisterForm() {
   const [form, setForm] = useState({ name: "", email: "", password: "" });
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [sentTo, setSentTo] = useState<string | null>(null);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -47,7 +49,29 @@ function RegisterForm() {
       return;
     }
 
+    const data = (await res.json().catch(() => ({}))) as { verifyEmail?: boolean };
+    if (data.verifyEmail) {
+      setSentTo(form.email.trim());
+      return;
+    }
     router.push(callbackUrl ? `/login?callbackUrl=${encodeURIComponent(callbackUrl)}` : "/login");
+  }
+
+  if (sentTo) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-muted px-4">
+        <div className="w-full max-w-sm rounded-lg border border-border bg-card p-8 shadow-sm">
+          <h1 className="mb-2 text-xl font-semibold text-card-foreground">Check your email</h1>
+          <p className="mb-4 text-sm text-muted-foreground">
+            We sent a confirmation link to <span className="font-medium text-card-foreground">{sentTo}</span>. Open it to
+            finish creating your account, then sign in.
+          </p>
+          <Link href="/login" className="text-sm text-primary hover:underline">
+            Back to sign in
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -115,6 +139,7 @@ function RegisterForm() {
             .
           </p>
         </form>
+        <GoogleButton callbackUrl={callbackUrl ?? "/start"} label="Sign up with Google" />
       </div>
     </div>
   );

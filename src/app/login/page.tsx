@@ -3,6 +3,7 @@
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
+import { GoogleButton } from "@/components/auth/google-button";
 
 export default function LoginPage() {
   return (
@@ -30,11 +31,40 @@ function LoginForm() {
   const [needsMfa, setNeedsMfa] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [unverified, setUnverified] = useState(false);
+  const [resent, setResent] = useState(false);
+
+  // Errors that come back via redirect (Google sign-in, NextAuth).
+  const urlError = searchParams.get("error");
+  const urlErrorMessage: string | null = urlError
+    ? ({
+        GoogleUnverified: "Your Google email address isn't verified, so we can't use it to sign you in.",
+        AccountDisabled: "This account has been deactivated. Contact your administrator.",
+        GoogleMfa: "This account uses two-step verification. Sign in with your email, password and authentication code.",
+        GoogleFailed: "Google sign-in didn't complete. Please try again.",
+      } as Record<string, string>)[urlError] ?? "Sign-in didn't complete. Please try again."
+    : null;
+
+  async function resendVerification() {
+    setResent(false);
+    try {
+      await fetch("/api/auth/resend-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+    } catch {
+      // Same generic confirmation either way; the server never reveals more.
+    }
+    setResent(true);
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setUnverified(false);
+    setResent(false);
 
     const result = await signIn("credentials", {
       email,
@@ -46,6 +76,11 @@ function LoginForm() {
     setLoading(false);
 
     if (result?.error) {
+      if (result.error === "EMAIL_NOT_VERIFIED") {
+        setUnverified(true);
+        setError(null);
+        return;
+      }
       if (result.error === "MFA_REQUIRED") {
         setNeedsMfa(true);
         setError(null);
@@ -128,8 +163,18 @@ function LoginForm() {
             </div>
           )}
 
-          {error && (
-            <p role="alert" className="text-sm text-destructive">{error}</p>
+          {(error ?? urlErrorMessage) && (
+            <p role="alert" className="text-sm text-destructive">{error ?? urlErrorMessage}</p>
+          )}
+
+          {unverified && (
+            <div role="alert" className="rounded-md border border-border bg-muted p-3 text-sm text-card-foreground">
+              <p>Please confirm your email address first. We sent you a link when you signed up.</p>
+              <button type="button" onClick={resendVerification} className="mt-2 text-primary hover:underline">
+                Send a new confirmation link
+              </button>
+              {resent && <p className="mt-1 text-xs text-muted-foreground">If that account needs confirming, a new link is on its way.</p>}
+            </div>
           )}
 
           <button
@@ -150,6 +195,17 @@ function LoginForm() {
             </button>
           )}
         </form>
+        {!needsMfa && (
+          <>
+            <GoogleButton callbackUrl={callbackUrl} />
+            <p className="mt-6 text-center text-xs text-muted-foreground">
+              New to Finloraq?{" "}
+              <a href="/register" className="text-primary hover:underline">
+                Create an account
+              </a>
+            </p>
+          </>
+        )}
       </div>
     </div>
   );

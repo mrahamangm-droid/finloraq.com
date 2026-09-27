@@ -1,14 +1,15 @@
 import type { NextAuthOptions } from "next-auth";
-import type { Adapter } from "next-auth/adapters";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { PrismaAdapter } from "@auth/prisma-adapter";
+import GoogleProvider from "next-auth/providers/google";
+import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { verifyPassword } from "@/lib/password";
+import { hashPassword, verifyPassword } from "@/lib/password";
 import { recordAuditEvent } from "@/lib/audit";
 import { verifyTotpToken, verifyBackupCode } from "@/lib/mfa";
 import { checkRateLimit } from "@/lib/rateLimit";
-import { findUserByEmail } from "@/lib/userLookup";
+import { findUserByEmail, normalizeEmail } from "@/lib/userLookup";
+import { EMAIL_NOT_VERIFIED_ERROR, verificationRequiredFor } from "@/lib/emailVerification";
 
 const credentialsSchema = z.object({
   email: z.string().email(),
@@ -27,16 +28,32 @@ const credentialsSchema = z.object({
  */
 export const MFA_REQUIRED_ERROR = "MFA_REQUIRED";
 
+/**
+ * Google sign-in is only offered when both env vars are set, so a deployment
+ * without them behaves exactly as before (and the button stays hidden).
+ */
+const googleProviders =
+  process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
+    ? [
+        GoogleProvider({
+          clientId: process.env.GOOGLE_CLIENT_ID,
+          clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+          authorization: { params: { prompt: "select_account" } },
+        }),
+      ]
+    : [];
+
+/** A password hash nobody knows: Google-created accounts have no password until they use "Forgot password". */
+async function unusablePasswordHash(): Promise<string> {
+  return hashPassword(randomBytes(32).toString("hex"));
+}
+
 export const authOptions: NextAuthOptions = {
-  // @auth/prisma-adapter@2.x targets Auth.js v5's @auth/core Adapter type
-  // (createUser optional), while next-auth@4's own Adapter type (from
-  // next-auth/adapters) requires createUser. Both adapters implement the
-  // exact same runtime shape (@auth/prisma-adapter is next-auth v4's
-  // documented, officially-recommended Prisma adapter) -- this is a
-  // type-declaration mismatch between the two packages' major versions,
-  // not a real incompatibility, so a cast is the correct fix rather than
-  // downgrading to the unmaintained @next-auth/prisma-adapter package.
-  adapter: PrismaAdapter(prisma) as Adapter,
+  // No database adapter on purpose. Sessions are JWTs, and Google sign-in is
+  // provisioned by hand in the signIn callback below. NextAuth's Prisma
+  // adapter cannot be used here anyway: it expects an OAuth "Account" model
+  // (provider, providerAccountId, tokens) but this schema's Account is the
+  // chart of accounts.
   session: {
     // JWT, not database, sessions. NextAuth v4's Credentials provider is
     // hard-incompatible with database sessions — it throws
@@ -57,6 +74,7 @@ export const authOptions: NextAuthOptions = {
   },
   pages: {
     signIn: "/login",
+    error: "/login",
   },
   providers: [
     CredentialsProvider({
@@ -98,6 +116,12 @@ export const authOptions: NextAuthOptions = {
             });
           }
           return null;
+        }
+
+        // Password is correct here, so saying "confirm your email" leaks
+        // nothing an attacker didn't already have.
+        if (verificationRequiredFor(user)) {
+          throw new Error(EMAIL_NOT_VERIFIED_ERROR);
         }
 
         if (user.mfaEnabled) {
@@ -156,8 +180,72 @@ export const authOptions: NextAuthOptions = {
         return { id: user.id, email: user.email, name: user.name };
       },
     }),
+    ...googleProviders,
   ],
   callbacks: {
+    async signIn({ user, account, profile }) {
+      if (account?.provider !== "google") return true;
+
+      const g = profile as { email?: string; email_verified?: boolean; name?: string } | undefined;
+      if (!g?.email || g.email_verified !== true) return "/login?error=GoogleUnverified";
+      const email = normalizeEmail(g.email);
+
+      let dbUser = await findUserByEmail(email);
+      if (dbUser && !dbUser.isActive) return "/login?error=AccountDisabled";
+      // Google sign-in would skip the second factor, so accounts that use MFA
+      // must keep signing in with their password + code.
+      if (dbUser?.mfaEnabled) return "/login?error=GoogleMfa";
+
+      if (!dbUser) {
+        try {
+          dbUser = await prisma.user.create({
+            data: {
+              email,
+              name: g.name?.trim() || email.split("@")[0] || email,
+              passwordHash: await unusablePasswordHash(),
+              emailVerified: new Date(),
+            },
+          });
+          await recordAuditEvent({
+            userId: dbUser.id,
+            action: "auth.register_google",
+            entityType: "User",
+            entityId: dbUser.id,
+          });
+        } catch (err) {
+          // Two first-time sign-ins racing on the unique email index.
+          if ((err as { code?: string } | null)?.code !== "P2002") throw err;
+          dbUser = await findUserByEmail(email);
+          if (!dbUser) return "/login?error=GoogleFailed";
+        }
+      } else {
+        // Linking to an existing email account. Google has verified the
+        // address, so this account is now provably the owner's. If it was
+        // never confirmed, someone else may have pre-registered the address
+        // with a password of their choosing — retire that password.
+        await prisma.user.update({
+          where: { id: dbUser.id },
+          data: {
+            lastLoginAt: new Date(),
+            ...(dbUser.emailVerified
+              ? {}
+              : { emailVerified: new Date(), passwordHash: await unusablePasswordHash() }),
+          },
+        });
+      }
+
+      await recordAuditEvent({
+        userId: dbUser.id,
+        action: "auth.login_success",
+        entityType: "User",
+        entityId: dbUser.id,
+        newValue: { method: "google" },
+      });
+
+      // The jwt callback reads user.id: make it our id, not Google's.
+      user.id = dbUser.id;
+      return true;
+    },
     async jwt({ token, user }) {
       if (user) {
         token.sub = user.id;
