@@ -11,7 +11,8 @@ export const dynamic = "force-dynamic";
  * No session needed — the unguessable token is the credential, and it can
  * only ever pay the balance of that one invoice to that company.
  */
-export async function POST(req: Request, { params }: { params: { token: string } }) {
+export async function POST(req: Request, props: { params: Promise<{ token: string }> }) {
+  const params = await props.params;
   const ip = clientIpFromHeaders(req.headers);
   if (!checkRateLimit(`pay:${ip}`, 20, 10 * 60 * 1000).allowed) {
     return NextResponse.json({ error: "Too many attempts — try again in a few minutes." }, { status: 429 });

@@ -28,7 +28,8 @@ function StatusBadge({ live, label }: { live: boolean; label: string }) {
   );
 }
 
-export default async function SettingsPage({ searchParams }: { searchParams?: { payments?: string } }) {
+export default async function SettingsPage(props: { searchParams?: Promise<{ payments?: string }> }) {
+  const searchParams = await props.searchParams;
   const { active, userId } = await requireTenantContext();
   const canEdit = await can(active.id, "settings", "EDIT");
 

@@ -18,7 +18,8 @@ const STATUS_TABS: { value: ExpenseStatus | "ALL"; label: string }[] = [
 
 type ExpensesPageParams = PeriodParams & { status?: string };
 
-export default async function ExpensesPage({ searchParams = {} }: { searchParams?: ExpensesPageParams }) {
+export default async function ExpensesPage(props: { searchParams?: Promise<ExpensesPageParams> }) {
+  const searchParams = (await props.searchParams) ?? {};
   const { active, userId } = await requireTenantContext();
   const [fmt, canEdit] = await Promise.all([getFormatter(userId), can(active.id, "expenses", "EDIT")]);
   const filtered = Boolean(searchParams.period);

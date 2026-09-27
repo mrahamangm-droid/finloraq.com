@@ -7,7 +7,8 @@ import { createCustomerAction } from "./actions";
 import { FileIntelligencePanel, type QueueDocument } from "@/components/customers/file-intelligence-panel";
 import { CustomerRow } from "@/components/customers/customer-row";
 
-export default async function CustomersPage({ searchParams }: { searchParams: { archived?: string } }) {
+export default async function CustomersPage(props: { searchParams: Promise<{ archived?: string }> }) {
+  const searchParams = await props.searchParams;
   const { active } = await requireTenantContext();
   const showArchived = searchParams.archived === "1";
 

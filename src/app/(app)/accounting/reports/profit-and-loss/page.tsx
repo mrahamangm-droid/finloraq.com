@@ -6,7 +6,8 @@ import { profitAndLoss, profitAndLossSeries } from "@/lib/reports";
 import { pickerProps, periodQuery, resolvePeriod, subPeriods, type PeriodParams } from "@/lib/periods";
 import { PeriodPicker } from "@/components/periods/period-picker";
 
-export default async function ProfitAndLossPage({ searchParams = {} }: { searchParams?: PeriodParams }) {
+export default async function ProfitAndLossPage(props: { searchParams?: Promise<PeriodParams> }) {
+  const searchParams = (await props.searchParams) ?? {};
   const { active, userId } = await requireTenantContext();
   const fmt = await getFormatter(userId);
   const period = resolvePeriod(searchParams);

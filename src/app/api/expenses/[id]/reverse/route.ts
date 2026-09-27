@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { requireTenantContext } from "@/lib/tenant";
 import { reverseJournalEntry, InvalidLineError, PeriodLockedError, DuplicatePostingError } from "@/lib/ledger";
 
-export async function POST(_req: Request, { params }: { params: { id: string } }) {
+export async function POST(_req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { active, userId } = await requireTenantContext();
   try {
     const entry = await reverseJournalEntry({

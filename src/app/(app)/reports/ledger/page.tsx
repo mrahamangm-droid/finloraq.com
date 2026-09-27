@@ -19,7 +19,8 @@ function legacy(sp: SearchParams): SearchParams {
   return sp;
 }
 
-export default async function LedgerPage({ searchParams }: { searchParams: SearchParams }) {
+export default async function LedgerPage(props: { searchParams: Promise<SearchParams> }) {
+  const searchParams = await props.searchParams;
   const { active } = await requireTenantContext();
   const sp = legacy(searchParams);
   const range = resolvePeriod(sp);

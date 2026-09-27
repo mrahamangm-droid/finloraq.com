@@ -19,13 +19,14 @@ function money(amount: string, currency: string) {
  * shows only what the payer needs: who is billing them, which invoice, and
  * how much is due. No login; the token in the URL is the credential.
  */
-export default async function PayInvoicePage({
-  params,
-  searchParams,
-}: {
-  params: { token: string };
-  searchParams?: { paid?: string; error?: string };
-}) {
+export default async function PayInvoicePage(
+  props: {
+    params: Promise<{ token: string }>;
+    searchParams?: Promise<{ paid?: string; error?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const data = await loadPayPage(params.token);
   if (!data) notFound();
 
