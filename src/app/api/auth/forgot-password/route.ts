@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
+import { findUserByEmail } from "@/lib/userLookup";
 import { sendEmail } from "@/lib/email";
 import { recordAuditEvent } from "@/lib/audit";
 import { checkRateLimit, clientIpFromHeaders } from "@/lib/rateLimit";
@@ -51,7 +52,7 @@ export async function POST(req: Request) {
 
   if (!emailLimit.allowed) return genericResponse;
 
-  const user = await prisma.user.findUnique({ where: { email } });
+  const user = await findUserByEmail(email);
   if (!user || !user.isActive) return genericResponse;
 
   const token = randomBytes(32).toString("hex");

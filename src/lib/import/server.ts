@@ -26,7 +26,7 @@ type Ctx = { companyId: string; membershipId: string; userId: string };
 interface AccountLite { code: string; name: string; type: AccountType; isActive: boolean }
 
 /** Finds the account a sheet's Category means — by code, then by name — for the right side of the ledger. */
-function matchAccount(accounts: AccountLite[], category: string, type: "REVENUE" | "EXPENSE"): AccountLite | undefined {
+export function matchAccount(accounts: AccountLite[], category: string, type: "REVENUE" | "EXPENSE"): AccountLite | undefined {
   const c = category.trim().toLowerCase();
   if (!c) return undefined;
   const byCode = accounts.find((a) => a.code.toLowerCase() === c || c.startsWith(a.code.toLowerCase() + " "));
@@ -130,7 +130,7 @@ function nextCode(taken: Set<string>, start: number, end: number): string | null
   return null;
 }
 
-async function resolveAccount(ctx: Ctx, category: string, type: "income" | "expense", cache: Map<string, string>): Promise<string> {
+export async function resolveAccount(ctx: Ctx, category: string, type: "income" | "expense", cache: Map<string, string>): Promise<string> {
   const key = `${type}|${category.toLowerCase()}`;
   const hit = cache.get(key);
   if (hit) return hit;

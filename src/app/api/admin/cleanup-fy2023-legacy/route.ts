@@ -1,10 +1,16 @@
 import { NextResponse } from "next/server";
-import { randomUUID } from "crypto";
+import { randomUUID, createHash } from "crypto";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import type { Prisma } from "@prisma/client";
 import { requireTenantContext } from "@/lib/tenant";
 import { ForbiddenError, can } from "@/lib/rbac";
 import { prisma } from "@/lib/db";
 import { recordAuditEvent } from "@/lib/audit";
+import { parseXlsxWorkbook } from "@/lib/files/xlsx-lite";
+import { parseWorkbook, type TxnRow } from "@/lib/import/rows";
+import { matchAccount, resolveAccount } from "@/lib/import/server";
+import { getPreferences } from "@/lib/customization/server";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -40,6 +46,104 @@ export const maxDuration = 300;
 
 const START = new Date("2023-01-01T00:00:00.000Z");
 const END = new Date("2023-12-31T23:59:59.999Z");
+
+/**
+ * PHASE 2 — rebuilding the two broken lump-sum DRAFT entries (deleted after
+ * being caught as structurally wrong: no per-transaction detail, and the
+ * income one booked backwards) as individual, correctly-directioned DRAFT
+ * entries, one per source-workbook row.
+ *
+ * The workbook is committed at data/fy2023-source-workbook.xlsx (the exact
+ * file the user provided) rather than uploaded through the browser each
+ * time, so this route can re-run deterministically. It's parsed with the
+ * SAME parseXlsxWorkbook()/parseWorkbook() the real Import feature uses
+ * (src/lib/import/rows.ts, src/lib/files/xlsx-lite.ts) — not a bespoke
+ * re-implementation — so the row set and totals are guaranteed to match
+ * what the app's own import preview would show, sidestepping the two
+ * mismatches an earlier from-scratch Python parse produced (a stray
+ * "TOTAL" row doubling income; the workbook's own unreliable "Duplicate
+ * Status" column for expenses).
+ *
+ * Each row becomes its own DRAFT journal entry — status DRAFT, post:false
+ * equivalent (postedAt/postedBy null) — using the exact same line-building
+ * logic as commitRows() in src/lib/import/server.ts (income: debit Bank /
+ * credit revenue account [/ credit Output Tax]; expense: debit expense
+ * account [/ debit Input Tax] / credit Bank), and the exact same
+ * resolveAccount()/matchAccount() category→account resolution, imported
+ * from that file rather than duplicated, so accounts are chosen identically
+ * to a live import.
+ *
+ * sourceId uses a distinct "cleanimport2023:" prefix (never "import:") so
+ * these never collide with the old duplicate legacy entries' permanent
+ * sourceId fingerprints — that collision is exactly why the real Import
+ * wizard can't be re-run directly for this data (see route doc above).
+ *
+ * GET  ?action=build-drafts        — read-only: parses the workbook, shows
+ *                                     exact counts/totals/category
+ *                                     resolution, creates nothing.
+ * POST {"confirm":"BUILD-CLEAN-DRAFTS-2023"} — creates the DRAFT entries.
+ *                                     Idempotent: rows whose sourceId
+ *                                     already exists are skipped.
+ */
+
+const WORKBOOK_PATH = path.join(process.cwd(), "data", "fy2023-source-workbook.xlsx");
+
+function loadFY2023Rows(dayFirst: boolean): { rows: TxnRow[]; warning?: string; sheetsUsed: string[] } {
+  const buffer = readFileSync(WORKBOOK_PATH);
+  const sheets = parseXlsxWorkbook(buffer);
+  const { rows, error, sheetsUsed } = parseWorkbook("transactions", sheets, { dayFirst });
+  const good = rows
+    .filter((r) => r.row)
+    .map((r) => r.row as TxnRow)
+    // Belt-and-suspenders per the user's explicit "only 2023-01-01 to
+    // 2023-12-31" instruction, even though the workbook is FY2023-only.
+    .filter((r) => r.date >= "2023-01-01" && r.date <= "2023-12-31");
+  return { rows: good, warning: error, sheetsUsed };
+}
+
+/** Deterministic per-row fingerprint for the "cleanimport2023:" sourceId — stable across re-runs of
+ *  this route (so it stays idempotent) but namespaced away from refFor()'s "import:" scheme in
+ *  src/lib/import/server.ts, which is what the old duplicate entries used. */
+function cleanImportRef(r: TxnRow, occurrence: number): string {
+  const key = `${r.date}|${r.type}|${r.category}|${r.amount}|${r.tax}|${r.description}|${occurrence}`;
+  return "cleanimport2023:" + createHash("sha256").update(key).digest("hex").slice(0, 32);
+}
+
+/** Same key shape as cleanImportRef() but without hashing, used to count occurrences of an identical
+ *  row (workbooks can legitimately have two rows with the same date/amount/description). */
+function occurrenceKey(r: TxnRow): string {
+  return `${r.date}|${r.type}|${r.category}|${r.amount}|${r.tax}|${r.description}`;
+}
+
+function withOccurrences(rows: TxnRow[]): { row: TxnRow; ref: string }[] {
+  const seen = new Map<string, number>();
+  return rows.map((row) => {
+    const k = occurrenceKey(row);
+    const n = (seen.get(k) ?? 0) + 1;
+    seen.set(k, n);
+    return { row, ref: cleanImportRef(row, n) };
+  });
+}
+
+/** Mirrors commitRows()'s transactions branch in src/lib/import/server.ts exactly (debit/credit
+ *  direction and tax lines) — duplicated rather than imported only because commitRows() also does
+ *  the POSTED-status posting/permission/duplicate machinery this route intentionally does differently
+ *  (DRAFT, distinct sourceId scheme, bulk createMany). Any change to commitRows()'s line shape should
+ *  be mirrored here. */
+function buildLines(r: TxnRow, accountCode: string): { accountCode: string; debit?: number; credit?: number; description: string }[] {
+  const net = Math.round((r.amount - r.tax) * 100) / 100;
+  return r.type === "income"
+    ? [
+        { accountCode: "1000", debit: r.amount, description: "Bank" },
+        { accountCode, credit: net, description: r.description || r.category || "Income" },
+        ...(r.tax ? [{ accountCode: "2100", credit: r.tax, description: "Output Tax Payable" }] : []),
+      ]
+    : [
+        { accountCode, debit: net, description: r.description || r.category || "Expense" },
+        ...(r.tax ? [{ accountCode: "1200", debit: r.tax, description: "Input Tax Receivable" }] : []),
+        { accountCode: "1000", credit: r.amount, description: "Bank" },
+      ];
+}
 
 async function loadTargets(companyId: string) {
   return prisma.journalEntry.findMany({
@@ -148,6 +252,60 @@ export async function GET(req: Request) {
     });
   }
 
+  if (new URL(req.url).searchParams.get("action") === "build-drafts") {
+    let parsed;
+    try {
+      const prefs = await getPreferences(ctx.userId);
+      parsed = loadFY2023Rows(prefs.dateFormat !== "MM/DD/YYYY");
+    } catch (err) {
+      return NextResponse.json({ error: `Couldn't read/parse the workbook at data/fy2023-source-workbook.xlsx: ${err instanceof Error ? err.message : String(err)}` }, { status: 500 });
+    }
+    const withRefs = withOccurrences(parsed.rows);
+
+    const accounts = await prisma.account.findMany({ where: { companyId: ctx.active.companyId }, select: { code: true, name: true, type: true, isActive: true } });
+    const categorySeen = new Map<string, { category: string; type: "income" | "expense"; code: string | null; name: string; willCreate: boolean; problem?: string }>();
+    for (const r of parsed.rows) {
+      const k = `${r.type}|${r.category.toLowerCase()}`;
+      if (categorySeen.has(k)) continue;
+      const want = r.type === "income" ? "REVENUE" as const : "EXPENSE" as const;
+      const m = r.category.trim() ? matchAccount(accounts, r.category, want) : undefined;
+      const fallback = r.type === "income" ? "4000" : "5000";
+      if (!r.category.trim()) {
+        const a = accounts.find((x) => x.code === fallback);
+        categorySeen.set(k, { category: "(no category)", type: r.type, code: fallback, name: a?.name ?? fallback, willCreate: false });
+      } else if (m) {
+        categorySeen.set(k, { category: r.category, type: r.type, code: m.code, name: m.name, willCreate: false, problem: !m.isActive ? `Account ${m.code} is inactive` : m.code === "1000" ? "Bank can't be the category" : undefined });
+      } else {
+        categorySeen.set(k, { category: r.category, type: r.type, code: null, name: r.category, willCreate: true });
+      }
+    }
+
+    const refs = withRefs.map((x) => x.ref);
+    const existingRefs = new Set(
+      (await prisma.journalEntry.findMany({ where: { companyId: ctx.active.companyId, sourceId: { in: refs } }, select: { sourceId: true } })).map((e) => e.sourceId),
+    );
+    const alreadyBuilt = refs.filter((r) => existingRefs.has(r)).length;
+
+    const income = parsed.rows.filter((r) => r.type === "income");
+    const expense = parsed.rows.filter((r) => r.type === "expense");
+    const round2 = (n: number) => Math.round(n * 100) / 100;
+
+    return NextResponse.json({
+      dryRun: true,
+      action: "build-drafts",
+      note: "Read-only — parses the committed workbook and shows exactly what POST {\"confirm\":\"BUILD-CLEAN-DRAFTS-2023\"} would create. Creates nothing.",
+      workbookWarning: parsed.warning ?? null,
+      sheetsUsed: parsed.sheetsUsed,
+      totalRows: parsed.rows.length,
+      alreadyBuilt,
+      willCreate: parsed.rows.length - alreadyBuilt,
+      income: { count: income.length, total: round2(income.reduce((s, r) => s + r.amount, 0)) },
+      expense: { count: expense.length, total: round2(expense.reduce((s, r) => s + r.amount, 0)) },
+      categoryResolution: [...categorySeen.values()],
+      sample: parsed.rows.slice(0, 8),
+    });
+  }
+
   const targets = await loadTargets(ctx.active.companyId);
   const { income, expense } = summarize(targets);
   const willActuallyReverse = onlyDuplicateImportArtifacts(targets);
@@ -197,8 +355,143 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json().catch(() => ({}));
+
+  if (body?.confirm === "BUILD-CLEAN-DRAFTS-2023") {
+    const allowedCreate = await can(ctx.active.id, "journals", "CREATE");
+    if (!allowedCreate) return NextResponse.json({ error: "Requires the CREATE permission on Journals." }, { status: 403 });
+
+    let parsed;
+    try {
+      const prefs = await getPreferences(ctx.userId);
+      parsed = loadFY2023Rows(prefs.dateFormat !== "MM/DD/YYYY");
+    } catch (err) {
+      return NextResponse.json({ error: `Couldn't read/parse the workbook: ${err instanceof Error ? err.message : String(err)}` }, { status: 500 });
+    }
+    const withRefs = withOccurrences(parsed.rows);
+
+    const existingRefs = new Set(
+      (
+        await prisma.journalEntry.findMany({
+          where: { companyId: ctx.active.companyId, sourceId: { in: withRefs.map((x) => x.ref) } },
+          select: { sourceId: true },
+        })
+      ).map((e) => e.sourceId),
+    );
+    const toBuild = withRefs.filter((x) => !existingRefs.has(x.ref));
+    if (!toBuild.length) {
+      return NextResponse.json({ createdCount: 0, skippedAlreadyBuilt: withRefs.length, incomeTotal: 0, expenseTotal: 0 });
+    }
+
+    const accountCache = new Map<string, string>();
+    const resolveCtx = { companyId: ctx.active.companyId, membershipId: ctx.active.id, userId: ctx.userId };
+
+    const periods = await prisma.accountingPeriod.findMany({ where: { companyId: ctx.active.companyId } });
+    const periodFor = (d: Date) => {
+      const p = periods.find((p) => p.startDate <= d && p.endDate >= d);
+      if (!p) throw new Error(`No accounting period covers ${d.toISOString()}`);
+      if (p.status === "LOCKED") throw new Error(`Period ${p.name} is locked — unlock it before running this.`);
+      return p;
+    };
+
+    const last = await prisma.journalEntry.findFirst({
+      where: { companyId: ctx.active.companyId },
+      orderBy: { entryNumber: "desc" },
+      select: { entryNumber: true },
+    });
+    let seq = last ? parseInt(last.entryNumber.replace(/\D/g, ""), 10) || 0 : 0;
+
+    const entryRows: Prisma.JournalEntryCreateManyInput[] = [];
+    const lineRows: Prisma.JournalLineCreateManyInput[] = [];
+    const failed: { line: number; message: string }[] = [];
+    let incomeTotal = 0;
+    let expenseTotal = 0;
+
+    // The whole per-row build (date/period/account resolution AND every
+    // line's account-id lookup) is one try/catch, matching commitRows()'s
+    // behavior of marking a single bad row "failed" rather than aborting
+    // the run — a missing tax account (2100/1200) or an inactive account
+    // must not crash the batch partway through.
+    for (const { row: r, ref } of toBuild) {
+      const id = randomUUID();
+      try {
+        const date = new Date(r.date + "T00:00:00.000Z");
+        const period = periodFor(date);
+        const accountCode = await resolveAccount(resolveCtx, r.category, r.type, accountCache);
+
+        const entryLineRows: Prisma.JournalLineCreateManyInput[] = [];
+        for (const l of buildLines(r, accountCode)) {
+          let accountId = accountCache.get("id:" + l.accountCode);
+          if (!accountId) {
+            const a = await prisma.account.findFirstOrThrow({ where: { companyId: ctx.active.companyId, code: l.accountCode }, select: { id: true } });
+            accountId = a.id;
+            accountCache.set("id:" + l.accountCode, accountId);
+          }
+          entryLineRows.push({
+            id: randomUUID(),
+            journalEntryId: id,
+            accountId,
+            debit: l.debit ?? 0,
+            credit: l.credit ?? 0,
+            description: l.description,
+          });
+        }
+
+        seq += 1;
+        entryRows.push({
+          id,
+          companyId: ctx.active.companyId,
+          periodId: period.id,
+          entryNumber: `JE-${String(seq).padStart(6, "0")}`,
+          date,
+          sourceType: r.type === "income" ? "RECEIPT" : "EXPENSE",
+          sourceId: ref,
+          memo: (r.description || r.category || (r.type === "income" ? "Income" : "Expense")) + " (FY2023 clean import)",
+          status: "DRAFT",
+          currency: ctx.active.company.baseCurrency,
+          exchangeRate: 1,
+          postedAt: null,
+          postedBy: null,
+          createdBy: ctx.userId,
+        });
+        lineRows.push(...entryLineRows);
+        if (r.type === "income") incomeTotal += r.amount; else expenseTotal += r.amount;
+      } catch (err) {
+        failed.push({ line: r.line, message: err instanceof Error ? err.message : String(err) });
+      }
+    }
+
+    const CHUNK = 500;
+    for (let i = 0; i < entryRows.length; i += CHUNK) {
+      const eChunk = entryRows.slice(i, i + CHUNK);
+      const ids = new Set(eChunk.map((e) => e.id));
+      const lChunk = lineRows.filter((l) => ids.has(l.journalEntryId));
+      await prisma.$transaction([
+        prisma.journalEntry.createMany({ data: eChunk }),
+        prisma.journalLine.createMany({ data: lChunk }),
+      ]);
+    }
+
+    await recordAuditEvent({
+      companyId: ctx.active.companyId,
+      userId: ctx.userId,
+      action: "journal.bulk_draft_build_fy2023_clean",
+      entityType: "JournalEntry",
+      entityId: "bulk",
+      newValue: { createdCount: entryRows.length, incomeTotal: Math.round(incomeTotal * 100) / 100, expenseTotal: Math.round(expenseTotal * 100) / 100, failed: failed.length },
+      source: "web",
+    });
+
+    return NextResponse.json({
+      createdCount: entryRows.length,
+      skippedAlreadyBuilt: withRefs.length - toBuild.length,
+      incomeTotal: Math.round(incomeTotal * 100) / 100,
+      expenseTotal: Math.round(expenseTotal * 100) / 100,
+      failed,
+    });
+  }
+
   if (body?.confirm !== "REVERSE-LEGACY-FY2023") {
-    return NextResponse.json({ error: 'Missing confirmation. Send {"confirm":"REVERSE-LEGACY-FY2023"}.' }, { status: 400 });
+    return NextResponse.json({ error: 'Missing confirmation. Send {"confirm":"REVERSE-LEGACY-FY2023"} or {"confirm":"BUILD-CLEAN-DRAFTS-2023"}.' }, { status: 400 });
   }
 
   const allowed = await can(ctx.active.id, "journals", "APPROVE");
