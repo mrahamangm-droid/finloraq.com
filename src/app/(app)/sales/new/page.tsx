@@ -16,6 +16,7 @@ export default async function NewInvoicePage() {
     <div className="mx-auto max-w-3xl space-y-6">
       <h1 className="text-xl font-semibold text-foreground">New Invoice</h1>
       <NewInvoiceForm
+        currency={active.company.baseCurrency}
         customers={customers.map((c) => ({ id: c.id, name: c.name }))}
         taxCodes={taxCodes.map((t) => ({ id: t.id, name: t.name, rate: t.rate.toNumber() }))}
         fields={fields}
