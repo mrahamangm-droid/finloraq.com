@@ -26,11 +26,18 @@ function RegisterForm() {
     setLoading(true);
     setError(null);
 
-    const res = await fetch("/api/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
+    let res: Response;
+    try {
+      res = await fetch("/api/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+    } catch {
+      setLoading(false);
+      setError("Couldn't reach the server. Check your connection and try again.");
+      return;
+    }
 
     setLoading(false);
 
