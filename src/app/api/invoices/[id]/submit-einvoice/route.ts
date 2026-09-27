@@ -5,7 +5,8 @@ import { getEInvoicingAdapter } from "@/lib/integrations/einvoicing";
 import { prisma } from "@/lib/db";
 import { planDefinition } from "@/lib/billing/plans";
 
-export async function POST(_req: Request, { params }: { params: { id: string } }) {
+export async function POST(_req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { active } = await requireTenantContext();
   await requirePermission(active.id, "invoices", "EXPORT"); // submitting externally is treated as an export-level action
 

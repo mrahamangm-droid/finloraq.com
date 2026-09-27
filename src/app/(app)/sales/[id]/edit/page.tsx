@@ -3,7 +3,8 @@ import { requireTenantContext } from "@/lib/tenant";
 import { prisma } from "@/lib/db";
 import { NewInvoiceForm } from "@/components/forms/new-invoice-form";
 
-export default async function EditInvoicePage({ params }: { params: { id: string } }) {
+export default async function EditInvoicePage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { active } = await requireTenantContext();
 
   const [invoice, customers, taxCodes] = await Promise.all([

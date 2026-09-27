@@ -13,11 +13,12 @@ const PAGE_SIZE = 50;
  * is logged here — this is purely a read/filter/paginate view over data
  * that already exists.
  */
-export default async function AuditPage({
-  searchParams,
-}: {
-  searchParams: { action?: string; entityType?: string; page?: string };
-}) {
+export default async function AuditPage(
+  props: {
+    searchParams: Promise<{ action?: string; entityType?: string; page?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const { active } = await requireTenantContext();
   await requirePermission(active.id, "audit", "VIEW");
 

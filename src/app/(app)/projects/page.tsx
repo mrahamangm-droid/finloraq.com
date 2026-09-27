@@ -8,7 +8,8 @@ import { NewProjectForm } from "@/components/forms/new-project-form";
 import { NewCostCentreForm } from "@/components/forms/new-cost-centre-form";
 import { ProjectRow } from "@/components/forms/project-row";
 
-export default async function ProjectsPage({ searchParams = {} }: { searchParams?: { archived?: string } }) {
+export default async function ProjectsPage(props: { searchParams?: Promise<{ archived?: string }> }) {
+  const searchParams = (await props.searchParams) ?? {};
   const { active, userId } = await requireTenantContext();
   const fmt = await getFormatter(userId);
   const now = new Date();

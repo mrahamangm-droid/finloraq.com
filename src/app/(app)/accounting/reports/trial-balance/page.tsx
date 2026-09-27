@@ -5,7 +5,8 @@ import { trialBalance } from "@/lib/reports";
 import { pickerProps, resolvePeriod, type PeriodParams } from "@/lib/periods";
 import { PeriodPicker } from "@/components/periods/period-picker";
 
-export default async function TrialBalancePage({ searchParams = {} }: { searchParams?: PeriodParams }) {
+export default async function TrialBalancePage(props: { searchParams?: Promise<PeriodParams> }) {
+  const searchParams = (await props.searchParams) ?? {};
   const { active, userId } = await requireTenantContext();
   const fmt = await getFormatter(userId);
   const now = new Date();

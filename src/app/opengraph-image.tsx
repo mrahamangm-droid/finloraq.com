@@ -25,8 +25,8 @@ export default async function OpengraphImage() {
           justifyContent: "center",
           alignItems: "flex-start",
           padding: "88px",
-          background:
-            "radial-gradient(1100px 520px at 18% -10%, #171F3A 0%, #0A1120 55%), #0A1120",
+          backgroundColor: "#0A1120",
+          backgroundImage: "radial-gradient(1100px 520px at 18% -10%, #171F3A 0%, #0A1120 55%)",
           fontFamily: "sans-serif",
         }}
       >

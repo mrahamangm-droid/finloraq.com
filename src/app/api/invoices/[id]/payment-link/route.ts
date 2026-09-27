@@ -3,7 +3,8 @@ import { requireTenantContext } from "@/lib/tenant";
 import { getOrCreatePayLink, PaymentLinkError } from "@/lib/stripe/invoicePayments";
 
 /** Returns the invoice's shareable "Pay now" link (created on first request). */
-export async function POST(_req: Request, { params }: { params: { id: string } }) {
+export async function POST(_req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { active } = await requireTenantContext();
   try {
     const url = await getOrCreatePayLink({ companyId: active.companyId, membershipId: active.id, invoiceId: params.id });

@@ -12,7 +12,8 @@ function statusColor(status: string) {
   return "bg-primary/10 text-primary";
 }
 
-export default async function PurchasesPage({ searchParams = {} }: { searchParams?: PeriodParams }) {
+export default async function PurchasesPage(props: { searchParams?: Promise<PeriodParams> }) {
+  const searchParams = (await props.searchParams) ?? {};
   const { active, userId } = await requireTenantContext();
   const fmt = await getFormatter(userId);
   const filtered = Boolean(searchParams.period);

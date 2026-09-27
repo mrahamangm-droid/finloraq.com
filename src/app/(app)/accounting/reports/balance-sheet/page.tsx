@@ -33,7 +33,8 @@ function Section({ title, rows, total, money }: { title: string; money: (v: impo
   );
 }
 
-export default async function BalanceSheetPage({ searchParams = {} }: { searchParams?: PeriodParams }) {
+export default async function BalanceSheetPage(props: { searchParams?: Promise<PeriodParams> }) {
+  const searchParams = (await props.searchParams) ?? {};
   const { active, userId } = await requireTenantContext();
   const fmt = await getFormatter(userId);
   const now = new Date();

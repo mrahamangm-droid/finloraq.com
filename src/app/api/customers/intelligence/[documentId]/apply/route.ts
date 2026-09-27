@@ -28,7 +28,8 @@ const schema = z.discriminatedUnion("kind", [
   }),
 ]);
 
-export async function POST(req: Request, { params }: { params: { documentId: string } }) {
+export async function POST(req: Request, props: { params: Promise<{ documentId: string }> }) {
+  const params = await props.params;
   const { active, userId } = await requireTenantContext();
   const parsed = schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {

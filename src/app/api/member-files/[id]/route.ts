@@ -9,7 +9,8 @@ import { getMemberFileContent } from "@/lib/memberFiles";
  * to from Users & Roles as a plain <a href> so it downloads like any
  * other file link, no client-side JS needed.
  */
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+export async function GET(_req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { active } = await requireTenantContext();
 
   let file;

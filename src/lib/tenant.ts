@@ -19,7 +19,7 @@ export const getTenantContext = cache(async () => {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return null;
 
-  const activeCompanyId = cookies().get(ACTIVE_COMPANY_COOKIE)?.value;
+  const activeCompanyId = (await cookies()).get(ACTIVE_COMPANY_COOKIE)?.value;
 
   const memberships = await prisma.companyMembership.findMany({
     where: { userId: session.user.id, isActive: true },

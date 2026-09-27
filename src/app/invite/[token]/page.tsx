@@ -4,7 +4,8 @@ import { authOptions } from "@/lib/auth";
 import { getInvitationByToken } from "@/lib/users";
 import { acceptInvitationAction } from "./actions";
 
-export default async function InvitePage({ params }: { params: { token: string } }) {
+export default async function InvitePage(props: { params: Promise<{ token: string }> }) {
+  const params = await props.params;
   const [session, result] = await Promise.all([
     getServerSession(authOptions),
     getInvitationByToken(params.token),
