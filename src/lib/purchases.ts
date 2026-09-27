@@ -1,3 +1,4 @@
+import type Decimal from "decimal.js";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/rbac";
 import { recordAuditEvent } from "@/lib/audit";
@@ -85,6 +86,119 @@ export async function createBill(params: {
   });
 
   return bill;
+}
+
+/**
+ * Edits a DRAFT bill's own fields and lines, recomputing subtotal/tax/total
+ * exactly like createBill() does. Refused once the bill has left DRAFT
+ * (approveAndPostBill already posted it to the ledger by then) — mirrors
+ * updateInvoice() in src/lib/sales.ts. Correct an approved bill with a
+ * debit note / new bill instead.
+ */
+export async function updateBill(params: {
+  companyId: string;
+  membershipId: string;
+  userId: string;
+  billId: string;
+  supplierId?: string;
+  issueDate?: Date;
+  dueDate?: Date;
+  currency?: string;
+  lines?: BillLineInput[];
+}) {
+  await requirePermission(params.membershipId, "bills", "EDIT");
+
+  const before = await prisma.bill.findFirst({ where: { id: params.billId, companyId: params.companyId }, include: { lines: true } });
+  if (!before) throw new Error("Bill not found.");
+  if (before.status !== "DRAFT") {
+    throw new InvalidLineError("Only a draft bill can be edited. Once approved, correct it with a debit note or a new bill.");
+  }
+
+  let subtotal = before.subtotal, taxTotal = before.taxTotal, total = before.total;
+  let lineData: { description: string; quantity: number; unitPrice: number; taxCodeId?: string; lineTotal: Decimal }[] | undefined;
+
+  if (params.lines) {
+    if (params.lines.length === 0) {
+      throw new InvalidLineError("A bill needs at least one line.");
+    }
+    const taxCodes = await prisma.taxCode.findMany({
+      where: { companyId: params.companyId, id: { in: params.lines.map((l) => l.taxCodeId).filter(Boolean) as string[] } },
+    });
+    const taxCodeById = new Map(taxCodes.map((t) => [t.id, t]));
+    const computedLines = params.lines.map((l) => {
+      const lineTotal = roundMoney(money(l.quantity).times(l.unitPrice));
+      const taxCode = l.taxCodeId ? taxCodeById.get(l.taxCodeId) : undefined;
+      const lineTax = taxCode ? roundMoney(lineTotal.times(taxCode.rate)) : roundMoney(0);
+      return { ...l, lineTotal, lineTax };
+    });
+    subtotal = roundMoney(sum(computedLines.map((l) => l.lineTotal)));
+    taxTotal = roundMoney(sum(computedLines.map((l) => l.lineTax)));
+    total = roundMoney(subtotal.plus(taxTotal));
+    lineData = computedLines.map((l) => ({ description: l.description, quantity: l.quantity, unitPrice: l.unitPrice, taxCodeId: l.taxCodeId, lineTotal: l.lineTotal }));
+  }
+
+  const bill = await prisma.$transaction(async (tx) => {
+    if (lineData) {
+      await tx.billLine.deleteMany({ where: { billId: before.id } });
+    }
+    return tx.bill.update({
+      where: { id: before.id },
+      data: {
+        supplierId: params.supplierId,
+        issueDate: params.issueDate,
+        dueDate: params.dueDate,
+        currency: params.currency,
+        subtotal,
+        taxTotal,
+        total,
+        lines: lineData ? { create: lineData } : undefined,
+      },
+      include: { lines: true },
+    });
+  });
+
+  await recordAuditEvent({
+    companyId: params.companyId,
+    userId: params.userId,
+    action: "bill.updated",
+    entityType: "Bill",
+    entityId: bill.id,
+    previousValue: { total: before.total.toFixed(2), lineCount: before.lines.length },
+    newValue: { total: bill.total.toFixed(2), lineCount: bill.lines.length },
+  });
+
+  return bill;
+}
+
+/** Deletes a DRAFT bill outright — refused once it's been approved/posted,
+ *  same boundary as updateBill() above. */
+export async function deleteBill(params: {
+  companyId: string;
+  membershipId: string;
+  userId: string;
+  billId: string;
+}) {
+  await requirePermission(params.membershipId, "bills", "DELETE");
+
+  const bill = await prisma.bill.findFirst({ where: { id: params.billId, companyId: params.companyId } });
+  if (!bill) throw new Error("Bill not found.");
+  if (bill.status !== "DRAFT") {
+    throw new InvalidLineError("Only a draft bill can be deleted. An approved bill can't be removed — reverse it via a debit note instead.");
+  }
+
+  await prisma.$transaction([
+    prisma.billLine.deleteMany({ where: { billId: bill.id } }),
+    prisma.bill.delete({ where: { id: bill.id } }),
+  ]);
+
+  await recordAuditEvent({
+    companyId: params.companyId,
+    userId: params.userId,
+    action: "bill.deleted",
+    entityType: "Bill",
+    entityId: bill.id,
+    previousValue: { billNumber: bill.billNumber, total: bill.total.toFixed(2) },
+  });
 }
 
 /** Draft -> Approved, and posts to the ledger in the same step. A

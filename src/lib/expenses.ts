@@ -1,5 +1,14 @@
 import { prisma } from "@/lib/db";
-import { postJournalEntry, postDraftJournalEntry, buildExpensePosting } from "@/lib/ledger";
+import { requirePermission } from "@/lib/rbac";
+import { recordAuditEvent } from "@/lib/audit";
+import {
+  postJournalEntry,
+  postDraftJournalEntry,
+  buildExpensePosting,
+  validateBalanced,
+  findOpenPeriod,
+  InvalidLineError,
+} from "@/lib/ledger";
 
 /**
  * A direct/employee expense paid immediately (not a supplier bill on
@@ -42,6 +51,97 @@ export async function createExpense(params: {
   });
 
   return entry;
+}
+
+/**
+ * Edits a DRAFT expense (a JournalEntry with sourceType EXPENSE) — its own
+ * date/description/amount/tax/account, rebuilding the DR/CR lines exactly
+ * like createExpense() does. Refused once the expense has been approved
+ * (postDraftJournalEntry already posted it — the immutable-once-posted rule
+ * in src/lib/ledger.ts applies here too). Gated on expenses:EDIT rather
+ * than journals:APPROVE, so a Staff submitter (who only holds
+ * expenses:CREATE, see the module matrix in src/lib/rbac.ts) still can't
+ * edit their own draft — only Accountant and above can, matching how
+ * approval-before-posting already works for this module. If the date moves
+ * to a different month, the entry is re-homed to that month's period (an
+ * approved-immutable entry never needs this, only a still-editable draft).
+ */
+export async function updateDraftExpense(params: {
+  companyId: string;
+  membershipId: string;
+  userId: string;
+  journalEntryId: string;
+  date?: Date;
+  description?: string;
+  amount?: number;
+  taxAmount?: number;
+  expenseAccountCode?: string;
+}) {
+  await requirePermission(params.membershipId, "expenses", "EDIT");
+
+  const before = await prisma.journalEntry.findFirst({
+    where: { id: params.journalEntryId, companyId: params.companyId, sourceType: "EXPENSE" },
+    include: { lines: { include: { account: true } } },
+  });
+  if (!before) throw new Error("Expense not found.");
+  if (before.status !== "DRAFT") {
+    throw new InvalidLineError("Only a draft expense can be edited. Once approved, correct it with a reversal instead.");
+  }
+
+  const currentExpenseLine = before.lines.find((l) => l.account.code !== "1000" && l.account.code !== "1200");
+  const currentTaxLine = before.lines.find((l) => l.account.code === "1200");
+
+  const amount = params.amount ?? currentExpenseLine?.debit.toNumber() ?? 0;
+  const taxAmount = params.taxAmount ?? currentTaxLine?.debit.toNumber() ?? undefined;
+  const expenseAccountCode = params.expenseAccountCode ?? currentExpenseLine?.account.code;
+  const date = params.date ?? before.date;
+
+  const newLines = buildExpensePosting({ amount, taxAmount, expenseAccountCode });
+  validateBalanced(newLines);
+
+  const accounts = await prisma.account.findMany({
+    where: { companyId: params.companyId, code: { in: newLines.map((l) => l.accountCode) }, isActive: true },
+  });
+  const accountByCode = new Map(accounts.map((a) => [a.code, a]));
+  for (const line of newLines) {
+    if (!accountByCode.has(line.accountCode)) {
+      throw new InvalidLineError(`Unknown or inactive account code: ${line.accountCode}`);
+    }
+  }
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const period = await findOpenPeriod(tx, params.companyId, date);
+    await tx.journalLine.deleteMany({ where: { journalEntryId: before.id } });
+    return tx.journalEntry.update({
+      where: { id: before.id },
+      data: {
+        date,
+        memo: params.description ?? before.memo,
+        periodId: period.id,
+        lines: {
+          create: newLines.map((l) => ({
+            accountId: accountByCode.get(l.accountCode)!.id,
+            debit: l.debit ?? 0,
+            credit: l.credit ?? 0,
+            description: l.description,
+          })),
+        },
+      },
+      include: { lines: true },
+    });
+  });
+
+  await recordAuditEvent({
+    companyId: params.companyId,
+    userId: params.userId,
+    action: "expense.updated",
+    entityType: "JournalEntry",
+    entityId: updated.id,
+    previousValue: { memo: before.memo, date: before.date.toISOString().slice(0, 10) },
+    newValue: { memo: updated.memo, date: updated.date.toISOString().slice(0, 10) },
+  });
+
+  return updated;
 }
 
 /** TODO(Phase 5/13): before approval, check WorkflowRule for entityType

@@ -10,15 +10,27 @@ const emptyLine = (): Line => ({ description: "", quantity: "1", unitPrice: "", 
 export function NewBillForm({
   suppliers,
   taxCodes,
+  billId,
+  initial,
 }: {
   suppliers: { id: string; name: string }[];
   taxCodes: { id: string; name: string; rate: number }[];
+  /** Present only when editing an existing DRAFT bill — switches the form
+   *  from POST /api/bills to PATCH /api/bills/:id. */
+  billId?: string;
+  initial?: {
+    supplierId: string;
+    issueDate: string;
+    dueDate: string;
+    lines: Line[];
+  };
 }) {
+  const editing = Boolean(billId);
   const router = useRouter();
-  const [supplierId, setSupplierId] = useState(suppliers[0]?.id ?? "");
-  const [issueDate, setIssueDate] = useState(new Date().toISOString().slice(0, 10));
-  const [dueDate, setDueDate] = useState(new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10));
-  const [lines, setLines] = useState<Line[]>([emptyLine()]);
+  const [supplierId, setSupplierId] = useState(initial?.supplierId ?? suppliers[0]?.id ?? "");
+  const [issueDate, setIssueDate] = useState(initial?.issueDate ?? new Date().toISOString().slice(0, 10));
+  const [dueDate, setDueDate] = useState(initial?.dueDate ?? new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10));
+  const [lines, setLines] = useState<Line[]>(initial?.lines ?? [emptyLine()]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -37,8 +49,8 @@ export function NewBillForm({
     setError(null);
     setLoading(true);
 
-    const res = await fetch("/api/bills", {
-      method: "POST",
+    const res = await fetch(editing ? `/api/bills/${billId}` : "/api/bills", {
+      method: editing ? "PATCH" : "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         supplierId,
@@ -65,7 +77,8 @@ export function NewBillForm({
     }
 
     const data = await res.json();
-    router.push(`/purchases/${data.id}`);
+    router.push(`/purchases/${editing ? billId : data.id}`);
+    router.refresh();
   }
 
   if (suppliers.length === 0) {
@@ -149,11 +162,12 @@ export function NewBillForm({
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       <button onClick={submit} disabled={loading} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
-        {loading ? "Saving…" : "Save Draft Bill"}
+        {loading ? "Saving…" : editing ? "Save changes" : "Save Draft Bill"}
       </button>
       <p className="text-xs text-muted-foreground">
-        This saves a draft — no ledger impact yet. Approving (which posts the expense and payable)
-        happens from the bill detail page and requires the Approve permission on Bills.
+        {editing
+          ? "Editing is only possible while this bill is still a draft — once approved, its numbers are locked and a correction goes through a debit note instead."
+          : "This saves a draft — no ledger impact yet. Approving (which posts the expense and payable) happens from the bill detail page and requires the Approve permission on Bills."}
       </p>
     </div>
   );

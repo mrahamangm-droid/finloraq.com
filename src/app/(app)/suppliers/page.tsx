@@ -2,22 +2,22 @@ import { requireTenantContext } from "@/lib/tenant";
 import { prisma } from "@/lib/db";
 import { can } from "@/lib/rbac";
 import { fieldDefs } from "@/lib/customization/server";
-import { displayFieldValue } from "@/lib/customization/customFields";
-import { CustomFieldInputs, fieldValues } from "@/components/custom-fields/custom-field-inputs";
+import { CustomFieldInputs } from "@/components/custom-fields/custom-field-inputs";
 import { createSupplierAction } from "./actions";
-import { SupplierRowActions } from "@/components/suppliers/supplier-row-actions";
+import { SupplierRow } from "@/components/suppliers/supplier-row";
 
 export default async function SuppliersPage({ searchParams }: { searchParams: { archived?: string } }) {
   const { active } = await requireTenantContext();
   const showArchived = searchParams.archived === "1";
 
-  const [suppliers, defs, canDelete, archivedCount] = await Promise.all([
+  const [suppliers, defs, canDelete, canEdit, archivedCount] = await Promise.all([
     prisma.supplier.findMany({
       where: { companyId: active.companyId, isActive: !showArchived },
       orderBy: { createdAt: "desc" },
     }),
     fieldDefs(active.companyId, "SUPPLIER"),
     can(active.id, "suppliers", "DELETE"),
+    can(active.id, "suppliers", "EDIT"),
     prisma.supplier.count({ where: { companyId: active.companyId, isActive: false } }),
   ]);
 
@@ -58,30 +58,19 @@ export default async function SuppliersPage({ searchParams }: { searchParams: { 
                 <th className="px-4 py-2">Phone</th>
                 <th className="px-4 py-2">Terms</th>
                 {defs.map((d) => <th key={d.key} className="px-4 py-2">{d.label}</th>)}
-                {canDelete && <th className="px-4 py-2"></th>}
+                {(canDelete || canEdit) && <th className="px-4 py-2"></th>}
               </tr>
             </thead>
             <tbody>
               {suppliers.length === 0 && (
                 <tr>
-                  <td colSpan={4 + defs.length + (canDelete ? 1 : 0)} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={4 + defs.length + (canDelete || canEdit ? 1 : 0)} className="px-4 py-8 text-center text-muted-foreground">
                     {showArchived ? "No archived suppliers." : "No suppliers yet."}
                   </td>
                 </tr>
               )}
               {suppliers.map((s) => (
-                <tr key={s.id} className="border-b border-border last:border-0">
-                  <td className="px-4 py-2 text-card-foreground">{s.name}</td>
-                  <td className="px-4 py-2 text-muted-foreground">{s.email ?? "—"}</td>
-                  <td className="px-4 py-2 text-muted-foreground">{s.phone ?? "—"}</td>
-                  <td className="px-4 py-2 text-muted-foreground">{s.paymentTermsDays} days</td>
-                  {defs.map((d) => <td key={d.key} className="px-4 py-2 text-muted-foreground">{displayFieldValue(fieldValues(s.customFields)[d.key])}</td>)}
-                  {canDelete && (
-                    <td className="px-4 py-2">
-                      <SupplierRowActions supplierId={s.id} name={s.name} isActive={s.isActive} />
-                    </td>
-                  )}
-                </tr>
+                <SupplierRow key={s.id} supplier={s} defs={defs} canEdit={canEdit} canDelete={canDelete} />
               ))}
             </tbody>
           </table>

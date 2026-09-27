@@ -1,3 +1,4 @@
+import type Decimal from "decimal.js";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/rbac";
 import { recordAuditEvent } from "@/lib/audit";
@@ -86,6 +87,124 @@ export async function createInvoice(params: {
   });
 
   return invoice;
+}
+
+/**
+ * Edits a DRAFT invoice's own fields and lines, recomputing subtotal/tax/
+ * total exactly like createInvoice() does. Refused once the invoice has
+ * left DRAFT (postInvoiceToLedger already posted it to the ledger by
+ * then) — the immutable-once-posted rule in src/lib/ledger.ts applies to
+ * the source document too, not just the JournalEntry it produced:
+ * changing a SENT invoice's numbers after the fact would silently
+ * desynchronize it from the revenue already recognized. Correct a posted
+ * invoice with a credit note / new invoice instead. Replaces every line
+ * (delete-then-recreate under one transaction) rather than diffing,
+ * mirroring how createInvoice() builds them the first time.
+ */
+export async function updateInvoice(params: {
+  companyId: string;
+  membershipId: string;
+  userId: string;
+  invoiceId: string;
+  customerId?: string;
+  issueDate?: Date;
+  dueDate?: Date;
+  currency?: string;
+  lines?: InvoiceLineInput[];
+}) {
+  await requirePermission(params.membershipId, "invoices", "EDIT");
+
+  const before = await prisma.invoice.findFirst({ where: { id: params.invoiceId, companyId: params.companyId }, include: { lines: true } });
+  if (!before) throw new Error("Invoice not found.");
+  if (before.status !== "DRAFT") {
+    throw new InvalidLineError("Only a draft invoice can be edited. Once sent, correct it with a credit note or a new invoice.");
+  }
+
+  let subtotal = before.subtotal, taxTotal = before.taxTotal, total = before.total;
+  let lineData: { description: string; quantity: number; unitPrice: number; taxCodeId?: string; lineTotal: Decimal }[] | undefined;
+
+  if (params.lines) {
+    if (params.lines.length === 0) {
+      throw new InvalidLineError("An invoice needs at least one line.");
+    }
+    const taxCodes = await prisma.taxCode.findMany({
+      where: { companyId: params.companyId, id: { in: params.lines.map((l) => l.taxCodeId).filter(Boolean) as string[] } },
+    });
+    const taxCodeById = new Map(taxCodes.map((t) => [t.id, t]));
+    const computedLines = params.lines.map((l) => {
+      const lineTotal = roundMoney(money(l.quantity).times(l.unitPrice));
+      const taxCode = l.taxCodeId ? taxCodeById.get(l.taxCodeId) : undefined;
+      const lineTax = taxCode ? roundMoney(lineTotal.times(taxCode.rate)) : roundMoney(0);
+      return { ...l, lineTotal, lineTax };
+    });
+    subtotal = roundMoney(sum(computedLines.map((l) => l.lineTotal)));
+    taxTotal = roundMoney(sum(computedLines.map((l) => l.lineTax)));
+    total = roundMoney(subtotal.plus(taxTotal));
+    lineData = computedLines.map((l) => ({ description: l.description, quantity: l.quantity, unitPrice: l.unitPrice, taxCodeId: l.taxCodeId, lineTotal: l.lineTotal }));
+  }
+
+  const invoice = await prisma.$transaction(async (tx) => {
+    if (lineData) {
+      await tx.invoiceLine.deleteMany({ where: { invoiceId: before.id } });
+    }
+    return tx.invoice.update({
+      where: { id: before.id },
+      data: {
+        customerId: params.customerId,
+        issueDate: params.issueDate,
+        dueDate: params.dueDate,
+        currency: params.currency,
+        subtotal,
+        taxTotal,
+        total,
+        lines: lineData ? { create: lineData } : undefined,
+      },
+      include: { lines: true },
+    });
+  });
+
+  await recordAuditEvent({
+    companyId: params.companyId,
+    userId: params.userId,
+    action: "invoice.updated",
+    entityType: "Invoice",
+    entityId: invoice.id,
+    previousValue: { total: before.total.toFixed(2), lineCount: before.lines.length },
+    newValue: { total: invoice.total.toFixed(2), lineCount: invoice.lines.length },
+  });
+
+  return invoice;
+}
+
+/** Deletes a DRAFT invoice outright — refused once it's been posted
+ *  (SENT or later), same boundary as updateInvoice() above. */
+export async function deleteInvoice(params: {
+  companyId: string;
+  membershipId: string;
+  userId: string;
+  invoiceId: string;
+}) {
+  await requirePermission(params.membershipId, "invoices", "DELETE");
+
+  const invoice = await prisma.invoice.findFirst({ where: { id: params.invoiceId, companyId: params.companyId } });
+  if (!invoice) throw new Error("Invoice not found.");
+  if (invoice.status !== "DRAFT") {
+    throw new InvalidLineError("Only a draft invoice can be deleted. A sent invoice can't be removed — void it via a credit note instead.");
+  }
+
+  await prisma.$transaction([
+    prisma.invoiceLine.deleteMany({ where: { invoiceId: invoice.id } }),
+    prisma.invoice.delete({ where: { id: invoice.id } }),
+  ]);
+
+  await recordAuditEvent({
+    companyId: params.companyId,
+    userId: params.userId,
+    action: "invoice.deleted",
+    entityType: "Invoice",
+    entityId: invoice.id,
+    previousValue: { invoiceNumber: invoice.invoiceNumber, total: invoice.total.toFixed(2) },
+  });
 }
 
 /** Draft -> Sent: this is what actually recognizes revenue by posting to

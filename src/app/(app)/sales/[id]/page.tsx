@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { requireTenantContext } from "@/lib/tenant";
 import { prisma } from "@/lib/db";
+import { can } from "@/lib/rbac";
 import { InvoiceActions } from "@/components/forms/invoice-actions";
 import { DocumentBrandHeader } from "@/components/branding/document-brand-header";
 import { fieldDefs, getFormatter } from "@/lib/customization/server";
@@ -26,7 +27,12 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
     .flatMap((e) => e.lines.filter((l) => l.account.code === "1000"))
     .reduce((a, l) => a + l.debit.toNumber(), 0);
   const balanceDue = invoice.total.toNumber() - paid;
-  const [fmt, defs] = await Promise.all([getFormatter(userId), fieldDefs(active.companyId, "INVOICE")]);
+  const [fmt, defs, canEdit, canDelete] = await Promise.all([
+    getFormatter(userId),
+    fieldDefs(active.companyId, "INVOICE"),
+    can(active.id, "invoices", "EDIT"),
+    can(active.id, "invoices", "DELETE"),
+  ]);
   const values = fieldValues(invoice.customFields);
   // A field hidden later still shows here if this invoice already has a value for it.
   const shownFields = defs.filter((d) => d.key in values || d.required);
@@ -112,7 +118,7 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
         </div>
       )}
 
-      <InvoiceActions invoiceId={invoice.id} status={invoice.status} balanceDue={balanceDue} />
+      <InvoiceActions invoiceId={invoice.id} status={invoice.status} balanceDue={balanceDue} canEdit={canEdit} canDelete={canDelete} />
 
       {["SENT", "PARTIALLY_PAID", "OVERDUE"].includes(invoice.status) && balanceDue > 0 && (
         <PaymentLinkButton invoiceId={invoice.id} />

@@ -1,16 +1,22 @@
 import { requireTenantContext } from "@/lib/tenant";
 import { prisma } from "@/lib/db";
+import { can } from "@/lib/rbac";
 import { NewBankAccountForm } from "@/components/forms/new-bank-account-form";
 import { BankTransactionPanel } from "@/components/forms/bank-transaction-panel";
+import { BankAccountHeader } from "@/components/forms/bank-account-header";
 
 export default async function BankingPage() {
   const { active } = await requireTenantContext();
 
-  const accounts = await prisma.bankAccount.findMany({
-    where: { companyId: active.companyId },
-    orderBy: { createdAt: "asc" },
-    include: { transactions: { orderBy: { date: "desc" }, take: 50 } },
-  });
+  const [accounts, canEdit, canDelete] = await Promise.all([
+    prisma.bankAccount.findMany({
+      where: { companyId: active.companyId },
+      orderBy: { createdAt: "asc" },
+      include: { transactions: { orderBy: { date: "desc" }, take: 50 } },
+    }),
+    can(active.id, "banking", "EDIT"),
+    can(active.id, "banking", "DELETE"),
+  ]);
 
   return (
     <div className="space-y-8">
@@ -29,11 +35,18 @@ export default async function BankingPage() {
 
       {accounts.map((account) => (
         <div key={account.id} className="space-y-3">
-          <h2 className="text-lg font-medium text-foreground">
-            {account.name} <span className="text-sm font-normal text-muted-foreground">({account.currency})</span>
-          </h2>
+          <BankAccountHeader
+            bankAccountId={account.id}
+            name={account.name}
+            currency={account.currency}
+            isActive={account.isActive}
+            canEdit={canEdit}
+            canDelete={canDelete}
+          />
           <BankTransactionPanel
             bankAccountId={account.id}
+            canEdit={canEdit}
+            canDelete={canDelete}
             transactions={account.transactions.map((t) => ({
               id: t.id,
               date: t.date.toISOString().slice(0, 10),

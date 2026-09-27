@@ -7,7 +7,7 @@ import { requireTenantContext } from "@/lib/tenant";
 import { ForbiddenError } from "@/lib/rbac";
 import { fieldDefs } from "@/lib/customization/server";
 import { customFieldsFromForm } from "@/lib/customization/customFields";
-import { createCustomer, deleteCustomer, setCustomerActive, PartyInUseError } from "@/lib/parties";
+import { createCustomer, updateCustomer, deleteCustomer, setCustomerActive, PartyInUseError, PartyValidationError } from "@/lib/parties";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -19,6 +19,7 @@ async function run(fn: () => Promise<unknown>): Promise<ActionResult> {
   } catch (err) {
     if (err instanceof ForbiddenError) return { ok: false, error: "Only a company admin can do this." };
     if (err instanceof PartyInUseError) return { ok: false, error: err.message };
+    if (err instanceof PartyValidationError) return { ok: false, error: err.message };
     throw err;
   }
 }
@@ -49,6 +50,35 @@ export async function createCustomerAction(formData: FormData) {
   }
 
   revalidatePath("/customers");
+}
+
+/** Edits an existing customer's details. Custom fields are validated the
+ *  same way createCustomerAction() validates them, before anything writes. */
+export async function updateCustomerAction(customerId: string, formData: FormData): Promise<ActionResult> {
+  const { active, userId } = await requireTenantContext();
+
+  const defs = await fieldDefs(active.companyId, "CUSTOMER");
+  const customFields = customFieldsFromForm(defs, formData);
+
+  return run(async () => {
+    await updateCustomer({
+      companyId: active.companyId,
+      membershipId: active.id,
+      userId,
+      customerId,
+      name: String(formData.get("name") ?? ""),
+      email: (formData.get("email") as string) ?? "",
+      phone: (formData.get("phone") as string) ?? "",
+      taxRegNumber: (formData.get("taxRegNumber") as string) ?? "",
+      paymentTermsDays: formData.get("paymentTermsDays") ? Number(formData.get("paymentTermsDays")) : undefined,
+    });
+    if (defs.length > 0) {
+      await prisma.customer.update({
+        where: { id: customerId },
+        data: { customFields: customFields as Prisma.InputJsonValue },
+      });
+    }
+  });
 }
 
 /**

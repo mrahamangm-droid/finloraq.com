@@ -1,13 +1,42 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-export function InvoiceActions({ invoiceId, status, balanceDue }: { invoiceId: string; status: string; balanceDue: number }) {
+export function InvoiceActions({
+  invoiceId,
+  status,
+  balanceDue,
+  canEdit = true,
+  canDelete = true,
+}: {
+  invoiceId: string;
+  status: string;
+  balanceDue: number;
+  canEdit?: boolean;
+  canDelete?: boolean;
+}) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [amount, setAmount] = useState(balanceDue.toFixed(2));
+
+  async function remove() {
+    if (!window.confirm("Delete this draft invoice? This can't be undone.")) return;
+    setError(null);
+    setDeleting(true);
+    const res = await fetch(`/api/invoices/${invoiceId}`, { method: "DELETE" });
+    setDeleting(false);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setError(data.error ?? "Something went wrong.");
+      return;
+    }
+    router.push("/sales");
+    router.refresh();
+  }
 
   async function post() {
     setLoading(true);
@@ -41,6 +70,21 @@ export function InvoiceActions({ invoiceId, status, balanceDue }: { invoiceId: s
 
   return (
     <div className="space-y-3">
+      {status === "DRAFT" && (canEdit || canDelete) && (
+        <div className="flex items-center gap-4">
+          {canEdit && (
+            <Link href={`/sales/${invoiceId}/edit`} className="text-xs font-medium text-primary hover:underline">
+              Edit
+            </Link>
+          )}
+          {canDelete && (
+            <button onClick={remove} disabled={deleting} className="text-xs font-medium text-destructive hover:underline disabled:opacity-50">
+              {deleting ? "Deleting…" : "Delete draft"}
+            </button>
+          )}
+        </div>
+      )}
+
       {status === "DRAFT" && (
         <button onClick={post} disabled={loading} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
           {loading ? "Posting…" : "Post to Ledger (Send Invoice)"}

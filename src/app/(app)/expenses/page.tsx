@@ -3,9 +3,10 @@ import { requireTenantContext } from "@/lib/tenant";
 import { getFormatter } from "@/lib/customization/server";
 import { listRecentExpenses } from "@/lib/expenses";
 import { pickerProps, resolvePeriod, type PeriodParams } from "@/lib/periods";
+import { can } from "@/lib/rbac";
 import { PeriodPicker } from "@/components/periods/period-picker";
 import { NewExpenseForm } from "@/components/forms/new-expense-form";
-import { ExpenseRowActions } from "@/components/forms/expense-row-actions";
+import { ExpenseRow } from "@/components/forms/expense-row";
 
 type ExpenseStatus = "DRAFT" | "POSTED" | "REVERSED";
 const STATUS_TABS: { value: ExpenseStatus | "ALL"; label: string }[] = [
@@ -15,20 +16,11 @@ const STATUS_TABS: { value: ExpenseStatus | "ALL"; label: string }[] = [
   { value: "REVERSED", label: "Reversed" },
 ];
 
-// Same convention as the Journals page's statusColor() — kept as a local
-// copy rather than a shared import since that one isn't exported yet and
-// this page has no other reason to depend on the Journals route.
-function statusColor(status: string) {
-  if (status === "POSTED") return "bg-success/10 text-success";
-  if (status === "REVERSED") return "bg-destructive/10 text-destructive";
-  return "bg-muted text-muted-foreground";
-}
-
 type ExpensesPageParams = PeriodParams & { status?: string };
 
 export default async function ExpensesPage({ searchParams = {} }: { searchParams?: ExpensesPageParams }) {
   const { active, userId } = await requireTenantContext();
-  const fmt = await getFormatter(userId);
+  const [fmt, canEdit] = await Promise.all([getFormatter(userId), can(active.id, "expenses", "EDIT")]);
   const filtered = Boolean(searchParams.period);
   const period = resolvePeriod(searchParams);
   // Deliberately checked against the three real JournalStatus values, not
@@ -117,20 +109,22 @@ export default async function ExpensesPage({ searchParams = {} }: { searchParams
                 // amount (expense + tax); the debit side splits across 1-2 lines.
                 const bankLine = e.lines.find((l) => l.account.code === "1000");
                 const amount = bankLine ? bankLine.credit.toNumber() : e.lines.reduce((a, l) => a + l.debit.toNumber(), 0);
+                const taxLine = e.lines.find((l) => l.account.code === "1200");
                 return (
-                  <tr key={e.id} className="border-b border-border last:border-0">
-                    <td className="px-4 py-2 text-muted-foreground">{fmt.date(e.date)}</td>
-                    <td className="px-4 py-2 text-card-foreground">{e.memo}</td>
-                    <td className="px-4 py-2 text-right text-card-foreground">{fmt.money(amount)}</td>
-                    <td className="px-4 py-2">
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusColor(e.status)}`}>
-                        {e.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2">
-                      <ExpenseRowActions journalEntryId={e.id} status={e.status} />
-                    </td>
-                  </tr>
+                  <ExpenseRow
+                    key={e.id}
+                    expense={{
+                      id: e.id,
+                      date: e.date.toISOString().slice(0, 10),
+                      memo: e.memo ?? "",
+                      amount,
+                      taxAmount: taxLine ? taxLine.debit.toNumber() : undefined,
+                      status: e.status,
+                    }}
+                    canEdit={canEdit}
+                    money={fmt.money}
+                    date={fmt.date}
+                  />
                 );
               })}
             </tbody>

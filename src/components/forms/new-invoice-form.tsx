@@ -13,17 +13,29 @@ export function NewInvoiceForm({
   customers,
   taxCodes,
   fields = [],
+  invoiceId,
+  initial,
 }: {
   customers: { id: string; name: string }[];
   taxCodes: { id: string; name: string; rate: number }[];
   fields?: FieldDef[];
+  /** Present only when editing an existing DRAFT invoice — switches the
+   *  form from POST /api/invoices to PATCH /api/invoices/:id. */
+  invoiceId?: string;
+  initial?: {
+    customerId: string;
+    issueDate: string;
+    dueDate: string;
+    lines: Line[];
+  };
 }) {
+  const editing = Boolean(invoiceId);
   const fieldsRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
-  const [customerId, setCustomerId] = useState(customers[0]?.id ?? "");
-  const [issueDate, setIssueDate] = useState(new Date().toISOString().slice(0, 10));
-  const [dueDate, setDueDate] = useState(new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10));
-  const [lines, setLines] = useState<Line[]>([emptyLine()]);
+  const [customerId, setCustomerId] = useState(initial?.customerId ?? customers[0]?.id ?? "");
+  const [issueDate, setIssueDate] = useState(initial?.issueDate ?? new Date().toISOString().slice(0, 10));
+  const [dueDate, setDueDate] = useState(initial?.dueDate ?? new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10));
+  const [lines, setLines] = useState<Line[]>(initial?.lines ?? [emptyLine()]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -46,24 +58,26 @@ export function NewInvoiceForm({
     if (cf) new FormData(cf).forEach((v, k) => { if (k.startsWith("cf_")) customFields[k.slice(3)] = String(v); });
     setLoading(true);
 
-    const res = await fetch("/api/invoices", {
-      method: "POST",
+    const body = {
+      customerId,
+      issueDate,
+      dueDate,
+      currency: "AED",
+      ...(editing ? {} : { customFields }),
+      lines: lines
+        .filter((l) => l.description && l.unitPrice)
+        .map((l) => ({
+          description: l.description,
+          quantity: parseFloat(l.quantity) || 1,
+          unitPrice: parseFloat(l.unitPrice) || 0,
+          taxCodeId: l.taxCodeId || undefined,
+        })),
+    };
+
+    const res = await fetch(editing ? `/api/invoices/${invoiceId}` : "/api/invoices", {
+      method: editing ? "PATCH" : "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        customerId,
-        issueDate,
-        dueDate,
-        currency: "AED",
-        customFields,
-        lines: lines
-          .filter((l) => l.description && l.unitPrice)
-          .map((l) => ({
-            description: l.description,
-            quantity: parseFloat(l.quantity) || 1,
-            unitPrice: parseFloat(l.unitPrice) || 0,
-            taxCodeId: l.taxCodeId || undefined,
-          })),
-      }),
+      body: JSON.stringify(body),
     });
 
     setLoading(false);
@@ -75,7 +89,8 @@ export function NewInvoiceForm({
     }
 
     const data = await res.json();
-    router.push(`/sales/${data.id}`);
+    router.push(`/sales/${editing ? invoiceId : data.id}`);
+    router.refresh();
   }
 
   if (customers.length === 0) {
@@ -165,11 +180,12 @@ export function NewInvoiceForm({
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       <button onClick={submit} disabled={loading} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
-        {loading ? "Saving…" : "Save Draft Invoice"}
+        {loading ? "Saving…" : editing ? "Save changes" : "Save Draft Invoice"}
       </button>
       <p className="text-xs text-muted-foreground">
-        This saves a draft — no ledger impact yet. Posting (which recognizes revenue) happens
-        from the invoice detail page.
+        {editing
+          ? "Editing is only possible while this invoice is still a draft — once sent, its numbers are locked and a correction goes through a credit note instead."
+          : "This saves a draft — no ledger impact yet. Posting (which recognizes revenue) happens from the invoice detail page."}
       </p>
     </div>
   );

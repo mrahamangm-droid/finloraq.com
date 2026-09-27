@@ -7,7 +7,7 @@ import { requireTenantContext } from "@/lib/tenant";
 import { ForbiddenError } from "@/lib/rbac";
 import { fieldDefs } from "@/lib/customization/server";
 import { customFieldsFromForm } from "@/lib/customization/customFields";
-import { createSupplier, deleteSupplier, setSupplierActive, PartyInUseError } from "@/lib/parties";
+import { createSupplier, updateSupplier, deleteSupplier, setSupplierActive, PartyInUseError, PartyValidationError } from "@/lib/parties";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -19,6 +19,7 @@ async function run(fn: () => Promise<unknown>): Promise<ActionResult> {
   } catch (err) {
     if (err instanceof ForbiddenError) return { ok: false, error: "Only a company admin can do this." };
     if (err instanceof PartyInUseError) return { ok: false, error: err.message };
+    if (err instanceof PartyValidationError) return { ok: false, error: err.message };
     throw err;
   }
 }
@@ -49,6 +50,34 @@ export async function createSupplierAction(formData: FormData) {
   }
 
   revalidatePath("/suppliers");
+}
+
+/** Edits an existing supplier's details. Mirrors updateCustomerAction(). */
+export async function updateSupplierAction(supplierId: string, formData: FormData): Promise<ActionResult> {
+  const { active, userId } = await requireTenantContext();
+
+  const defs = await fieldDefs(active.companyId, "SUPPLIER");
+  const customFields = customFieldsFromForm(defs, formData);
+
+  return run(async () => {
+    await updateSupplier({
+      companyId: active.companyId,
+      membershipId: active.id,
+      userId,
+      supplierId,
+      name: String(formData.get("name") ?? ""),
+      email: (formData.get("email") as string) ?? "",
+      phone: (formData.get("phone") as string) ?? "",
+      taxRegNumber: (formData.get("taxRegNumber") as string) ?? "",
+      paymentTermsDays: formData.get("paymentTermsDays") ? Number(formData.get("paymentTermsDays")) : undefined,
+    });
+    if (defs.length > 0) {
+      await prisma.supplier.update({
+        where: { id: supplierId },
+        data: { customFields: customFields as Prisma.InputJsonValue },
+      });
+    }
+  });
 }
 
 export async function deleteSupplierAction(supplierId: string): Promise<ActionResult> {
