@@ -3,12 +3,13 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { hashPassword, isPasswordStrong } from "@/lib/password";
 import { recordAuditEvent } from "@/lib/audit";
+import { findUserByEmail, normalizeEmail } from "@/lib/userLookup";
 import { checkRateLimit, clientIpFromHeaders } from "@/lib/rateLimit";
 
 const schema = z.object({
-  name: z.string().min(1).max(200),
-  email: z.string().email(),
-  password: z.string().min(12),
+  name: z.string().trim().min(1).max(200),
+  email: z.string().trim().email().max(254),
+  password: z.string().min(12).max(256),
 });
 
 export async function POST(req: Request) {
@@ -26,14 +27,15 @@ export async function POST(req: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid input." }, { status: 400 });
   }
-  const { name, email, password } = parsed.data;
+  const { name, password } = parsed.data;
+  const email = normalizeEmail(parsed.data.email);
 
   const strength = isPasswordStrong(password);
   if (!strength.ok) {
     return NextResponse.json({ error: strength.reason }, { status: 400 });
   }
 
-  const existing = await prisma.user.findUnique({ where: { email } });
+  const existing = await findUserByEmail(email);
   if (existing) {
     // Same generic error as any other validation failure — do not reveal
     // that the email is already registered (account enumeration).
@@ -41,9 +43,20 @@ export async function POST(req: Request) {
   }
 
   const passwordHash = await hashPassword(password);
-  const user = await prisma.user.create({
-    data: { name, email, passwordHash },
-  });
+  let user;
+  try {
+    user = await prisma.user.create({
+      data: { name, email, passwordHash },
+    });
+  } catch (err) {
+    // Two simultaneous sign-ups for the same address both pass the check
+    // above; the DB unique index rejects the second. Answer it like any
+    // other duplicate instead of leaking a 500.
+    if ((err as { code?: string } | null)?.code === "P2002") {
+      return NextResponse.json({ error: "Unable to create account." }, { status: 400 });
+    }
+    throw err;
+  }
 
   await recordAuditEvent({
     userId: user.id,
