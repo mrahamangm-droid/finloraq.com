@@ -1,0 +1,52 @@
+name: Claude Code
+
+# Responds to @claude mentions in issue/PR comments, PR review comments, and
+# newly opened issues. Authenticates as the Claude GitHub App via id-token,
+# using ANTHROPIC_API_KEY (or CLAUDE_CODE_OAUTH_TOKEN) for the model calls.
+#
+# Merge policy: main is protected (PR required + build-and-test status check
+# required). Auto-merge is NOT enabled by default here -- see CLAUDE.md for
+# the current policy and how to turn it on later.
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
+  issues:
+    types: [opened]
+
+concurrency:
+  group: claude-${{ github.event.issue.number || github.event.pull_request.number || github.event.review.id }}
+  cancel-in-progress: false
+
+jobs:
+  claude:
+    if: |
+      contains(github.event.comment.body, '@claude') ||
+      contains(github.event.review.body, '@claude') ||
+      contains(github.event.issue.body, '@claude')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Using a Claude subscription instead of an API key? Replace the
+          # line above with:
+          # claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: |
+            --model claude-sonnet-5
+            --max-turns 30
