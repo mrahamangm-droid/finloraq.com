@@ -166,6 +166,8 @@ model Company {
   documents          Document[]
   auditEvents        AuditEvent[]
   workflowRules      WorkflowRule[]
+  paymentConnection  PaymentConnection?
+  onlinePayments     OnlinePayment[]
   customFieldDefinitions CustomFieldDefinition[]
   subscription       Subscription?
   invitations        Invitation[]
@@ -515,6 +517,8 @@ model Invoice {
   total       Decimal       @db.Decimal(18, 2)
   status      InvoiceStatus @default(DRAFT)
   journalEntryId String?
+  /// Unguessable token for the public /pay/<token> page (created on first "Get payment link").
+  payToken    String?       @unique
   /// Values for the company's custom invoice fields, keyed by field key.
   customFields Json?
   /// Fingerprint of the spreadsheet row this invoice was imported from (Import past data) — stops double imports.
@@ -525,6 +529,7 @@ model Invoice {
   customer Customer @relation(fields: [customerId], references: [id])
   project  Project? @relation(fields: [projectId], references: [id])
   lines    InvoiceLine[]
+  onlinePayments OnlinePayment[]
 
   @@unique([companyId, invoiceNumber])
   @@unique([companyId, importRef])
@@ -915,4 +920,56 @@ model CustomFieldDefinition {
 
   @@unique([companyId, entity, key])
   @@index([companyId, entity])
+}
+
+// ---------------------------------------------------------------------------
+// Online invoice payments (Stripe Connect)
+// ---------------------------------------------------------------------------
+
+/// A company's own Stripe account, connected through Stripe Connect so its
+/// customers' invoice payments settle straight to that company — Finloraq
+/// never holds their money.
+model PaymentConnection {
+  id                      String   @id @default(cuid())
+  companyId               String   @unique
+  provider                String   @default("stripe")
+  accountId               String   @unique
+  chargesEnabled          Boolean  @default(false)
+  payoutsEnabled          Boolean  @default(false)
+  detailsSubmitted        Boolean  @default(false)
+  /// The admin who connected the account; webhook-driven postings are made
+  /// under this membership so they go through the normal RBAC + ledger path.
+  connectedByMembershipId String
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+}
+
+enum OnlinePaymentStatus {
+  POSTED
+  NEEDS_REVIEW
+}
+
+/// One successful online payment of an invoice. The unique provider id makes
+/// webhook retries harmless.
+model OnlinePayment {
+  id                String              @id @default(cuid())
+  companyId         String
+  invoiceId         String
+  provider          String              @default("stripe")
+  providerPaymentId String              @unique
+  checkoutSessionId String?
+  amount            Decimal             @db.Decimal(18, 2)
+  currency          String
+  status            OnlinePaymentStatus
+  journalEntryId    String?
+  note              String?
+  createdAt         DateTime            @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, status])
+  @@index([invoiceId])
 }

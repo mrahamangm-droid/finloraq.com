@@ -6,6 +6,7 @@ import { DocumentBrandHeader } from "@/components/branding/document-brand-header
 import { fieldDefs, getFormatter } from "@/lib/customization/server";
 import { displayFieldValue } from "@/lib/customization/customFields";
 import { fieldValues } from "@/components/custom-fields/custom-field-inputs";
+import { PaymentLinkButton } from "@/components/payments/payment-link-button";
 
 export default async function InvoiceDetailPage({ params }: { params: { id: string } }) {
   const { active, userId } = await requireTenantContext();
@@ -112,6 +113,10 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
       )}
 
       <InvoiceActions invoiceId={invoice.id} status={invoice.status} balanceDue={balanceDue} />
+
+      {["SENT", "PARTIALLY_PAID", "OVERDUE"].includes(invoice.status) && balanceDue > 0 && (
+        <PaymentLinkButton invoiceId={invoice.id} />
+      )}
     </div>
   );
 }

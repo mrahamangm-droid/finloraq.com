@@ -143,6 +143,10 @@ export async function recordInvoicePayment(params: {
   invoiceId: string;
   amount: number;
   date: Date;
+  /** Stable reference for payments that arrive from a provider (e.g. "stripe:pi_123").
+   *  Makes the posting idempotent: the ledger refuses a second entry with the same source. */
+  sourceRef?: string;
+  memo?: string;
 }) {
   await requirePermission(params.membershipId, "invoices", "EDIT");
 
@@ -154,7 +158,8 @@ export async function recordInvoicePayment(params: {
     throw new InvalidLineError("Only a sent invoice can receive a payment.");
   }
 
-  const paymentId = `${invoice.id}:${Date.now()}`; // unique per payment so multiple partial payments can each post
+  // unique per payment so multiple partial payments can each post
+  const paymentId = `${invoice.id}:${params.sourceRef ?? Date.now()}`;
 
   const entry = await postJournalEntry({
     companyId: params.companyId,
@@ -163,7 +168,7 @@ export async function recordInvoicePayment(params: {
     date: params.date,
     sourceType: "PAYMENT",
     sourceId: paymentId,
-    memo: `Payment received — Invoice ${invoice.invoiceNumber}`,
+    memo: params.memo ?? `Payment received — Invoice ${invoice.invoiceNumber}`,
     currency: invoice.currency,
     lines: buildInvoicePaymentPosting({ amount: params.amount }),
     post: true,
@@ -177,7 +182,7 @@ export async function recordInvoicePayment(params: {
   return entry;
 }
 
-async function sumInvoicePayments(companyId: string, invoiceId: string) {
+export async function sumInvoicePayments(companyId: string, invoiceId: string) {
   const entries = await prisma.journalEntry.findMany({
     where: { companyId, sourceType: "PAYMENT", sourceId: { startsWith: `${invoiceId}:` }, status: "POSTED" },
     include: { lines: { include: { account: true } } },
