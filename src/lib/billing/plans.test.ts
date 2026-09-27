@@ -6,7 +6,7 @@ describe("plan catalog", () => {
   it("every plan in PLAN_ORDER has a definition", () => {
     for (const plan of PLAN_ORDER) {
       expect(PLANS[plan]).toBeDefined();
-      expect(PLANS[plan].plan).toBe(plan);
+      expect(PLANS[plan]!.plan).toBe(plan);
     }
   });
 

@@ -93,7 +93,11 @@ export const PLANS: Record<SubscriptionPlan, PlanDefinition> = {
 };
 
 export function planDefinition(plan: SubscriptionPlan): PlanDefinition {
-  return PLANS[plan];
+  const definition = PLANS[plan];
+  if (!definition) {
+    throw new Error(`No plan definition for subscription plan: ${String(plan)}`);
+  }
+  return definition;
 }
 
 export function isCustomPricedPlan(plan: SubscriptionPlan): boolean {
