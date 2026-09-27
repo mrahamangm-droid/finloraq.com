@@ -4,6 +4,15 @@ import { recordAuditEvent } from "@/lib/audit";
 import { getPaymentAdapter } from "@/lib/integrations/payment";
 import { planDefinition, PLAN_ORDER } from "@/lib/billing/plans";
 import { currentMonthAiUsage } from "@/lib/billing/usage";
+import { seatDowngradeBlocker } from "@/lib/billing/seats";
+
+/** A plan change that would leave more people than the new plan has seats. */
+export class SeatDowngradeError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SeatDowngradeError";
+  }
+}
 
 export class SeatLimitExceededError extends Error {
   constructor(public readonly limit: number) {
@@ -59,11 +68,12 @@ export async function enforceSeatLimit(companyId: string): Promise<void> {
  * no Stripe key is configured; the Subscription row and audit trail are
  * real either way, so the rest of the app (seat limits, AI usage caps)
  * behaves correctly regardless of whether a real charge backs it.
- * Downgrading to a plan with fewer seats than are currently in use is
- * intentionally allowed here (a real product would either block it or
- * require deactivating members first) — flagged as a TODO rather than a
- * silent gap, since enforcing it needs a "which members to deactivate"
- * decision from the user that a plan-change form isn't the right place for.
+ * Moving to a plan with fewer seats than are in use (active members plus
+ * pending invitations) is refused with SeatDowngradeError, BEFORE any
+ * charge is attempted. Which members to deactivate is the user's call, made
+ * on Users & Roles, not something a plan-change form guesses at. Downgrades
+ * made in the Stripe Customer Portal don't pass through here (the webhook
+ * syncs what Stripe already did), so this guards the direct path only.
  */
 export async function changePlan(params: {
   companyId: string;
@@ -73,6 +83,13 @@ export async function changePlan(params: {
   const subscription = await prisma.subscription.findUniqueOrThrow({ where: { companyId: params.companyId } });
   const from = subscription.plan;
   const def = planDefinition(params.newPlan);
+
+  const [activeMembers, pendingInvites] = await Promise.all([
+    prisma.companyMembership.count({ where: { companyId: params.companyId, isActive: true } }),
+    prisma.invitation.count({ where: { companyId: params.companyId, status: "PENDING" } }),
+  ]);
+  const blocker = seatDowngradeBlocker({ planLabel: def.label, seatLimit: def.seats, activeMembers, pendingInvites });
+  if (blocker) throw new SeatDowngradeError(blocker);
 
   let chargeResult = null;
   if (def.monthlyPriceUsd > 0) {
