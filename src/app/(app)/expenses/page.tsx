@@ -122,8 +122,8 @@ export default async function ExpensesPage({ searchParams = {} }: { searchParams
                       status: e.status,
                     }}
                     canEdit={canEdit}
-                    money={fmt.money}
-                    date={fmt.date}
+                    moneyDisplay={fmt.money(amount)}
+                    dateDisplay={fmt.date(e.date)}
                   />
                 );
               })}
