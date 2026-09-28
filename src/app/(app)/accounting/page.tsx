@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireTenantContext } from "@/lib/tenant";
+import { viewGate } from "@/lib/page-access";
 import { prisma } from "@/lib/db";
 import { can } from "@/lib/rbac";
 import { NewAccountForm } from "@/components/forms/new-account-form";
@@ -7,6 +8,8 @@ import { AccountRow } from "@/components/forms/account-row";
 
 export default async function ChartOfAccountsPage() {
   const { active } = await requireTenantContext();
+  const denied = await viewGate(active.id, "accounting");
+  if (denied) return denied;
 
   const [accounts, canCreate, canEdit, canDelete] = await Promise.all([
     prisma.account.findMany({

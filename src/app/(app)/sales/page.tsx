@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireTenantContext } from "@/lib/tenant";
+import { viewGate } from "@/lib/page-access";
 import { getFormatter } from "@/lib/customization/server";
 import { prisma } from "@/lib/db";
 import { pickerProps, resolvePeriod, type PeriodParams } from "@/lib/periods";
@@ -15,6 +16,8 @@ function statusColor(status: string) {
 export default async function SalesPage(props: { searchParams?: Promise<PeriodParams> }) {
   const searchParams = (await props.searchParams) ?? {};
   const { active, userId } = await requireTenantContext();
+  const denied = await viewGate(active.id, "invoices");
+  if (denied) return denied;
   const fmt = await getFormatter(userId);
   const filtered = Boolean(searchParams.period);
   const period = resolvePeriod(searchParams);
