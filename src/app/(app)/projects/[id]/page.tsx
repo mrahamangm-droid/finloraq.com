@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { requireTenantContext } from "@/lib/tenant";
+import { viewGate } from "@/lib/page-access";
 import { getFormatter } from "@/lib/customization/server";
 import { projectProfitability } from "@/lib/projects";
 import { prisma } from "@/lib/db";
@@ -7,6 +8,8 @@ import { prisma } from "@/lib/db";
 export default async function ProjectDetailPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const { active, userId } = await requireTenantContext();
+  const denied = await viewGate(active.id, "projects");
+  if (denied) return denied;
   const fmt = await getFormatter(userId);
 
   const exists = await prisma.project.findFirst({ where: { id: params.id, companyId: active.companyId } });

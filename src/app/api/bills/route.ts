@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireTenantContext } from "@/lib/tenant";
+import { can } from "@/lib/rbac";
 import { createBill } from "@/lib/purchases";
 import { InvalidLineError } from "@/lib/ledger";
 import { prisma } from "@/lib/db";
@@ -22,6 +23,11 @@ const schema = z.object({
 
 export async function GET() {
   const { active } = await requireTenantContext();
+  // Reads are gated on VIEW exactly like writes are gated on CREATE/EDIT —
+  // a role without bills:VIEW (e.g. STAFF) gets 403, not the data.
+  if (!(await can(active.id, "bills", "VIEW"))) {
+    return NextResponse.json({ error: "Missing VIEW on bills." }, { status: 403 });
+  }
   const bills = await prisma.bill.findMany({
     where: { companyId: active.companyId },
     orderBy: { issueDate: "desc" },

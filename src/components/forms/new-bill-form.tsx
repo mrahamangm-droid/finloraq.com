@@ -9,11 +9,16 @@ type Line = { description: string; quantity: string; unitPrice: string; taxCodeI
 const emptyLine = (): Line => ({ description: "", quantity: "1", unitPrice: "", taxCodeId: "" });
 
 export function NewBillForm({
+  currency,
   suppliers,
   taxCodes,
   billId,
   initial,
 }: {
+  /** ISO currency the document is recorded in — the company's base currency
+   *  for a new document, the document's own currency when editing (so an
+   *  edit never silently re-labels it). Passed from the server page. */
+  currency: string;
   suppliers: { id: string; name: string }[];
   taxCodes: { id: string; name: string; rate: number }[];
   /** Present only when editing an existing DRAFT bill — switches the form
@@ -57,7 +62,7 @@ export function NewBillForm({
         supplierId,
         issueDate,
         dueDate,
-        currency: "AED",
+        currency,
         lines: lines
           .filter((l) => l.description && l.unitPrice)
           .map((l) => ({

@@ -1,9 +1,12 @@
 import { requireTenantContext } from "@/lib/tenant";
+import { viewGate } from "@/lib/page-access";
 import { prisma } from "@/lib/db";
 import { NewBillForm } from "@/components/forms/new-bill-form";
 
 export default async function NewBillPage() {
   const { active } = await requireTenantContext();
+  const denied = await viewGate(active.id, "bills");
+  if (denied) return denied;
 
   const [suppliers, taxCodes] = await Promise.all([
     prisma.supplier.findMany({ where: { companyId: active.companyId }, orderBy: { name: "asc" } }),
@@ -17,6 +20,7 @@ export default async function NewBillPage() {
     <div className="mx-auto max-w-3xl space-y-6">
       <h1 className="text-xl font-semibold text-foreground">New Bill</h1>
       <NewBillForm
+        currency={active.company.baseCurrency}
         suppliers={suppliers.map((s) => ({ id: s.id, name: s.name }))}
         taxCodes={taxCodes.map((t) => ({ id: t.id, name: t.name, rate: t.rate.toNumber() }))}
       />

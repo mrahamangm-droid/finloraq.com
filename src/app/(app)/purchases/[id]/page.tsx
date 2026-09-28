@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { requireTenantContext } from "@/lib/tenant";
+import { viewGate } from "@/lib/page-access";
 import { getFormatter } from "@/lib/customization/server";
 import { prisma } from "@/lib/db";
 import { can } from "@/lib/rbac";
@@ -8,6 +9,8 @@ import { BillActions } from "@/components/forms/bill-actions";
 export default async function BillDetailPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const { active, userId } = await requireTenantContext();
+  const denied = await viewGate(active.id, "bills");
+  if (denied) return denied;
   const [fmt, canEdit, canDelete] = await Promise.all([
     getFormatter(userId),
     can(active.id, "bills", "EDIT"),
