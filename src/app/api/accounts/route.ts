@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireTenantContext } from "@/lib/tenant";
 import { createAccount, AccountValidationError } from "@/lib/accounts";
-import { ForbiddenError } from "@/lib/rbac";
+import { ForbiddenError, can } from "@/lib/rbac";
 import { prisma } from "@/lib/db";
 
 const ACCOUNT_TYPES = ["ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"] as const;
@@ -17,6 +17,11 @@ const schema = z.object({
 
 export async function GET() {
   const { active } = await requireTenantContext();
+  // Reads are gated on VIEW exactly like writes are gated on CREATE/EDIT —
+  // a role without accounting:VIEW (e.g. STAFF) gets 403, not the data.
+  if (!(await can(active.id, "accounting", "VIEW"))) {
+    return NextResponse.json({ error: "Missing VIEW on accounting." }, { status: 403 });
+  }
   const accounts = await prisma.account.findMany({
     where: { companyId: active.companyId },
     orderBy: { code: "asc" },
