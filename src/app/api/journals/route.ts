@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireTenantContext } from "@/lib/tenant";
+import { can } from "@/lib/rbac";
 import { postJournalEntry, UnbalancedEntryError, PeriodLockedError, InvalidLineError, DuplicatePostingError } from "@/lib/ledger";
 import { prisma } from "@/lib/db";
 
@@ -27,6 +28,11 @@ const createSchema = z.object({
 
 export async function GET() {
   const { active } = await requireTenantContext();
+  // Reads are gated on VIEW exactly like writes are gated on CREATE/EDIT —
+  // a role without journals:VIEW (e.g. STAFF) gets 403, not the data.
+  if (!(await can(active.id, "journals", "VIEW"))) {
+    return NextResponse.json({ error: "Missing VIEW on journals." }, { status: 403 });
+  }
 
   const entries = await prisma.journalEntry.findMany({
     where: { companyId: active.companyId },
