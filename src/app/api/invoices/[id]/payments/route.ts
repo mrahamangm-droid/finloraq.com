@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { NotFoundError } from "@/lib/errors";
 import { z } from "zod";
 import { requireTenantContext } from "@/lib/tenant";
 import { recordInvoicePayment } from "@/lib/sales";
@@ -25,6 +26,7 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
     });
     return NextResponse.json({ id: entry.id, entryNumber: entry.entryNumber });
   } catch (err) {
+    if (err instanceof NotFoundError) return NextResponse.json({ error: err.message }, { status: 404 });
     if (err instanceof InvalidLineError) {
       return NextResponse.json({ error: err.message }, { status: 400 });
     }

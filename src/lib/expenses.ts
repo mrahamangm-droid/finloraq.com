@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { NotFoundError } from "@/lib/errors";
 import { decideExpenseApproval, governingRule, roleSatisfies } from "@/lib/approvals";
 import { can, requirePermission } from "@/lib/rbac";
 import { recordAuditEvent } from "@/lib/audit";
@@ -92,7 +93,7 @@ export async function updateDraftExpense(params: {
     where: { id: params.journalEntryId, companyId: params.companyId, sourceType: "EXPENSE" },
     include: { lines: { include: { account: true } } },
   });
-  if (!before) throw new Error("Expense not found.");
+  if (!before) throw new NotFoundError("Expense not found.");
   if (before.status !== "DRAFT") {
     throw new InvalidLineError("Only a draft expense can be edited. Once approved, correct it with a reversal instead.");
   }

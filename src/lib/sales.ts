@@ -1,5 +1,6 @@
 import type Decimal from "decimal.js";
 import { prisma } from "@/lib/db";
+import { NotFoundError } from "@/lib/errors";
 import { requirePermission } from "@/lib/rbac";
 import { recordAuditEvent } from "@/lib/audit";
 import { postJournalEntry, buildInvoicePosting, buildInvoicePaymentPosting, InvalidLineError, assertBaseCurrency, normalizeCurrencyCode } from "@/lib/ledger";
@@ -106,7 +107,7 @@ export async function updateInvoice(params: {
   await requirePermission(params.membershipId, "invoices", "EDIT");
 
   const before = await prisma.invoice.findFirst({ where: { id: params.invoiceId, companyId: params.companyId }, include: { lines: true } });
-  if (!before) throw new Error("Invoice not found.");
+  if (!before) throw new NotFoundError("Invoice not found.");
   if (before.status !== "DRAFT") {
     throw new InvalidLineError("Only a draft invoice can be edited. Once sent, correct it with a credit note or a new invoice.");
   }
@@ -177,7 +178,7 @@ export async function deleteInvoice(params: {
   await requirePermission(params.membershipId, "invoices", "DELETE");
 
   const invoice = await prisma.invoice.findFirst({ where: { id: params.invoiceId, companyId: params.companyId } });
-  if (!invoice) throw new Error("Invoice not found.");
+  if (!invoice) throw new NotFoundError("Invoice not found.");
   if (invoice.status !== "DRAFT") {
     throw new InvalidLineError("Only a draft invoice can be deleted. A sent invoice can't be removed — void it via a credit note instead.");
   }
@@ -211,9 +212,10 @@ export async function postInvoiceToLedger(params: {
 }) {
   await requirePermission(params.membershipId, "invoices", "EDIT");
 
-  const invoice = await prisma.invoice.findFirstOrThrow({
+  const invoice = await prisma.invoice.findFirst({
     where: { id: params.invoiceId, companyId: params.companyId },
   });
+  if (!invoice) throw new NotFoundError("Invoice not found.");
 
   if (invoice.status !== "DRAFT") {
     throw new InvalidLineError("Only a draft invoice can be posted.");
@@ -259,9 +261,10 @@ export async function recordInvoicePayment(params: {
 }) {
   await requirePermission(params.membershipId, "invoices", "EDIT");
 
-  const invoice = await prisma.invoice.findFirstOrThrow({
+  const invoice = await prisma.invoice.findFirst({
     where: { id: params.invoiceId, companyId: params.companyId },
   });
+  if (!invoice) throw new NotFoundError("Invoice not found.");
 
   if (!["SENT", "PARTIALLY_PAID", "OVERDUE"].includes(invoice.status)) {
     throw new InvalidLineError("Only a sent invoice can receive a payment.");

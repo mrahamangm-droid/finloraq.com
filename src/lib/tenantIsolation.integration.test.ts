@@ -294,13 +294,17 @@ describe.skipIf(!enabled)("tenant isolation across API routes (real Postgres)", 
     ];
 
     const accepted: string[] = [];
+    const unhandled: string[] = [];
     for (const [path, method, params, body] of attempts) {
       const res = await call(await route(path), method, params, body);
       if (res.status < 300) accepted.push(`${method} ${path} -> ${res.status}`);
+      // Refused cleanly (404 not found, or 400/403), never an uncaught 500.
+      if (res.status >= 500) unhandled.push(`${method} ${path} -> ${res.status}: ${res.body.slice(0, 80)}`);
       expect(res.body).not.toContain("SECRETB");
       expect(res.body).not.toContain("Customer B");
     }
     expect(accepted).toEqual([]);
+    expect(unhandled).toEqual([]);
     expect(await snapshot(B.companyId)).toBe(before);
   }, 120_000);
 
