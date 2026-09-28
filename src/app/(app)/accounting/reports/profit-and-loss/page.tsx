@@ -1,5 +1,6 @@
 import { ReportActions } from "@/components/reports/report-actions";
 import { requireTenantContext } from "@/lib/tenant";
+import { viewGate } from "@/lib/page-access";
 import { getFormatter } from "@/lib/customization/server";
 import Link from "next/link";
 import { profitAndLoss, profitAndLossSeries } from "@/lib/reports";
@@ -9,6 +10,8 @@ import { PeriodPicker } from "@/components/periods/period-picker";
 export default async function ProfitAndLossPage(props: { searchParams?: Promise<PeriodParams> }) {
   const searchParams = (await props.searchParams) ?? {};
   const { active, userId } = await requireTenantContext();
+  const denied = await viewGate(active.id, "reports");
+  if (denied) return denied;
   const fmt = await getFormatter(userId);
   const period = resolvePeriod(searchParams);
   const { from, to } = period;

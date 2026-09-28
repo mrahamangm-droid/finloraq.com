@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/rbac";
 import { recordAuditEvent } from "@/lib/audit";
@@ -160,6 +161,55 @@ export async function approveExpense(params: {
     userId: params.userId,
     journalEntryId: params.journalEntryId,
   });
+}
+
+/**
+ * Totals for the same filter as listRecentExpenses(), computed in the
+ * database over EVERY matching expense — the list itself is capped, so
+ * summing it would understate a period with more expenses than the cap.
+ *
+ * Mirrors the Expenses page's per-row amount rule exactly: an expense
+ * with a Bank (1000) line counts that line's credit; one without counts
+ * the sum of its debits. Split by the entry's currency, since amounts in
+ * different currencies don't add up to a total.
+ */
+export async function expenseTotals(
+  companyId: string,
+  range?: { from: Date; to: Date },
+  status?: "DRAFT" | "POSTED" | "REVERSED",
+) {
+  const entryWhere = {
+    companyId,
+    sourceType: "EXPENSE" as const,
+    ...(range ? { date: { gte: range.from, lte: range.to } } : {}),
+    ...(status ? { status } : {}),
+  };
+  const groups = await prisma.journalEntry.groupBy({
+    by: ["currency"],
+    where: entryWhere,
+    _count: { _all: true },
+    orderBy: { currency: "asc" },
+  });
+
+  const byCurrency = await Promise.all(
+    groups.map(async (g) => {
+      const where = { ...entryWhere, currency: g.currency };
+      const [withBank, withoutBank] = await Promise.all([
+        prisma.journalLine.aggregate({
+          _sum: { credit: true },
+          where: { account: { code: "1000" }, journalEntry: where },
+        }),
+        prisma.journalLine.aggregate({
+          _sum: { debit: true },
+          where: { journalEntry: { ...where, lines: { none: { account: { code: "1000" } } } } },
+        }),
+      ]);
+      const total = (withBank._sum.credit ?? new Prisma.Decimal(0)).plus(withoutBank._sum.debit ?? 0);
+      return { currency: g.currency, total };
+    }),
+  );
+
+  return { count: groups.reduce((n, g) => n + g._count._all, 0), byCurrency };
 }
 
 /**

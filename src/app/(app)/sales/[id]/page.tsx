@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { requireTenantContext } from "@/lib/tenant";
+import { viewGate } from "@/lib/page-access";
 import { prisma } from "@/lib/db";
 import { can } from "@/lib/rbac";
 import { InvoiceActions } from "@/components/forms/invoice-actions";
@@ -12,6 +13,8 @@ import { PaymentLinkButton } from "@/components/payments/payment-link-button";
 export default async function InvoiceDetailPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const { active, userId } = await requireTenantContext();
+  const denied = await viewGate(active.id, "invoices");
+  if (denied) return denied;
   const company = active.company;
 
   const invoice = await prisma.invoice.findFirst({
