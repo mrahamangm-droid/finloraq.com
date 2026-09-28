@@ -52,6 +52,9 @@ model User {
   globalRole    GlobalRole @default(USER)
   mfaEnabled    Boolean    @default(false)
   mfaSecret     String? // base32 TOTP secret; never returned via any API response.
+  /// When a user first holds a role that requires MFA (Company Admin / CFO) without it, the
+  /// grace deadline to enroll is set here — see src/lib/mfaPolicy.ts. Never a lockout.
+  mfaGraceUntil DateTime?
   // "Encrypted at rest" here relies on the database provider's disk
   // encryption (standard on RDS/Neon/Supabase) — it is NOT application-
   // level encrypted before storage. Unlike a password, a TOTP secret
