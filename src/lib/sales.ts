@@ -6,6 +6,7 @@ import { postJournalEntry, buildInvoicePosting, buildInvoicePaymentPosting, Inva
 import { roundMoney, sum } from "@/lib/currency";
 import { nextDocumentNumber } from "@/lib/numbering";
 import { computeTaxedLines } from "@/lib/taxCalc";
+import { foreignReferenceProblem } from "@/lib/tenantRefs";
 
 export interface InvoiceLineInput {
   description: string;
@@ -31,6 +32,8 @@ export async function createInvoice(params: {
   if (params.lines.length === 0) {
     throw new InvalidLineError("An invoice needs at least one line.");
   }
+  const customerProblem = await foreignReferenceProblem(prisma, params.companyId, "customer", [params.customerId]);
+  if (customerProblem) throw new InvalidLineError(customerProblem);
 
   const { lines: computedLines, subtotal, taxTotal, total } = await computeTaxedLines(prisma, params.companyId, params.lines);
 
@@ -113,6 +116,8 @@ export async function updateInvoice(params: {
   if (params.currency !== undefined && normalizeCurrencyCode(params.currency) !== normalizeCurrencyCode(before.currency)) {
     await assertBaseCurrency(prisma, params.companyId, params.currency);
   }
+  const customerProblem = await foreignReferenceProblem(prisma, params.companyId, "customer", [params.customerId]);
+  if (customerProblem) throw new InvalidLineError(customerProblem);
 
   let subtotal = before.subtotal, taxTotal = before.taxTotal, total = before.total;
   let lineData: { description: string; quantity: number; unitPrice: number; taxCodeId?: string; lineTotal: Decimal }[] | undefined;

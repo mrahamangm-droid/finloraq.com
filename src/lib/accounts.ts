@@ -100,6 +100,10 @@ export async function updateAccount(params: {
   if (params.name !== undefined && params.name.trim() === "") {
     throw new AccountValidationError("Account name can't be empty.");
   }
+  if (params.parentId) {
+    const parent = await prisma.account.findFirst({ where: { id: params.parentId, companyId: params.companyId } });
+    if (!parent) throw new AccountValidationError("Parent account not found.");
+  }
 
   const lineCount = await prisma.journalLine.count({ where: { accountId: params.accountId } });
   const codeOrTypeChanging =
