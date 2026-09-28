@@ -1,9 +1,12 @@
 import { requireTenantContext } from "@/lib/tenant";
+import { viewGate } from "@/lib/page-access";
 import { prisma } from "@/lib/db";
 import { NewJournalEntryForm } from "@/components/forms/new-journal-entry-form";
 
 export default async function NewJournalEntryPage() {
   const { active } = await requireTenantContext();
+  const denied = await viewGate(active.id, "journals");
+  if (denied) return denied;
 
   const [costCentres, projects] = await Promise.all([
     prisma.costCentre.findMany({ where: { companyId: active.companyId, isActive: true }, orderBy: { code: "asc" } }),

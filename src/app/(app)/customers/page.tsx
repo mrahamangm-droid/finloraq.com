@@ -1,4 +1,5 @@
 import { requireTenantContext } from "@/lib/tenant";
+import { viewGate } from "@/lib/page-access";
 import { prisma } from "@/lib/db";
 import { can } from "@/lib/rbac";
 import { fieldDefs } from "@/lib/customization/server";
@@ -10,6 +11,8 @@ import { CustomerRow } from "@/components/customers/customer-row";
 export default async function CustomersPage(props: { searchParams: Promise<{ archived?: string }> }) {
   const searchParams = await props.searchParams;
   const { active } = await requireTenantContext();
+  const denied = await viewGate(active.id, "customers");
+  if (denied) return denied;
   const showArchived = searchParams.archived === "1";
 
   const [customers, defs, canDelete, canEdit, archivedCount] = await Promise.all([

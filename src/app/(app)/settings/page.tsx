@@ -1,4 +1,5 @@
 import { requireTenantContext } from "@/lib/tenant";
+import { viewGate } from "@/lib/page-access";
 import { can } from "@/lib/rbac";
 import { prisma } from "@/lib/db";
 import { getAiProvider } from "@/lib/ai/provider";
@@ -31,6 +32,8 @@ function StatusBadge({ live, label }: { live: boolean; label: string }) {
 export default async function SettingsPage(props: { searchParams?: Promise<{ payments?: string }> }) {
   const searchParams = await props.searchParams;
   const { active, userId } = await requireTenantContext();
+  const denied = await viewGate(active.id, "settings");
+  if (denied) return denied;
   const canEdit = await can(active.id, "settings", "EDIT");
 
   const me = await prisma.user.findUnique({ where: { id: userId }, select: { avatarUrl: true } });
