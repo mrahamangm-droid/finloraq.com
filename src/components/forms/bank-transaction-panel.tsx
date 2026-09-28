@@ -56,6 +56,20 @@ export function BankTransactionPanel({ bankAccountId, transactions, canEdit = tr
     router.refresh();
   }
 
+  async function unmatch(txnId: string) {
+    if (!window.confirm("Un-match this transaction? It goes back to Unmatched so it can be matched to the right journal entry.")) return;
+    setLoading(txnId);
+    setError(null);
+    const res = await fetch(`/api/bank-transactions/${txnId}/match`, { method: "DELETE" });
+    setLoading(null);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setError(data.error ?? "Something went wrong.");
+      return;
+    }
+    router.refresh();
+  }
+
   function startEdit(t: Txn) {
     setEditingId(t.id);
     setEditDate(t.date);
@@ -175,6 +189,10 @@ export function BankTransactionPanel({ bankAccountId, transactions, canEdit = tr
                             Match
                           </button>
                         </div>
+                      ) : t.status === "MATCHED" && canEdit ? (
+                        <button onClick={() => unmatch(t.id)} disabled={loading === t.id} className="rounded-md border border-border px-2 py-1 text-xs font-medium text-foreground hover:bg-muted disabled:opacity-50">
+                          Un-match
+                        </button>
                       ) : (
                         <span className="text-xs text-muted-foreground">—</span>
                       )}
