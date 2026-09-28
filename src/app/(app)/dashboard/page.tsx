@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireTenantContext } from "@/lib/tenant";
+import { viewGate } from "@/lib/page-access";
 import { prisma } from "@/lib/db";
 import { profitAndLoss, arAging, apAging, trialBalance, type AgingRow } from "@/lib/reports";
 import { roundMoney } from "@/lib/currency";
@@ -19,6 +20,8 @@ import { DashboardCustomizer } from "@/components/dashboard/dashboard-customizer
 export default async function DashboardPage(props: { searchParams?: Promise<PeriodParams> }) {
   const searchParams = (await props.searchParams) ?? {};
   const { active, userId } = await requireTenantContext();
+  const denied = await viewGate(active.id, "dashboard");
+  if (denied) return denied;
   const companyId = active.companyId;
   const now = new Date();
   const [layout, fmt] = await Promise.all([getDashboardLayout(active.id), getFormatter(userId)]);

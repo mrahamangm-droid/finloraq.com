@@ -1,5 +1,6 @@
 import { ReportActions } from "@/components/reports/report-actions";
 import { requireTenantContext } from "@/lib/tenant";
+import { viewGate } from "@/lib/page-access";
 import { getFormatter } from "@/lib/customization/server";
 import { balanceSheet } from "@/lib/reports";
 import { pickerProps, resolvePeriod, type PeriodParams } from "@/lib/periods";
@@ -36,6 +37,8 @@ function Section({ title, rows, total, money }: { title: string; money: (v: impo
 export default async function BalanceSheetPage(props: { searchParams?: Promise<PeriodParams> }) {
   const searchParams = (await props.searchParams) ?? {};
   const { active, userId } = await requireTenantContext();
+  const denied = await viewGate(active.id, "reports");
+  if (denied) return denied;
   const fmt = await getFormatter(userId);
   const now = new Date();
   const period = resolvePeriod(searchParams, now);

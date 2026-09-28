@@ -1,11 +1,14 @@
 import { notFound } from "next/navigation";
 import { requireTenantContext } from "@/lib/tenant";
+import { viewGate } from "@/lib/page-access";
 import { prisma } from "@/lib/db";
 import { NewBillForm } from "@/components/forms/new-bill-form";
 
 export default async function EditBillPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const { active } = await requireTenantContext();
+  const denied = await viewGate(active.id, "bills");
+  if (denied) return denied;
 
   const [bill, suppliers, taxCodes] = await Promise.all([
     prisma.bill.findFirst({
@@ -23,6 +26,7 @@ export default async function EditBillPage(props: { params: Promise<{ id: string
       <h1 className="text-xl font-semibold text-foreground">Edit Bill {bill.billNumber}</h1>
       <NewBillForm
         billId={bill.id}
+        currency={bill.currency}
         suppliers={suppliers.map((s) => ({ id: s.id, name: s.name }))}
         taxCodes={taxCodes.map((t) => ({ id: t.id, name: t.name, rate: t.rate.toNumber() }))}
         initial={{

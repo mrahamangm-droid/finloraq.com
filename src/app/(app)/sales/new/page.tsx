@@ -1,10 +1,13 @@
 import { requireTenantContext } from "@/lib/tenant";
+import { viewGate } from "@/lib/page-access";
 import { prisma } from "@/lib/db";
 import { fieldDefs } from "@/lib/customization/server";
 import { NewInvoiceForm } from "@/components/forms/new-invoice-form";
 
 export default async function NewInvoicePage() {
   const { active } = await requireTenantContext();
+  const denied = await viewGate(active.id, "invoices");
+  if (denied) return denied;
 
   const [customers, taxCodes, fields] = await Promise.all([
     prisma.customer.findMany({ where: { companyId: active.companyId, isActive: true }, orderBy: { name: "asc" } }),
@@ -16,6 +19,7 @@ export default async function NewInvoicePage() {
     <div className="mx-auto max-w-3xl space-y-6">
       <h1 className="text-xl font-semibold text-foreground">New Invoice</h1>
       <NewInvoiceForm
+        currency={active.company.baseCurrency}
         customers={customers.map((c) => ({ id: c.id, name: c.name }))}
         taxCodes={taxCodes.map((t) => ({ id: t.id, name: t.name, rate: t.rate.toNumber() }))}
         fields={fields}

@@ -58,7 +58,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       style={brandStyle(company.brandColor) as React.CSSProperties | undefined}
     >
       <ThemeSync theme={prefs.theme} />
-      <PrintLetterhead />
+      <PrintLetterhead companyName={company.name} logoUrl={company.logoUrl} />
       <Sidebar hrefs={navHrefs} companyName={company.name} logo={company.logoUrl} />
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <Topbar
