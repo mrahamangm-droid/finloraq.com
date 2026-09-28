@@ -2,7 +2,7 @@
   "name": "finloraq",
   "version": "0.1.0",
   "private": true,
-  "description": "Finloraq — AI Finance Operating System",
+  "description": "Finloraq \u2014 AI Finance Operating System",
   "scripts": {
     "dev": "next dev",
     "build": "if [ \"$VERCEL_ENV\" = \"production\" ]; then prisma migrate deploy; fi && next build",
@@ -71,5 +71,8 @@
     "opera 51",
     "safari 12",
     "ios_saf 12"
-  ]
+  ],
+  "overrides": {
+    "uuid": "11.1.1"
+  }
 }
