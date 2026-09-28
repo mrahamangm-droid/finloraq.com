@@ -5,8 +5,21 @@ import { useRouter } from "next/navigation";
 import { MathInput } from "@/components/forms/math-input";
 
 type Txn = { id: string; date: string; description: string; amount: number; status: string };
+type Suggestion = { entryNumber: string; date: string; memo: string | null };
 
-export function BankTransactionPanel({ bankAccountId, transactions, canEdit = true, canDelete = true }: { bankAccountId: string; transactions: Txn[]; canEdit?: boolean; canDelete?: boolean }) {
+export function BankTransactionPanel({
+  bankAccountId,
+  transactions,
+  suggestions = {},
+  canEdit = true,
+  canDelete = true,
+}: {
+  bankAccountId: string;
+  transactions: Txn[];
+  suggestions?: Record<string, Suggestion[]>;
+  canEdit?: boolean;
+  canDelete?: boolean;
+}) {
   const router = useRouter();
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [description, setDescription] = useState("");
@@ -39,13 +52,13 @@ export function BankTransactionPanel({ bankAccountId, transactions, canEdit = tr
     router.refresh();
   }
 
-  async function match(txnId: string) {
+  async function match(txnId: string, entryNumber?: string) {
     setLoading(txnId);
     setError(null);
     const res = await fetch(`/api/bank-transactions/${txnId}/match`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ entryNumber: entryNumbers[txnId] ?? "" }),
+      body: JSON.stringify({ entryNumber: entryNumber ?? entryNumbers[txnId] ?? "" }),
     });
     setLoading(null);
     if (!res.ok) {
@@ -178,6 +191,22 @@ export function BankTransactionPanel({ bankAccountId, transactions, canEdit = tr
                     </td>
                     <td className="px-4 py-2">
                       {t.status === "UNMATCHED" ? (
+                        <div className="space-y-1.5">
+                        {(suggestions[t.id] ?? []).length > 0 && (
+                          <div className="flex flex-wrap gap-1.5" aria-label="Suggested matches">
+                            {suggestions[t.id]!.map((s) => (
+                              <button
+                                key={s.entryNumber}
+                                onClick={() => match(t.id, s.entryNumber)}
+                                disabled={loading === t.id}
+                                title={`Match to ${s.entryNumber}${s.memo ? ` — ${s.memo}` : ""} (${s.date})`}
+                                className="max-w-[16rem] truncate rounded-full border border-primary/40 bg-primary/5 px-2 py-0.5 text-xs text-foreground hover:bg-primary/10 disabled:opacity-50"
+                              >
+                                Match {s.entryNumber} · {s.date.slice(5)}{s.memo ? ` · ${s.memo}` : ""}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                         <div className="flex gap-2">
                           <input
                             placeholder="JE-000123"
@@ -188,6 +217,7 @@ export function BankTransactionPanel({ bankAccountId, transactions, canEdit = tr
                           <button onClick={() => match(t.id)} disabled={loading === t.id} className="rounded-md border border-border px-2 py-1 text-xs font-medium text-foreground hover:bg-muted disabled:opacity-50">
                             Match
                           </button>
+                        </div>
                         </div>
                       ) : t.status === "MATCHED" && canEdit ? (
                         <button onClick={() => unmatch(t.id)} disabled={loading === t.id} className="rounded-md border border-border px-2 py-1 text-xs font-medium text-foreground hover:bg-muted disabled:opacity-50">

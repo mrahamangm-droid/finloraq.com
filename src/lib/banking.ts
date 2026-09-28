@@ -3,6 +3,17 @@ import { NotFoundError } from "@/lib/errors";
 import { requirePermission } from "@/lib/rbac";
 import { recordAuditEvent } from "@/lib/audit";
 import { InvalidLineError } from "@/lib/ledger";
+import { rankCandidates, splitNewLines, type MatchCandidate, type StatementLine, SUGGESTION_WINDOW_DAYS } from "@/lib/bankStatement";
+
+/** The ledger's Bank account. Every bank account currently posts through it (see matchBankTransaction). */
+const BANK_ACCOUNT_CODE = "1000";
+
+/** Signed amount of an entry's Bank line: + money in (debit), − money out (credit). Null when it has none. */
+export function bankLineAmount(lines: { debit: { gt(n: number): boolean; toNumber(): number }; credit: { toNumber(): number }; account: { code: string } }[]): number | null {
+  const bankLine = lines.find((l) => l.account.code === BANK_ACCOUNT_CODE);
+  if (!bankLine) return null;
+  return bankLine.debit.gt(0) ? bankLine.debit.toNumber() : -bankLine.credit.toNumber();
+}
 
 export async function createBankAccount(params: {
   companyId: string;
@@ -286,15 +297,26 @@ export async function matchBankTransaction(params: {
     throw new InvalidLineError("Only an unmatched transaction can be matched.");
   }
 
-  const bankLine = entry.lines.find((l) => l.account.code === "1000");
-  if (!bankLine) {
+  const entryAmount = bankLineAmount(entry.lines);
+  if (entryAmount === null) {
     throw new InvalidLineError("That journal entry has no Bank line to match against.");
   }
-  const entryAmount = bankLine.debit.gt(0) ? bankLine.debit.toNumber() : -bankLine.credit.toNumber();
   const txnAmount = txn.amount.toNumber();
   if (Math.abs(entryAmount - txnAmount) > 0.005) {
     throw new InvalidLineError(
       `Amount mismatch: transaction is ${txnAmount.toFixed(2)}, journal entry Bank line is ${entryAmount.toFixed(2)}.`
+    );
+  }
+
+  // One posted entry clears one bank line. Matching it twice would let a
+  // single payment reconcile two statement lines.
+  const alreadyMatched = await prisma.bankTransaction.findFirst({
+    where: { matchedJournalEntryId: entry.id, id: { not: txn.id }, bankAccount: { companyId: params.companyId } },
+    select: { description: true, date: true },
+  });
+  if (alreadyMatched) {
+    throw new InvalidLineError(
+      `${entry.entryNumber} is already matched to the bank line "${alreadyMatched.description}" on ${alreadyMatched.date.toISOString().slice(0, 10)}. Un-match that one first.`
     );
   }
 
@@ -394,4 +416,121 @@ export async function reconcileBankAccount(params: {
   });
 
   return result.count;
+}
+
+/**
+ * Imports parsed statement lines into a bank account as UNMATCHED bank
+ * transactions. This never touches the ledger: statement lines are the
+ * bank's side of the story, to be matched against posted entries.
+ *
+ * Lines already in the account (same date, amount and description, counted
+ * — see splitNewLines) are skipped, so importing an overlapping or repeated
+ * statement is safe. With `commit: false` nothing is written and the
+ * result says what would happen.
+ */
+export async function importBankStatement(params: {
+  companyId: string;
+  membershipId: string;
+  userId: string;
+  bankAccountId: string;
+  lines: StatementLine[];
+  fileName: string;
+  commit: boolean;
+}): Promise<{ toImport: number; duplicates: number; imported: number; importBatchId: string | null; preview: StatementLine[] }> {
+  await requirePermission(params.membershipId, "banking", "CREATE");
+
+  const account = await prisma.bankAccount.findFirst({
+    where: { id: params.bankAccountId, companyId: params.companyId },
+  });
+  if (!account) throw new NotFoundError("Bank account not found.");
+  if (params.lines.length === 0) throw new BankValidationError("There are no transactions to import.");
+
+  const dates = params.lines.map((l) => l.date).sort();
+  const existing = await prisma.bankTransaction.findMany({
+    where: {
+      bankAccountId: account.id,
+      date: { gte: new Date(`${dates[0]}T00:00:00Z`), lte: new Date(`${dates[dates.length - 1]}T23:59:59.999Z`) },
+    },
+    select: { date: true, amount: true, description: true },
+  });
+  const { fresh, duplicates } = splitNewLines(
+    params.lines,
+    existing.map((e) => ({ date: e.date.toISOString().slice(0, 10), amount: e.amount.toNumber(), description: e.description }))
+  );
+
+  const summary = { toImport: fresh.length, duplicates: duplicates.length, preview: fresh.slice(0, 20) };
+  if (!params.commit || fresh.length === 0) return { ...summary, imported: 0, importBatchId: null };
+
+  const importBatchId = crypto.randomUUID();
+  const { count } = await prisma.bankTransaction.createMany({
+    data: fresh.map((l) => ({
+      bankAccountId: account.id,
+      date: new Date(`${l.date}T00:00:00Z`),
+      description: l.description,
+      amount: l.amount,
+      status: "UNMATCHED" as const,
+      importBatchId,
+    })),
+  });
+
+  await recordAuditEvent({
+    companyId: params.companyId,
+    userId: params.userId,
+    action: "bank_statement.imported",
+    entityType: "BankAccount",
+    entityId: account.id,
+    newValue: { fileName: params.fileName.slice(0, 200), imported: count, duplicatesSkipped: duplicates.length, importBatchId },
+  });
+
+  return { ...summary, imported: count, importBatchId };
+}
+
+/**
+ * Suggested matches for the given unmatched bank transactions: posted
+ * entries that hit the Bank account for exactly the same signed amount
+ * within SUGGESTION_WINDOW_DAYS, and aren't already matched to another bank
+ * line. Read-only. Keyed by bank transaction id; transactions with no
+ * candidate are omitted.
+ */
+export async function suggestBankMatches(
+  companyId: string,
+  transactions: { id: string; date: Date; description: string; amount: number; status: string }[]
+): Promise<Record<string, { entryNumber: string; date: string; memo: string | null; dayGap: number; sharedWords: number }[]>> {
+  const unmatched = transactions.filter((t) => t.status === "UNMATCHED");
+  if (unmatched.length === 0) return {};
+
+  const times = unmatched.map((t) => t.date.getTime());
+  const pad = SUGGESTION_WINDOW_DAYS * 86_400_000;
+  const [entries, taken] = await Promise.all([
+    prisma.journalEntry.findMany({
+      where: {
+        companyId,
+        status: "POSTED",
+        date: { gte: new Date(Math.min(...times) - pad), lte: new Date(Math.max(...times) + pad) },
+        lines: { some: { account: { code: BANK_ACCOUNT_CODE } } },
+      },
+      select: { id: true, entryNumber: true, date: true, memo: true, lines: { select: { debit: true, credit: true, account: { select: { code: true } } } } },
+      take: 2000,
+    }),
+    prisma.bankTransaction.findMany({
+      where: { bankAccount: { companyId }, matchedJournalEntryId: { not: null } },
+      select: { matchedJournalEntryId: true },
+    }),
+  ]);
+  const takenIds = new Set(taken.map((t) => t.matchedJournalEntryId));
+
+  const candidates: MatchCandidate[] = [];
+  for (const e of entries) {
+    if (takenIds.has(e.id)) continue;
+    const bankAmount = bankLineAmount(e.lines);
+    if (bankAmount === null) continue;
+    candidates.push({ journalEntryId: e.id, entryNumber: e.entryNumber, date: e.date.toISOString().slice(0, 10), memo: e.memo, bankAmount });
+  }
+
+  const out: Record<string, { entryNumber: string; date: string; memo: string | null; dayGap: number; sharedWords: number }[]> = {};
+  for (const t of unmatched) {
+    const ranked = rankCandidates({ date: t.date.toISOString().slice(0, 10), description: t.description, amount: t.amount }, candidates);
+    if (ranked.length) out[t.id] = ranked.map(({ entryNumber, date, memo, dayGap, sharedWords }) => ({ entryNumber, date, memo, dayGap, sharedWords }));
+  }
+  return out;
 }

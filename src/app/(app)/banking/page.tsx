@@ -5,21 +5,31 @@ import { can } from "@/lib/rbac";
 import { NewBankAccountForm } from "@/components/forms/new-bank-account-form";
 import { BankTransactionPanel } from "@/components/forms/bank-transaction-panel";
 import { BankAccountHeader } from "@/components/forms/bank-account-header";
+import { BankStatementImport } from "@/components/forms/bank-statement-import";
+import { suggestBankMatches } from "@/lib/banking";
 
 export default async function BankingPage() {
   const { active } = await requireTenantContext();
   const denied = await viewGate(active.id, "banking");
   if (denied) return denied;
 
-  const [accounts, canEdit, canDelete] = await Promise.all([
+  const [accounts, canCreate, canEdit, canDelete] = await Promise.all([
     prisma.bankAccount.findMany({
       where: { companyId: active.companyId },
       orderBy: { createdAt: "asc" },
       include: { transactions: { orderBy: { date: "desc" }, take: 50 } },
     }),
+    can(active.id, "banking", "CREATE"),
     can(active.id, "banking", "EDIT"),
     can(active.id, "banking", "DELETE"),
   ]);
+  // Suggestions only help someone who can act on them (matching needs banking:EDIT).
+  const suggestions = canEdit
+    ? await suggestBankMatches(
+        active.companyId,
+        accounts.flatMap((a) => a.transactions.map((t) => ({ id: t.id, date: t.date, description: t.description, amount: t.amount.toNumber(), status: t.status })))
+      )
+    : {};
 
   return (
     <div className="space-y-8">
@@ -46,8 +56,10 @@ export default async function BankingPage() {
             canEdit={canEdit}
             canDelete={canDelete}
           />
+          {canCreate && <BankStatementImport bankAccountId={account.id} />}
           <BankTransactionPanel
             bankAccountId={account.id}
+            suggestions={suggestions}
             canEdit={canEdit}
             canDelete={canDelete}
             transactions={account.transactions.map((t) => ({
