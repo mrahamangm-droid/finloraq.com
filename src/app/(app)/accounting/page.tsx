@@ -69,6 +69,12 @@ export default async function ChartOfAccountsPage() {
           >
             Integrity Check
           </Link>
+          <Link
+            href="/accounting/periods"
+            className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"
+          >
+            Periods
+          </Link>
         </div>
       </div>
 
