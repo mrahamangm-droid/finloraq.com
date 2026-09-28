@@ -16,7 +16,7 @@ import { checkRateLimit, clientIpFromHeaders } from "@/lib/rateLimit";
  */
 export async function GET(req: Request) {
   const ip = clientIpFromHeaders(req.headers);
-  if (!checkRateLimit(`webhook-whatsapp:${ip}`, 20, 60 * 1000).allowed) {
+  if (!(await checkRateLimit(`webhook-whatsapp:${ip}`, 20, 60 * 1000)).allowed) {
     return NextResponse.json({ error: "Too many requests." }, { status: 429 });
   }
 

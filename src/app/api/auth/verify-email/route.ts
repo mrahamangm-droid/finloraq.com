@@ -9,7 +9,7 @@ const schema = z.object({ email: z.string().trim().email(), token: z.string().mi
 
 export async function POST(req: Request) {
   const ip = clientIpFromHeaders(req.headers);
-  const limit = checkRateLimit(`verify-email:ip:${ip}`, 20, 60 * 60 * 1000);
+  const limit = await checkRateLimit(`verify-email:ip:${ip}`, 20, 60 * 60 * 1000);
   if (!limit.allowed) {
     return NextResponse.json({ error: "Too many attempts. Try again later." }, { status: 429 });
   }

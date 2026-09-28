@@ -89,11 +89,11 @@ export const authOptions: NextAuthOptions = {
         if (!parsed.success) return null;
         const { email, password, mfaToken } = parsed.data;
 
-        // Rate-limited per email (see src/lib/rateLimit.ts's documented
-        // in-memory-per-instance limitation) — 10 attempts per 15 minutes
+        // Rate-limited per email, shared across every server instance
+        // (src/lib/rateLimit.ts stores hits in Postgres) — 10 attempts per 15 minutes
         // is generous for a real user who mistyped a password, tight
         // enough to blunt an online guessing attack against one account.
-        const limit = checkRateLimit(`login:${email.trim().toLowerCase()}`, 10, 15 * 60 * 1000);
+        const limit = await checkRateLimit(`login:${email.trim().toLowerCase()}`, 10, 15 * 60 * 1000);
         if (!limit.allowed) {
           throw new Error("Too many sign-in attempts. Try again in a few minutes.");
         }
@@ -140,7 +140,7 @@ export const authOptions: NextAuthOptions = {
           // brute force needs many more than 10 tries, so this is
           // separate from (and stricter than) the password-attempt limit
           // above: 5 code attempts per 5 minutes per account.
-          const mfaLimit = checkRateLimit(`mfa:${user.id}`, 5, 5 * 60 * 1000);
+          const mfaLimit = await checkRateLimit(`mfa:${user.id}`, 5, 5 * 60 * 1000);
           if (!mfaLimit.allowed) {
             throw new Error("Too many MFA attempts. Try again in a few minutes.");
           }

@@ -29,7 +29,7 @@ export async function POST(req: Request) {
   // endpoint both sends email (abuse = spam/cost) and reveals nothing
   // about account existence, so the limits exist to blunt automation,
   // not to protect a secret.
-  const ipLimit = checkRateLimit(`forgot-password:ip:${ip}`, 10, 60 * 60 * 1000);
+  const ipLimit = await checkRateLimit(`forgot-password:ip:${ip}`, 10, 60 * 60 * 1000);
   if (!ipLimit.allowed) {
     return NextResponse.json({ error: "Too many attempts. Try again later." }, { status: 429 });
   }
@@ -40,7 +40,7 @@ export async function POST(req: Request) {
   }
   const email = parsed.data.email.trim().toLowerCase();
 
-  const emailLimit = checkRateLimit(`forgot-password:email:${email}`, 3, 60 * 60 * 1000);
+  const emailLimit = await checkRateLimit(`forgot-password:email:${email}`, 3, 60 * 60 * 1000);
 
   // Constant response whether the account exists, is inactive, or the
   // email is simply mistyped — never reveal account existence (same

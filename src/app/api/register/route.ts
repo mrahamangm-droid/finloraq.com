@@ -19,7 +19,7 @@ export async function POST(req: Request) {
   // a real person, e.g. retrying a typo'd email) — email enumeration is
   // separately prevented below by the generic error message, not by this.
   const ip = clientIpFromHeaders(req.headers);
-  const limit = checkRateLimit(`register:${ip}`, 10, 60 * 60 * 1000);
+  const limit = await checkRateLimit(`register:${ip}`, 10, 60 * 60 * 1000);
   if (!limit.allowed) {
     return NextResponse.json({ error: "Too many attempts. Try again later." }, { status: 429 });
   }

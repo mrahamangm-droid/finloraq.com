@@ -21,7 +21,7 @@ export async function POST(req: Request) {
   // Per-IP limit against brute-forcing the shared secret — a real
   // provider retries a handful of times on failure, not hundreds.
   const ip = clientIpFromHeaders(req.headers);
-  if (!checkRateLimit(`webhook-email:${ip}`, 20, 60 * 1000).allowed) {
+  if (!(await checkRateLimit(`webhook-email:${ip}`, 20, 60 * 1000)).allowed) {
     return NextResponse.json({ error: "Too many requests." }, { status: 429 });
   }
 

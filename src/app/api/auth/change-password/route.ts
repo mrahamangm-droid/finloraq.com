@@ -20,8 +20,8 @@ export async function POST(req: Request) {
   // Two tiers, same shape as reset-password's IP + identity limits: a
   // per-IP ceiling plus a tighter per-account ceiling on guessing this
   // specific user's current password.
-  const ipLimit = checkRateLimit(`change-password:ip:${ip}`, 20, 15 * 60 * 1000);
-  const userLimit = checkRateLimit(`change-password:user:${session.user.id}`, 8, 15 * 60 * 1000);
+  const ipLimit = await checkRateLimit(`change-password:ip:${ip}`, 20, 15 * 60 * 1000);
+  const userLimit = await checkRateLimit(`change-password:user:${session.user.id}`, 8, 15 * 60 * 1000);
   if (!ipLimit.allowed || !userLimit.allowed) {
     return NextResponse.json({ error: "Too many attempts. Try again later." }, { status: 429 });
   }
