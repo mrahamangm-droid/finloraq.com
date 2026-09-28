@@ -19,8 +19,13 @@ export interface TrialBalanceRow {
 }
 
 export async function trialBalance(companyId: string, asOf: Date): Promise<TrialBalanceRow[]> {
+  // Every account with posted activity, active or not: deactivating an account
+  // stops new postings to it, but its history (and balance) is still part of
+  // the books. Filtering on isActive here used to drop those balances from the
+  // trial balance and balance sheet. Accounts with no activity are still
+  // filtered out below.
   const accounts = await prisma.account.findMany({
-    where: { companyId, isActive: true },
+    where: { companyId },
     orderBy: { code: "asc" },
     include: {
       journalLines: {
@@ -261,25 +266,69 @@ export async function vatReturn(companyId: string, from: Date, to: Date) {
   };
 }
 
-export async function balanceSheet(companyId: string, asOf: Date) {
-  const rows = await trialBalance(companyId, asOf);
+/**
+ * First day (UTC) of the fiscal year containing `asOf`. `fiscalYearEndMonth`
+ * is the company's 1-12 year-end month (Company.fiscalYearEnd): a December
+ * year end starts on 1 January, a March year end on 1 April.
+ */
+export function fiscalYearStart(asOf: Date, fiscalYearEndMonth: number): Date {
+  const startMonth = fiscalYearEndMonth % 12; // 0-based month after the year-end month
+  const year = asOf.getUTCMonth() >= startMonth ? asOf.getUTCFullYear() : asOf.getUTCFullYear() - 1;
+  return new Date(Date.UTC(year, startMonth, 1));
+}
 
-  const byType = (type: string) =>
+/** Net profit (revenue minus expenses) held in the P&L accounts of these rows. */
+function netProfit(rows: TrialBalanceRow[]): Decimal {
+  // Revenue is natural-credit and expenses natural-debit, so credit minus
+  // debit across both types is revenue minus expenses.
+  return roundMoney(
+    sum(rows.filter((r) => r.type === "REVENUE" || r.type === "EXPENSE").map((r) => r.credit.minus(r.debit)))
+  );
+}
+
+export interface BalanceSheetLine {
+  accountCode: string;
+  accountName: string;
+  amount: Decimal;
+  /** True for lines derived from the P&L rather than read from an account. */
+  computed?: boolean;
+}
+
+/**
+ * Pure balance-sheet builder. `rows` is the trial balance as of the report
+ * date; `rowsBeforeFiscalYear` is the trial balance as of the day before the
+ * current fiscal year started.
+ *
+ * Revenue and expense accounts are never closed into equity by a posting, so
+ * their balances are brought into equity here as two computed lines: profit
+ * from earlier fiscal years ("Retained earnings") and profit so far this year
+ * ("Current year earnings"). Nothing is written to the ledger. If a company
+ * does post its own closing entries, its P&L accounts net to zero for those
+ * years and the computed lines shrink accordingly, so nothing is counted twice.
+ */
+export function buildBalanceSheet(asOf: Date, rows: TrialBalanceRow[], rowsBeforeFiscalYear: TrialBalanceRow[]) {
+  const byType = (type: string): BalanceSheetLine[] =>
     rows
       .filter((r) => r.type === type)
       .map((r) => ({
         accountCode: r.accountCode,
         accountName: r.accountName,
-        // Assets/expenses are natural-debit; liabilities/equity/revenue are natural-credit.
-        amount:
-          type === "ASSET"
-            ? roundMoney(r.debit.minus(r.credit))
-            : roundMoney(r.credit.minus(r.debit)),
+        // Assets are natural-debit; liabilities and equity are natural-credit.
+        amount: type === "ASSET" ? roundMoney(r.debit.minus(r.credit)) : roundMoney(r.credit.minus(r.debit)),
       }));
 
   const assets = byType("ASSET");
   const liabilities = byType("LIABILITY");
   const equity = byType("EQUITY");
+
+  const retainedEarnings = netProfit(rowsBeforeFiscalYear);
+  const currentYearEarnings = roundMoney(netProfit(rows).minus(retainedEarnings));
+  if (!retainedEarnings.isZero()) {
+    equity.push({ accountCode: "", accountName: "Retained earnings", amount: retainedEarnings, computed: true });
+  }
+  if (!currentYearEarnings.isZero()) {
+    equity.push({ accountCode: "", accountName: "Current year earnings", amount: currentYearEarnings, computed: true });
+  }
 
   const totalAssets = roundMoney(sum(assets.map((a) => a.amount)));
   const totalLiabilities = roundMoney(sum(liabilities.map((a) => a.amount)));
@@ -290,13 +339,25 @@ export async function balanceSheet(companyId: string, asOf: Date) {
     assets,
     liabilities,
     equity,
+    retainedEarnings,
+    currentYearEarnings,
     totalAssets,
     totalLiabilities,
     totalEquity,
-    // The fundamental accounting equation — if this is ever nonzero, the
-    // ledger itself is broken, not just this report.
+    // The fundamental accounting equation. Every posted entry balances, so
+    // this is zero unless the ledger itself is broken.
     outOfBalance: roundMoney(totalAssets.minus(totalLiabilities.plus(totalEquity))),
   };
+}
+
+export async function balanceSheet(companyId: string, asOf: Date) {
+  const company = await prisma.company.findUniqueOrThrow({ where: { id: companyId }, select: { fiscalYearEnd: true } });
+  const fyStart = fiscalYearStart(asOf, company.fiscalYearEnd);
+  const [rows, rowsBeforeFiscalYear] = await Promise.all([
+    trialBalance(companyId, asOf),
+    trialBalance(companyId, new Date(fyStart.getTime() - 1)),
+  ]);
+  return buildBalanceSheet(asOf, rows, rowsBeforeFiscalYear);
 }
 
 // ─────────────────────────────────────────────────────────────────────────

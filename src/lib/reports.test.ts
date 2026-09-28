@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import Decimal from "decimal.js";
-import { agingBucket, ledgerPeriodRange, buildLedger } from "./reports";
+import { agingBucket, ledgerPeriodRange, buildLedger, fiscalYearStart, buildBalanceSheet, type TrialBalanceRow } from "./reports";
 
 const asOf = new Date("2026-09-22T00:00:00Z");
 const daysBefore = (n: number) => new Date(asOf.getTime() - n * 86400000);
@@ -98,5 +98,78 @@ describe("buildLedger", () => {
     expect(at(bank.months, 0).closing.toNumber()).toBe(150);
     expect(at(bank.months, 1).credit.toNumber()).toBe(30);
     expect(at(bank.months, 11).closing.toNumber()).toBe(120);
+  });
+});
+
+describe("fiscalYearStart", () => {
+  const d = (iso: string) => new Date(`${iso}T00:00:00Z`);
+  it("December year end starts on 1 January of the same year", () => {
+    expect(fiscalYearStart(d("2026-09-28"), 12)).toEqual(d("2026-01-01"));
+    expect(fiscalYearStart(d("2026-01-01"), 12)).toEqual(d("2026-01-01"));
+    expect(fiscalYearStart(d("2026-12-31"), 12)).toEqual(d("2026-01-01"));
+  });
+  it("March year end starts on 1 April, rolling back a year before April", () => {
+    expect(fiscalYearStart(d("2026-09-28"), 3)).toEqual(d("2026-04-01"));
+    expect(fiscalYearStart(d("2026-03-31"), 3)).toEqual(d("2025-04-01"));
+    expect(fiscalYearStart(d("2026-04-01"), 3)).toEqual(d("2026-04-01"));
+  });
+  it("June year end starts on 1 July", () => {
+    expect(fiscalYearStart(d("2026-02-10"), 6)).toEqual(d("2025-07-01"));
+  });
+});
+
+describe("buildBalanceSheet", () => {
+  const row = (accountCode: string, type: string, debit: number, credit: number): TrialBalanceRow => ({
+    accountCode,
+    accountName: accountCode,
+    type,
+    debit: new Decimal(debit),
+    credit: new Decimal(credit),
+  });
+  const asOf = new Date("2026-09-28T00:00:00Z");
+
+  it("balances when the only activity is an unpaid invoice", () => {
+    // Dr Receivable 1,050 / Cr Revenue 1,000 / Cr Output VAT 50
+    const rows = [row("1100", "ASSET", 1050, 0), row("2100", "LIABILITY", 0, 50), row("4000", "REVENUE", 0, 1000)];
+    const bs = buildBalanceSheet(asOf, rows, []);
+    expect(bs.currentYearEarnings.toFixed(2)).toBe("1000.00");
+    expect(bs.retainedEarnings.toFixed(2)).toBe("0.00");
+    expect(bs.totalEquity.toFixed(2)).toBe("1000.00");
+    expect(bs.outOfBalance.toFixed(2)).toBe("0.00");
+  });
+
+  it("splits prior-year profit into retained earnings and this year's into current year earnings", () => {
+    const beforeFy = [row("1000", "ASSET", 500, 0), row("4000", "REVENUE", 0, 800), row("5000", "EXPENSE", 300, 0)];
+    const now = [
+      row("1000", "ASSET", 800, 0),
+      row("3000", "EQUITY", 0, 100),
+      row("4000", "REVENUE", 0, 1500),
+      row("5000", "EXPENSE", 800, 0),
+    ];
+    const bs = buildBalanceSheet(asOf, now, beforeFy);
+    expect(bs.retainedEarnings.toFixed(2)).toBe("500.00"); // 800 - 300
+    expect(bs.currentYearEarnings.toFixed(2)).toBe("200.00"); // (1500 - 800) - 500
+    expect(bs.equity.filter((e) => e.computed).map((e) => e.accountName)).toEqual(["Retained earnings", "Current year earnings"]);
+    expect(bs.totalEquity.toFixed(2)).toBe("800.00");
+    expect(bs.outOfBalance.toFixed(2)).toBe("0.00");
+  });
+
+  it("shows a loss as negative earnings", () => {
+    const rows = [row("1000", "ASSET", 0, 300), row("5000", "EXPENSE", 300, 0)];
+    const bs = buildBalanceSheet(asOf, rows, []);
+    expect(bs.currentYearEarnings.toFixed(2)).toBe("-300.00");
+    expect(bs.outOfBalance.toFixed(2)).toBe("0.00");
+  });
+
+  it("adds no computed lines when the P&L nets to zero", () => {
+    const rows = [row("1000", "ASSET", 100, 0), row("3000", "EQUITY", 0, 100)];
+    const bs = buildBalanceSheet(asOf, rows, []);
+    expect(bs.equity.some((e) => e.computed)).toBe(false);
+    expect(bs.outOfBalance.toFixed(2)).toBe("0.00");
+  });
+
+  it("still reports a real imbalance", () => {
+    const rows = [row("1000", "ASSET", 100, 0)];
+    expect(buildBalanceSheet(asOf, rows, []).outOfBalance.toFixed(2)).toBe("100.00");
   });
 });
