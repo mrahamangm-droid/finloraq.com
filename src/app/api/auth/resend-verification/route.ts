@@ -8,7 +8,7 @@ const schema = z.object({ email: z.string().trim().email() });
 
 export async function POST(req: Request) {
   const ip = clientIpFromHeaders(req.headers);
-  const ipLimit = checkRateLimit(`resend-verification:ip:${ip}`, 10, 60 * 60 * 1000);
+  const ipLimit = await checkRateLimit(`resend-verification:ip:${ip}`, 10, 60 * 60 * 1000);
   if (!ipLimit.allowed) {
     return NextResponse.json({ error: "Too many attempts. Try again later." }, { status: 429 });
   }
@@ -25,7 +25,7 @@ export async function POST(req: Request) {
     message: "If that account needs confirming, we've sent a new link.",
   });
 
-  const emailLimit = checkRateLimit(`resend-verification:email:${email}`, 3, 60 * 60 * 1000);
+  const emailLimit = await checkRateLimit(`resend-verification:email:${email}`, 3, 60 * 60 * 1000);
   if (!emailLimit.allowed) return generic;
 
   const user = await findUserByEmail(email);

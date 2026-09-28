@@ -19,7 +19,7 @@ function hashToken(token: string): string {
 
 export async function POST(req: Request) {
   const ip = clientIpFromHeaders(req.headers);
-  const limit = checkRateLimit(`reset-password:${ip}`, 10, 15 * 60 * 1000);
+  const limit = await checkRateLimit(`reset-password:${ip}`, 10, 15 * 60 * 1000);
   if (!limit.allowed) {
     return NextResponse.json({ error: "Too many attempts. Try again later." }, { status: 429 });
   }
@@ -39,7 +39,7 @@ export async function POST(req: Request) {
   // A second, tighter limit on guessing the token itself for a known
   // email — separate from the per-IP limit above, same pattern as the
   // login form's MFA-attempt limit in src/lib/auth.ts.
-  const tokenLimit = checkRateLimit(`reset-password:token:${email}`, 8, 15 * 60 * 1000);
+  const tokenLimit = await checkRateLimit(`reset-password:token:${email}`, 8, 15 * 60 * 1000);
   if (!tokenLimit.allowed) {
     return NextResponse.json({ error: "Too many attempts. Try again later." }, { status: 429 });
   }

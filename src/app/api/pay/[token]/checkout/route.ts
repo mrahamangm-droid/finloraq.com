@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 export async function POST(req: Request, props: { params: Promise<{ token: string }> }) {
   const params = await props.params;
   const ip = clientIpFromHeaders(req.headers);
-  if (!checkRateLimit(`pay:${ip}`, 20, 10 * 60 * 1000).allowed) {
+  if (!(await checkRateLimit(`pay:${ip}`, 20, 10 * 60 * 1000)).allowed) {
     return NextResponse.json({ error: "Too many attempts — try again in a few minutes." }, { status: 429 });
   }
   if (!/^[A-Za-z0-9_-]{20,64}$/.test(params.token)) {

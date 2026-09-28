@@ -976,3 +976,17 @@ model OnlinePayment {
   @@index([companyId, status])
   @@index([invoiceId])
 }
+
+/// One row per request counted by the rate limiter (src/lib/rateLimit.ts).
+/// Shared by every server instance, so limits hold across serverless
+/// instances. `keyHash` is a SHA-256 of the limiter key (keys can contain an
+/// email address), never the key itself. Rows older than the longest window
+/// are pruned by the limiter.
+model RateLimitHit {
+  id        BigInt   @id @default(autoincrement())
+  keyHash   String   @db.Char(64)
+  createdAt DateTime @default(now())
+
+  @@index([keyHash, createdAt])
+  @@index([createdAt])
+}
