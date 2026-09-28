@@ -1,5 +1,6 @@
 import { withAuth } from "next-auth/middleware";
 import { NextResponse } from "next/server";
+import { appContentSecurityPolicy, generateNonce } from "@/lib/csp";
 
 // Route-level gate: unauthenticated users are bounced to /login before any
 // server component under (dashboard) renders. This is a defense-in-depth
@@ -12,7 +13,19 @@ export default withAuth(
     if (req.nextUrl.pathname.startsWith("/api/") && !req.nextauth.token) {
       return NextResponse.json({ error: "Not signed in." }, { status: 401 });
     }
-    return NextResponse.next();
+    if (req.nextUrl.pathname.startsWith("/api/")) return NextResponse.next();
+
+    // App pages get a per-request nonce CSP (src/lib/csp.ts). Setting it on
+    // the request is what lets Next.js stamp the nonce onto its own scripts;
+    // setting it on the response is what the browser enforces.
+    const nonce = generateNonce();
+    const csp = appContentSecurityPolicy(nonce);
+    const requestHeaders = new Headers(req.headers);
+    requestHeaders.set("x-nonce", nonce);
+    requestHeaders.set("Content-Security-Policy", csp);
+    const res = NextResponse.next({ request: { headers: requestHeaders } });
+    res.headers.set("Content-Security-Policy", csp);
+    return res;
   },
   {
     callbacks: {
