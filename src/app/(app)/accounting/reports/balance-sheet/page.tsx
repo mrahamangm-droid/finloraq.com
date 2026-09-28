@@ -2,7 +2,7 @@ import { ReportActions } from "@/components/reports/report-actions";
 import { requireTenantContext } from "@/lib/tenant";
 import { viewGate } from "@/lib/page-access";
 import { getFormatter } from "@/lib/customization/server";
-import { balanceSheet } from "@/lib/reports";
+import { balanceSheet, fiscalYearStart } from "@/lib/reports";
 import { pickerProps, resolvePeriod, type PeriodParams } from "@/lib/periods";
 import { PeriodPicker } from "@/components/periods/period-picker";
 
@@ -59,6 +59,12 @@ export default async function BalanceSheetPage(props: { searchParams?: Promise<P
       <Section money={fmt.money} title="Assets" rows={sheet.assets} total={sheet.totalAssets} />
       <Section money={fmt.money} title="Liabilities" rows={sheet.liabilities} total={sheet.totalLiabilities} />
       <Section money={fmt.money} title="Equity" rows={sheet.equity} total={sheet.totalEquity} />
+      {sheet.equity.some((r) => r.computed) && (
+        <p className="text-xs text-muted-foreground">
+          Retained earnings and current year earnings are calculated from your profit and loss (fiscal year starting{" "}
+          {fmt.date(fiscalYearStart(asOf, active.company.fiscalYearEnd))}). They aren&apos;t posted accounts, and no closing entries are needed.
+        </p>
+      )}
 
       {!sheet.outOfBalance.isZero() && (
         <p className="text-sm font-medium text-destructive">
