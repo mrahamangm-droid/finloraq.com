@@ -24,6 +24,9 @@ class DevEInvoicingAdapter implements EInvoicingAdapter {
     if (invoice.status === "DRAFT") {
       throw new Error("Only a posted (sent) invoice can be submitted for e-invoicing.");
     }
+    if (invoice.status === "VOID") {
+      throw new Error("A void invoice can't be submitted for e-invoicing.");
+    }
 
     const result: EInvoiceSubmissionResult = {
       live: false,

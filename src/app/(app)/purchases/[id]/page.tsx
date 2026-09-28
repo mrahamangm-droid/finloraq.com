@@ -5,16 +5,19 @@ import { getFormatter } from "@/lib/customization/server";
 import { prisma } from "@/lib/db";
 import { can } from "@/lib/rbac";
 import { BillActions } from "@/components/forms/bill-actions";
+import { VoidDocument } from "@/components/forms/void-document";
 
 export default async function BillDetailPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const { active, userId } = await requireTenantContext();
   const denied = await viewGate(active.id, "bills");
   if (denied) return denied;
-  const [fmt, canEdit, canDelete] = await Promise.all([
+  const [fmt, canEdit, canDelete, canVoid] = await Promise.all([
     getFormatter(userId),
     can(active.id, "bills", "EDIT"),
     can(active.id, "bills", "DELETE"),
+    // Voiding reverses the bill's posting: bills:APPROVE plus journals:APPROVE.
+    Promise.all([can(active.id, "bills", "APPROVE"), can(active.id, "journals", "APPROVE")]).then(([a, b]) => a && b),
   ]);
 
   const bill = await prisma.bill.findFirst({
@@ -76,6 +79,8 @@ export default async function BillDetailPage(props: { params: Promise<{ id: stri
       </div>
 
       <BillActions billId={bill.id} status={bill.status} balanceDue={balanceDue} canEdit={canEdit} canDelete={canDelete} />
+
+      {["APPROVED", "OVERDUE"].includes(bill.status) && payments.length === 0 && canVoid && <VoidDocument kind="bill" id={bill.id} />}
     </div>
   );
 }
