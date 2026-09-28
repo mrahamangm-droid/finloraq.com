@@ -136,8 +136,8 @@ export async function deleteBankAccount(params: {
  * Edits an UNMATCHED bank transaction's own fields (date, description,
  * amount). Once MATCHED or RECONCILED it's tied to a posted journal entry
  * (or a closed reconciliation) and stays immutable — un-match it first
- * (a rare enough correction that it isn't wired up yet) rather than
- * editing a matched row out from under its journal entry.
+ * (unmatchBankTransaction(), MATCHED only) rather than editing a matched
+ * row out from under its journal entry.
  */
 export async function updateBankTransaction(params: {
   companyId: string;
@@ -311,6 +311,54 @@ export async function matchBankTransaction(params: {
   });
 
   return updated;
+}
+
+/** Undoes a match (MATCHED → UNMATCHED) so a wrong pairing can be corrected
+ *  before month-end. Only the BankTransaction's own match state changes —
+ *  the journal entry it pointed at is posted and untouched, so the ledger
+ *  is unaffected. A RECONCILED transaction is refused: reconciliation is a
+ *  banking:APPROVE sign-off, and quietly reopening it from an EDIT-level
+ *  action would undo someone else's approval. Same permission as matching. */
+export async function unmatchBankTransaction(params: {
+  companyId: string;
+  membershipId: string;
+  userId: string;
+  bankTransactionId: string;
+}) {
+  await requirePermission(params.membershipId, "banking", "EDIT");
+
+  const before = await prisma.bankTransaction.findFirst({
+    where: { id: params.bankTransactionId, bankAccount: { companyId: params.companyId } },
+  });
+  if (!before) throw new BankValidationError("Bank transaction not found.");
+  if (before.status !== "MATCHED") {
+    throw new BankValidationError(
+      before.status === "RECONCILED"
+        ? "This transaction is reconciled and can't be un-matched."
+        : "Only a matched transaction can be un-matched.",
+    );
+  }
+
+  // Conditional on status so a reconcile that lands between the read above
+  // and this write can't be silently reversed.
+  const { count } = await prisma.bankTransaction.updateMany({
+    where: { id: before.id, status: "MATCHED" },
+    data: { status: "UNMATCHED", matchedJournalEntryId: null },
+  });
+  if (count === 0) {
+    throw new BankValidationError("This transaction changed while you were un-matching it — refresh and try again.");
+  }
+
+  await recordAuditEvent({
+    companyId: params.companyId,
+    userId: params.userId,
+    action: "bank_transaction.unmatched",
+    entityType: "BankTransaction",
+    entityId: before.id,
+    previousValue: { journalEntryId: before.matchedJournalEntryId },
+  });
+
+  return { id: before.id, status: "UNMATCHED" as const };
 }
 
 /** Month-end-close style bulk step: every MATCHED transaction for this

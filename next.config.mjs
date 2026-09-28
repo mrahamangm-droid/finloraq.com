@@ -15,15 +15,6 @@ const nextConfig = {
   // external since it loads its query engine binary at runtime.
   // (Next 15 promoted this out of `experimental` as serverExternalPackages.)
   serverExternalPackages: ["@prisma/client"],
-  // The one-off FY2023 admin route (src/app/api/admin/cleanup-fy2023-legacy)
-  // reads the committed source workbook via fs at request time; Next's
-  // automatic file tracing should already pick up the static
-  // path.join(process.cwd(), "data", ...) call, but this makes it explicit
-  // so the file is never silently dropped from the serverless bundle.
-  // (Top-level since Next 15; it was under `experimental` in 14.)
-  outputFileTracingIncludes: {
-    "/api/admin/cleanup-fy2023-legacy/route": ["./data/fy2023-source-workbook.xlsx"],
-  },
   // One public address. Once CANONICAL_HOST is set in Vercel (e.g.
   // "finloraq.com", only after that domain is live), visits to the old
   // finloraq-app.vercel.app address are sent there permanently. Stripe keeps
