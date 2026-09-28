@@ -77,13 +77,30 @@ describe("findOrphanedReversals", () => {
     expect(issues).toEqual([]);
   });
 
-  it("flags a reversal with no reversalOfId", () => {
+  it("accepts an older reversal that only has sourceId (posted before reversalOfId was set)", () => {
     const issues = findOrphanedReversals(
-      [{ id: "e2", entryNumber: "JE-0002", sourceType: "REVERSAL", reversalOfId: null }],
+      [{ id: "e2", entryNumber: "JE-0002", sourceType: "REVERSAL", sourceId: "e1", reversalOfId: null }],
+      new Set(["e1", "e2"]),
+    );
+    expect(issues).toEqual([]);
+  });
+
+  it("flags a reversal that references nothing", () => {
+    const issues = findOrphanedReversals(
+      [{ id: "e2", entryNumber: "JE-0002", sourceType: "REVERSAL", sourceId: null, reversalOfId: null }],
       new Set(["e2"]),
     );
     expect(issues).toHaveLength(1);
-    expect(issues[0]!.problem).toContain("no reversalOfId");
+    expect(issues[0]!.problem).toContain("doesn't reference");
+  });
+
+  it("flags reversalOfId and sourceId disagreeing", () => {
+    const issues = findOrphanedReversals(
+      [{ id: "e3", entryNumber: "JE-0003", sourceType: "REVERSAL", sourceId: "e1", reversalOfId: "e2" }],
+      new Set(["e1", "e2", "e3"]),
+    );
+    expect(issues).toHaveLength(1);
+    expect(issues[0]!.problem).toContain("disagree");
   });
 
   it("flags a reversal pointing at an entry that doesn't exist", () => {
@@ -93,6 +110,7 @@ describe("findOrphanedReversals", () => {
     );
     expect(issues).toHaveLength(1);
     expect(issues[0]!.problem).toContain("ghost");
+    expect(issues[0]!.problem).toContain("does not exist");
   });
 
   it("ignores non-reversal entries entirely", () => {

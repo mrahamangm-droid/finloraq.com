@@ -122,6 +122,8 @@ export interface PostJournalEntryInput {
    * entries never set this.
    */
   inheritsPostedCurrency?: boolean;
+  /** Set only by reverseJournalEntry(): the posted entry this one reverses. */
+  reversalOfId?: string;
 }
 
 /** Pure — no I/O. This is what src/lib/ledger.test.ts exercises directly,
@@ -269,6 +271,7 @@ export async function postJournalEntry(input: PostJournalEntryInput) {
         sourceType: input.sourceType,
         sourceId: input.sourceId,
         memo: input.memo,
+        reversalOfId: input.reversalOfId,
         status: input.post ? "POSTED" : "DRAFT",
         currency: normalizeCurrencyCode(input.currency),
         exchangeRate: input.exchangeRate ?? 1,
@@ -444,6 +447,7 @@ export async function reverseJournalEntry(params: {
     currency: original.currency,
     exchangeRate: original.exchangeRate,
     inheritsPostedCurrency: true, // mirrors an entry that is already posted
+    reversalOfId: original.id, // the link the integrity check (findOrphanedReversals) relies on
     lines: reversalLines,
     post: true,
   });

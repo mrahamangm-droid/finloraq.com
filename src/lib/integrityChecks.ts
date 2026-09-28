@@ -79,24 +79,28 @@ export function findDuplicateSourcePostings<T extends { id: string; sourceType: 
 }
 
 /**
- * A REVERSAL entry (sourceType "REVERSAL") always carries reversalOfId
- * pointing at the entry it reverses (see reverseJournalEntry(), ledger.ts).
- * Flags any REVERSAL with no reversalOfId, or one pointing at an entry id
- * that doesn't exist in this company's ledger — either would mean the
- * reversal's paper trail is broken, which matters a great deal in an
- * audit/legal context even though it can't affect the balance itself.
+ * A REVERSAL entry points at the entry it reverses in two places: sourceId
+ * (the ledger's one-reversal-per-entry key, always set) and reversalOfId (the
+ * relation, set by reverseJournalEntry() from this fix on; reversals posted
+ * before it have it null, and posted rows are never edited to backfill it).
+ * The target is reversalOfId, else sourceId. Flags a reversal with no target,
+ * a target that doesn't exist in this company's ledger, or the two fields
+ * disagreeing. Any of those means the reversal's paper trail is broken, which
+ * matters in an audit even though it can't affect the balance.
  */
-export function findOrphanedReversals<T extends { id: string; entryNumber: string; sourceType: string; reversalOfId: string | null }>(
-  entries: T[],
-  existingEntryIds: Set<string>,
-): IntegrityIssue[] {
+export function findOrphanedReversals<
+  T extends { id: string; entryNumber: string; sourceType: string; sourceId?: string | null; reversalOfId: string | null },
+>(entries: T[], existingEntryIds: Set<string>): IntegrityIssue[] {
   const issues: IntegrityIssue[] = [];
   for (const entry of entries) {
     if (entry.sourceType !== "REVERSAL") continue;
-    if (!entry.reversalOfId) {
-      issues.push({ entryId: entry.id, entryNumber: entry.entryNumber, problem: "REVERSAL entry has no reversalOfId" });
-    } else if (!existingEntryIds.has(entry.reversalOfId)) {
-      issues.push({ entryId: entry.id, entryNumber: entry.entryNumber, problem: `reversalOfId ${entry.reversalOfId} does not exist` });
+    const target = entry.reversalOfId ?? entry.sourceId ?? null;
+    if (!target) {
+      issues.push({ entryId: entry.id, entryNumber: entry.entryNumber, problem: "REVERSAL entry doesn't reference the entry it reverses" });
+    } else if (entry.reversalOfId && entry.sourceId && entry.reversalOfId !== entry.sourceId) {
+      issues.push({ entryId: entry.id, entryNumber: entry.entryNumber, problem: `reversalOfId ${entry.reversalOfId} and sourceId ${entry.sourceId} disagree` });
+    } else if (!existingEntryIds.has(target)) {
+      issues.push({ entryId: entry.id, entryNumber: entry.entryNumber, problem: `reversed entry ${target} does not exist` });
     }
   }
   return issues;
