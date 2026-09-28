@@ -1,10 +1,13 @@
 import { ReportActions } from "@/components/reports/report-actions";
 import { requireTenantContext } from "@/lib/tenant";
+import { viewGate } from "@/lib/page-access";
 import { getFormatter } from "@/lib/customization/server";
 import { cashFlowForecast, customerPaymentBehavior } from "@/lib/cashflow";
 
 export default async function CashFlowPage() {
   const { active, userId } = await requireTenantContext();
+  const denied = await viewGate(active.id, "reports");
+  if (denied) return denied;
   const fmt = await getFormatter(userId);
   const [forecast, behavior] = await Promise.all([
     cashFlowForecast(active.companyId),

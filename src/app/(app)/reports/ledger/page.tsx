@@ -1,5 +1,6 @@
 import { ReportActions } from "@/components/reports/report-actions";
 import { requireTenantContext } from "@/lib/tenant";
+import { viewGate } from "@/lib/page-access";
 import { prisma } from "@/lib/db";
 import { ledgerReport, type LedgerAccountSection } from "@/lib/reports";
 import { GRANULARITY_LABELS, pickerProps, resolvePeriod } from "@/lib/periods";
@@ -22,6 +23,8 @@ function legacy(sp: SearchParams): SearchParams {
 export default async function LedgerPage(props: { searchParams: Promise<SearchParams> }) {
   const searchParams = await props.searchParams;
   const { active } = await requireTenantContext();
+  const denied = await viewGate(active.id, "reports");
+  if (denied) return denied;
   const sp = legacy(searchParams);
   const range = resolvePeriod(sp);
   const accountCode = sp.account || undefined;

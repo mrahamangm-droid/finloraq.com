@@ -1,4 +1,5 @@
 import { requireTenantContext } from "@/lib/tenant";
+import { viewGate } from "@/lib/page-access";
 import { can } from "@/lib/rbac";
 import { prisma } from "@/lib/db";
 import { SettingsTabs } from "@/components/settings/customize/settings-tabs";
@@ -8,6 +9,8 @@ export const metadata = { title: "Branding" };
 
 export default async function BrandingPage() {
   const { active } = await requireTenantContext();
+  const denied = await viewGate(active.id, "settings");
+  if (denied) return denied;
   const [company, canEdit] = await Promise.all([
     prisma.company.findUniqueOrThrow({
       where: { id: active.companyId },

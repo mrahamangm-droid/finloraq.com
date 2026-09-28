@@ -1,11 +1,14 @@
 import { notFound } from "next/navigation";
 import { requireTenantContext } from "@/lib/tenant";
+import { viewGate } from "@/lib/page-access";
 import { prisma } from "@/lib/db";
 import { NewInvoiceForm } from "@/components/forms/new-invoice-form";
 
 export default async function EditInvoicePage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const { active } = await requireTenantContext();
+  const denied = await viewGate(active.id, "invoices");
+  if (denied) return denied;
 
   const [invoice, customers, taxCodes] = await Promise.all([
     prisma.invoice.findFirst({

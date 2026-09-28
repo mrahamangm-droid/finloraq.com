@@ -1,5 +1,6 @@
 import { ReportActions } from "@/components/reports/report-actions";
 import { requireTenantContext } from "@/lib/tenant";
+import { viewGate } from "@/lib/page-access";
 import { getFormatter } from "@/lib/customization/server";
 import { runIntegrityCheck } from "@/lib/integrity";
 
@@ -12,6 +13,8 @@ import { runIntegrityCheck } from "@/lib/integrity";
  */
 export default async function IntegrityCheckPage() {
   const { active, userId } = await requireTenantContext();
+  const denied = await viewGate(active.id, "journals");
+  if (denied) return denied;
   const fmt = await getFormatter(userId);
   const report = await runIntegrityCheck(active.companyId, new Date());
 

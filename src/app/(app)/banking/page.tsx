@@ -1,4 +1,5 @@
 import { requireTenantContext } from "@/lib/tenant";
+import { viewGate } from "@/lib/page-access";
 import { prisma } from "@/lib/db";
 import { can } from "@/lib/rbac";
 import { NewBankAccountForm } from "@/components/forms/new-bank-account-form";
@@ -7,6 +8,8 @@ import { BankAccountHeader } from "@/components/forms/bank-account-header";
 
 export default async function BankingPage() {
   const { active } = await requireTenantContext();
+  const denied = await viewGate(active.id, "banking");
+  if (denied) return denied;
 
   const [accounts, canEdit, canDelete] = await Promise.all([
     prisma.bankAccount.findMany({

@@ -1,10 +1,13 @@
 import { requireTenantContext } from "@/lib/tenant";
+import { viewGate } from "@/lib/page-access";
 import { prisma } from "@/lib/db";
 import { fieldDefs } from "@/lib/customization/server";
 import { NewInvoiceForm } from "@/components/forms/new-invoice-form";
 
 export default async function NewInvoicePage() {
   const { active } = await requireTenantContext();
+  const denied = await viewGate(active.id, "invoices");
+  if (denied) return denied;
 
   const [customers, taxCodes, fields] = await Promise.all([
     prisma.customer.findMany({ where: { companyId: active.companyId, isActive: true }, orderBy: { name: "asc" } }),

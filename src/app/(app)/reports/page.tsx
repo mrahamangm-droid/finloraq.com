@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireTenantContext } from "@/lib/tenant";
+import { viewGate } from "@/lib/page-access";
 
 const REPORTS = [
   { href: "/accounting/reports/trial-balance", name: "Trial Balance", description: "Every account's debit/credit balance from posted entries." },
@@ -15,6 +16,8 @@ const REPORTS = [
 
 export default async function ReportsPage() {
   const { active } = await requireTenantContext();
+  const denied = await viewGate(active.id, "reports");
+  if (denied) return denied;
 
   return (
     <div className="space-y-6">

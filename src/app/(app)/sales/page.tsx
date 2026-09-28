@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireTenantContext } from "@/lib/tenant";
+import { viewGate } from "@/lib/page-access";
 import { getFormatter } from "@/lib/customization/server";
 import { prisma } from "@/lib/db";
 import { pickerProps, resolvePeriod, type PeriodParams } from "@/lib/periods";
@@ -15,6 +16,8 @@ function statusColor(status: string) {
 export default async function SalesPage(props: { searchParams?: Promise<PeriodParams> }) {
   const searchParams = (await props.searchParams) ?? {};
   const { active, userId } = await requireTenantContext();
+  const denied = await viewGate(active.id, "invoices");
+  if (denied) return denied;
   const fmt = await getFormatter(userId);
   const filtered = Boolean(searchParams.period);
   const period = resolvePeriod(searchParams);
@@ -23,12 +26,21 @@ export default async function SalesPage(props: { searchParams?: Promise<PeriodPa
   // with more than 200 invoices needs a real paginated/searchable list,
   // which is a bigger UI change than a safety cap; this at least stops
   // the page from loading every invoice ever issued into one response.
-  const invoices = await prisma.invoice.findMany({
-    where: { companyId: active.companyId, ...(filtered ? { issueDate: { gte: period.from, lte: period.to } } : {}) },
-    orderBy: { issueDate: "desc" },
-    include: { customer: true },
-    take: filtered ? 1000 : 200,
-  });
+  const where = { companyId: active.companyId, ...(filtered ? { issueDate: { gte: period.from, lte: period.to } } : {}) };
+  const [invoices, totalsByCurrency] = await Promise.all([
+    prisma.invoice.findMany({
+      where,
+      orderBy: { issueDate: "desc" },
+      include: { customer: true },
+      take: filtered ? 1000 : 200,
+    }),
+    // Totals and the count come from the database over the WHOLE filtered
+    // set, not from the capped list above — summing the list would silently
+    // understate a period with more rows than the cap. Grouped by currency
+    // because adding amounts in different currencies isn't a total.
+    prisma.invoice.groupBy({ by: ["currency"], where, _sum: { total: true }, _count: { _all: true }, orderBy: { currency: "asc" } }),
+  ]);
+  const totalCount = totalsByCurrency.reduce((n, g) => n + g._count._all, 0);
 
   return (
     <div className="space-y-6">
@@ -79,14 +91,23 @@ export default async function SalesPage(props: { searchParams?: Promise<PeriodPa
             {filtered && invoices.length > 0 && (
               <tfoot className="border-t border-border font-medium">
                 <tr>
-                  <td className="px-4 py-2" colSpan={4}>Total · {period.label} · {invoices.length} invoices</td>
-                  <td className="px-4 py-2 text-right tabular-nums">{fmt.money(invoices.reduce((a, x) => a + x.total.toNumber(), 0))}</td>
+                  <td className="px-4 py-2" colSpan={4}>Total · {period.label} · {totalCount} invoices</td>
+                  <td className="px-4 py-2 text-right tabular-nums">
+                    {totalsByCurrency.map((g) => (
+                      <div key={g.currency}>{fmt.money(g._sum.total ?? 0)} {g.currency}</div>
+                    ))}
+                  </td>
                   <td />
                 </tr>
               </tfoot>
             )}
           </table>
         </div>
+        {invoices.length < totalCount && (
+          <p className="border-t border-border px-4 py-2 text-xs text-muted-foreground">
+            Showing the latest {invoices.length} of {totalCount} invoices{filtered ? "" : " — pick a period to see older ones"}.{filtered ? " The total above covers all of them." : ""}
+          </p>
+        )}
       </div>
     </div>
   );

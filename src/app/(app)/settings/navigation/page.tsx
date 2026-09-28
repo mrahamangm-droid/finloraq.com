@@ -1,4 +1,5 @@
 import { requireTenantContext } from "@/lib/tenant";
+import { viewGate } from "@/lib/page-access";
 import { can } from "@/lib/rbac";
 import { prisma } from "@/lib/db";
 import { NAV } from "@/components/nav/nav-items";
@@ -10,6 +11,8 @@ export const metadata = { title: "Menu" };
 
 export default async function NavigationSettingsPage() {
   const { active } = await requireTenantContext();
+  const denied = await viewGate(active.id, "settings");
+  if (denied) return denied;
   const [company, canEdit] = await Promise.all([
     prisma.company.findUniqueOrThrow({ where: { id: active.companyId }, select: { navConfig: true } }),
     can(active.id, "settings", "EDIT"),
