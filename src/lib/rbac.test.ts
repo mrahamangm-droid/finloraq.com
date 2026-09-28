@@ -52,3 +52,15 @@ describe("RBAC default matrix", () => {
     }
   });
 });
+
+describe("period close permissions", () => {
+  it("lock needs journals:APPROVE; reopen needs accounting:APPROVE (Company Admin and CFO only)", () => {
+    expect(roleCan("FINANCE_MANAGER", "journals", "APPROVE")).toBe(true);
+    expect(roleCan("ACCOUNTANT", "journals", "APPROVE")).toBe(false);
+    expect(roleCan("COMPANY_ADMIN", "accounting", "APPROVE")).toBe(true);
+    expect(roleCan("CFO", "accounting", "APPROVE")).toBe(true);
+    for (const role of ["FINANCE_MANAGER", "ACCOUNTANT", "STAFF", "AUDITOR"] as const) {
+      expect(roleCan(role, "accounting", "APPROVE")).toBe(false);
+    }
+  });
+});

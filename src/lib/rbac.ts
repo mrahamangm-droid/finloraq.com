@@ -50,7 +50,9 @@ const DEFAULT_MATRIX: Record<CompanyRole, Partial<Record<Module, PermissionActio
   ),
   CFO: {
     dashboard: ALL,
-    accounting: VIEW_CREATE_EDIT_EXPORT,
+    // APPROVE on accounting = reopening a locked accounting period
+    // (src/lib/periodClose.ts). Nothing else checks accounting:APPROVE.
+    accounting: [...VIEW_CREATE_EDIT_EXPORT, "APPROVE"],
     journals: ["VIEW", "CREATE", "EDIT", "APPROVE", "EXPORT"],
     sales: VIEW_EXPORT,
     invoices: VIEW_EXPORT,
