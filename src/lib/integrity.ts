@@ -75,20 +75,22 @@ export type NonBaseCurrencyRecord = {
  */
 export async function nonBaseCurrencyRecords(companyId: string): Promise<{ baseCurrency: string; records: NonBaseCurrencyRecord[] }> {
   const { baseCurrency } = await prisma.company.findUniqueOrThrow({ where: { id: companyId }, select: { baseCurrency: true } });
-  const notBase = { not: baseCurrency };
+  // Case-insensitive: codes are stored uppercase from now on, but rows saved
+  // earlier may be lowercase ("aed") and are still the base currency.
+  const notBase = { NOT: { currency: { equals: baseCurrency, mode: "insensitive" as const } } };
   const [entries, invoices, bills] = await Promise.all([
     prisma.journalEntry.findMany({
-      where: { companyId, currency: notBase },
+      where: { companyId, ...notBase },
       select: { entryNumber: true, status: true, date: true, currency: true, lines: { select: { debit: true } } },
       orderBy: { date: "asc" },
     }),
     prisma.invoice.findMany({
-      where: { companyId, currency: notBase },
+      where: { companyId, ...notBase },
       select: { invoiceNumber: true, status: true, issueDate: true, currency: true, total: true },
       orderBy: { issueDate: "asc" },
     }),
     prisma.bill.findMany({
-      where: { companyId, currency: notBase },
+      where: { companyId, ...notBase },
       select: { billNumber: true, status: true, issueDate: true, currency: true, total: true },
       orderBy: { issueDate: "asc" },
     }),

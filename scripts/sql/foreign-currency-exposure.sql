@@ -1,7 +1,7 @@
 -- Foreign-currency exposure report (READ-ONLY: SELECT statements only).
 --
 -- Lists every journal entry, invoice and bill whose currency differs from its
--- company's base currency. Before the base-currency guard in
+-- company's base currency (compared case-insensitively: a stored "aed" is AED). Before the base-currency guard in
 -- postJournalEntry(), such records could be created through the API and were
 -- posted at an exchange rate of 1, so every report counts their amounts as
 -- base currency.
@@ -35,14 +35,14 @@ SELECT c.id AS company_id,
        c."baseCurrency" AS base_currency,
        r.record,
        r.currency,
-       CASE WHEN r.currency = 'AED' AND c."baseCurrency" <> 'AED' THEN 'likely_mislabel' ELSE 'foreign_currency' END AS kind,
+       CASE WHEN upper(trim(r.currency)) = 'AED' AND upper(c."baseCurrency") <> 'AED' THEN 'likely_mislabel' ELSE 'foreign_currency' END AS kind,
        COUNT(*) FILTER (WHERE r.status IN ('POSTED', 'SENT', 'PARTIALLY_PAID', 'PAID', 'OVERDUE', 'APPROVED')) AS posted_count,
        COUNT(*) FILTER (WHERE r.status = 'DRAFT') AS draft_count,
        COUNT(*) FILTER (WHERE r.status = 'VOID') AS void_count,
        SUM(r.amount) FILTER (WHERE r.status <> 'DRAFT' AND r.status <> 'VOID') AS posted_amount
 FROM records r
 JOIN "Company" c ON c.id = r."companyId"
-WHERE r.currency <> c."baseCurrency"
+WHERE upper(trim(r.currency)) <> upper(c."baseCurrency")
 GROUP BY c.id, c.name, c."baseCurrency", r.record, r.currency, kind
 ORDER BY c.name, r.record, r.currency;
 
@@ -52,13 +52,13 @@ SELECT c.name AS company, c."baseCurrency" AS base_currency, 'journal entry' AS 
        (SELECT COALESCE(SUM(jl.debit), 0) FROM "JournalLine" jl WHERE jl."journalEntryId" = je.id) AS amount,
        je."sourceType"::text AS source_type, je.id
 FROM "JournalEntry" je JOIN "Company" c ON c.id = je."companyId"
-WHERE je.currency <> c."baseCurrency"
+WHERE upper(trim(je.currency)) <> upper(c."baseCurrency")
 UNION ALL
 SELECT c.name, c."baseCurrency", 'invoice', i."invoiceNumber", i.status::text, i."issueDate"::date, i.currency, i.total, NULL, i.id
 FROM "Invoice" i JOIN "Company" c ON c.id = i."companyId"
-WHERE i.currency <> c."baseCurrency"
+WHERE upper(trim(i.currency)) <> upper(c."baseCurrency")
 UNION ALL
 SELECT c.name, c."baseCurrency", 'bill', b."billNumber", b.status::text, b."issueDate"::date, b.currency, b.total, NULL, b.id
 FROM "Bill" b JOIN "Company" c ON c.id = b."companyId"
-WHERE b.currency <> c."baseCurrency"
+WHERE upper(trim(b.currency)) <> upper(c."baseCurrency")
 ORDER BY 1, 6, 3;

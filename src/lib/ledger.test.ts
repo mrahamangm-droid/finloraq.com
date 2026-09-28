@@ -10,6 +10,7 @@ import {
   buildExpensePosting,
   assertBaseCurrency,
   UnsupportedCurrencyError,
+  normalizeCurrencyCode,
 } from "./ledger";
 
 describe("validateBalanced — the core double-entry invariant", () => {
@@ -148,5 +149,12 @@ describe("assertBaseCurrency", () => {
     expect(err).toBeInstanceOf(UnsupportedCurrencyError);
     expect(err).toBeInstanceOf(InvalidLineError);
     expect((err as Error).message).toMatch(/USD isn't supported yet.*base currency, AED/);
+  });
+});
+
+describe("normalizeCurrencyCode", () => {
+  it("stores one canonical uppercase form", () => {
+    expect(normalizeCurrencyCode("aed")).toBe("AED");
+    expect(normalizeCurrencyCode(" Usd ")).toBe("USD");
   });
 });

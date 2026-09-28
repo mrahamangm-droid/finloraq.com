@@ -72,6 +72,11 @@ export class UnsupportedCurrencyError extends InvalidLineError {
   }
 }
 
+/** Canonical form every stored currency code uses ("aed " -> "AED"). */
+export function normalizeCurrencyCode(currency: string): string {
+  return currency.trim().toUpperCase();
+}
+
 /** Throws UnsupportedCurrencyError unless `currency` is the company's base currency. */
 export async function assertBaseCurrency(
   db: Pick<Prisma.TransactionClient, "company">,
@@ -79,7 +84,7 @@ export async function assertBaseCurrency(
   currency: string
 ): Promise<void> {
   const company = await db.company.findUniqueOrThrow({ where: { id: companyId }, select: { baseCurrency: true } });
-  if (currency.trim().toUpperCase() !== company.baseCurrency.toUpperCase()) {
+  if (normalizeCurrencyCode(currency) !== normalizeCurrencyCode(company.baseCurrency)) {
     throw new UnsupportedCurrencyError(currency, company.baseCurrency);
   }
 }
@@ -265,7 +270,7 @@ export async function postJournalEntry(input: PostJournalEntryInput) {
         sourceId: input.sourceId,
         memo: input.memo,
         status: input.post ? "POSTED" : "DRAFT",
-        currency: input.currency,
+        currency: normalizeCurrencyCode(input.currency),
         exchangeRate: input.exchangeRate ?? 1,
         postedAt: input.post ? new Date() : null,
         postedBy: input.post ? input.userId : null,

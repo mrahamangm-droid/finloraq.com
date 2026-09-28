@@ -2,7 +2,7 @@ import type Decimal from "decimal.js";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/rbac";
 import { recordAuditEvent } from "@/lib/audit";
-import { postJournalEntry, buildInvoicePosting, buildInvoicePaymentPosting, InvalidLineError, assertBaseCurrency } from "@/lib/ledger";
+import { postJournalEntry, buildInvoicePosting, buildInvoicePaymentPosting, InvalidLineError, assertBaseCurrency, normalizeCurrencyCode } from "@/lib/ledger";
 import { roundMoney, sum } from "@/lib/currency";
 import { nextDocumentNumber } from "@/lib/numbering";
 import { computeTaxedLines } from "@/lib/taxCalc";
@@ -46,7 +46,7 @@ export async function createInvoice(params: {
         invoiceNumber,
         issueDate: params.issueDate,
         dueDate: params.dueDate,
-        currency: params.currency,
+        currency: normalizeCurrencyCode(params.currency),
         subtotal,
         taxTotal,
         total,
@@ -110,7 +110,7 @@ export async function updateInvoice(params: {
   // Editing may keep the draft's current currency (so an edit never silently
   // re-labels it) or move it to the base currency, but never to another
   // foreign currency. Posting re-checks via postJournalEntry().
-  if (params.currency !== undefined && params.currency !== before.currency) {
+  if (params.currency !== undefined && normalizeCurrencyCode(params.currency) !== normalizeCurrencyCode(before.currency)) {
     await assertBaseCurrency(prisma, params.companyId, params.currency);
   }
 
@@ -138,7 +138,7 @@ export async function updateInvoice(params: {
         customerId: params.customerId,
         issueDate: params.issueDate,
         dueDate: params.dueDate,
-        currency: params.currency,
+        currency: params.currency === undefined ? undefined : normalizeCurrencyCode(params.currency),
         subtotal,
         taxTotal,
         total,
