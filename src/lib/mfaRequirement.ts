@@ -1,9 +1,11 @@
 import { prisma } from "@/lib/db";
 import { mfaRequirement, newGraceDeadline, roleRequiresMfa, type MfaRequirement } from "@/lib/mfaPolicy";
 
-/** Session cookie set by "Remind me later" on /mfa-setup. No max-age, so it
- *  lasts until the browser session ends — the prompt returns on next login.
- *  It only controls whether the reminder page is shown, never access. */
+/** Session cookie set by "Remind me later" on /mfa-setup. Its value is the
+ *  snoozing user's id, and it's only honoured for that same user, so a
+ *  different person signing in on the same browser is still prompted. No
+ *  max-age, so it lasts until the browser session ends — the prompt returns
+ *  on next login. It only controls whether the reminder is shown, never access. */
 export const MFA_SNOOZE_COOKIE = "finloraq_mfa_snooze";
 
 /**

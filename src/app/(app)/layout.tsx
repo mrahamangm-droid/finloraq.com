@@ -34,7 +34,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // offers "Remind me later", and afterwards a reminder banner stays up.
   const mfa = await getMfaRequirement(ctx.userId);
   const mfaPending = mfa.kind === "grace" || mfa.kind === "overdue";
-  if (mfaPending && !(await cookies()).get(MFA_SNOOZE_COOKIE)) {
+  // The snooze cookie only counts for the user who set it (it holds their id).
+  if (mfaPending && (await cookies()).get(MFA_SNOOZE_COOKIE)?.value !== ctx.userId) {
     redirect("/mfa-setup");
   }
 
