@@ -54,6 +54,35 @@ export class InvalidLineError extends Error {
     this.name = "InvalidLineError";
   }
 }
+/**
+ * A document or entry in a currency other than the company's base currency.
+ * There's no exchange-rate support yet: every report sums amounts as if they
+ * were base currency, so a USD 1,000 invoice in an AED company would read as
+ * AED 1,000. Until real multi-currency lands, anything that isn't in the base
+ * currency is refused rather than recorded wrongly. Extends InvalidLineError
+ * so every route that already maps that to a 400 handles it too.
+ */
+export class UnsupportedCurrencyError extends InvalidLineError {
+  constructor(currency: string, baseCurrency: string) {
+    super(
+      `${currency} isn't supported yet: this company records everything in its base currency, ${baseCurrency}. ` +
+        `Enter the amounts in ${baseCurrency}. Foreign-currency documents need exchange-rate support, which isn't built yet.`
+    );
+    this.name = "UnsupportedCurrencyError";
+  }
+}
+
+/** Throws UnsupportedCurrencyError unless `currency` is the company's base currency. */
+export async function assertBaseCurrency(
+  db: Pick<Prisma.TransactionClient, "company">,
+  companyId: string,
+  currency: string
+): Promise<void> {
+  const company = await db.company.findUniqueOrThrow({ where: { id: companyId }, select: { baseCurrency: true } });
+  if (currency.trim().toUpperCase() !== company.baseCurrency.toUpperCase()) {
+    throw new UnsupportedCurrencyError(currency, company.baseCurrency);
+  }
+}
 
 export interface LineInput {
   accountCode: string;
@@ -79,6 +108,15 @@ export interface PostJournalEntryInput {
   /** DRAFT entries skip the APPROVE permission check and the duplicate
    *  check still applies once posted, not while draft. */
   post: boolean;
+  /**
+   * Set only when `currency` is copied from a document or entry that is
+   * already posted: a payment against a posted invoice/bill, or a reversal.
+   * Those must settle in the same currency the original was booked in, even
+   * if it predates the base-currency rule below; refusing them would leave
+   * the original's receivable/payable impossible to clear. New documents and
+   * entries never set this.
+   */
+  inheritsPostedCurrency?: boolean;
 }
 
 /** Pure — no I/O. This is what src/lib/ledger.test.ts exercises directly,
@@ -170,6 +208,16 @@ export async function findOpenPeriod(tx: Prisma.TransactionClient, companyId: st
  */
 export async function postJournalEntry(input: PostJournalEntryInput) {
   const { debits, credits } = validateBalanced(input.lines);
+
+  // Every path into the ledger (invoices, bills, payments, expenses, imports,
+  // manual journals) comes through here, so this is the backstop that keeps
+  // unconverted foreign-currency amounts out of the books.
+  if (!input.inheritsPostedCurrency) {
+    await assertBaseCurrency(prisma, input.companyId, input.currency);
+  }
+  if (!input.inheritsPostedCurrency && input.exchangeRate !== undefined && !money(input.exchangeRate).equals(1)) {
+    throw new InvalidLineError("Exchange rates aren't supported yet: entries are recorded in the company's base currency at a rate of 1.");
+  }
 
   if (input.post) {
     const allowed = await can(input.membershipId, "journals", "APPROVE");
@@ -390,6 +438,7 @@ export async function reverseJournalEntry(params: {
     memo: params.memo ?? `Reversal of ${original.entryNumber}`,
     currency: original.currency,
     exchangeRate: original.exchangeRate,
+    inheritsPostedCurrency: true, // mirrors an entry that is already posted
     lines: reversalLines,
     post: true,
   });

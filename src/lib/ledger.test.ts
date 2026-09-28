@@ -8,6 +8,8 @@ import {
   buildBillPosting,
   buildSupplierPaymentPosting,
   buildExpensePosting,
+  assertBaseCurrency,
+  UnsupportedCurrencyError,
 } from "./ledger";
 
 describe("validateBalanced — the core double-entry invariant", () => {
@@ -129,5 +131,22 @@ describe("posting builders match the spec's exact examples (section 6)", () => {
     const lines = buildExpensePosting({ amount: 200 });
     validateBalanced(lines);
     expect(lines).toHaveLength(2);
+  });
+});
+
+describe("assertBaseCurrency", () => {
+  const db = (baseCurrency: string) =>
+    ({ company: { findUniqueOrThrow: async () => ({ baseCurrency }) } }) as unknown as Parameters<typeof assertBaseCurrency>[0];
+
+  it("accepts the base currency, case-insensitively", async () => {
+    await expect(assertBaseCurrency(db("AED"), "c1", "AED")).resolves.toBeUndefined();
+    await expect(assertBaseCurrency(db("AED"), "c1", "aed")).resolves.toBeUndefined();
+  });
+
+  it("refuses any other currency with an error routes already map to 400", async () => {
+    const err = await assertBaseCurrency(db("AED"), "c1", "USD").catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(UnsupportedCurrencyError);
+    expect(err).toBeInstanceOf(InvalidLineError);
+    expect((err as Error).message).toMatch(/USD isn't supported yet.*base currency, AED/);
   });
 });

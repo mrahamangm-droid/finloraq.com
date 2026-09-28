@@ -2,7 +2,7 @@ import type Decimal from "decimal.js";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/rbac";
 import { recordAuditEvent } from "@/lib/audit";
-import { postJournalEntry, buildInvoicePosting, buildInvoicePaymentPosting, InvalidLineError } from "@/lib/ledger";
+import { postJournalEntry, buildInvoicePosting, buildInvoicePaymentPosting, InvalidLineError, assertBaseCurrency } from "@/lib/ledger";
 import { roundMoney, sum } from "@/lib/currency";
 import { nextDocumentNumber } from "@/lib/numbering";
 import { computeTaxedLines } from "@/lib/taxCalc";
@@ -26,6 +26,7 @@ export async function createInvoice(params: {
   lines: InvoiceLineInput[];
 }) {
   await requirePermission(params.membershipId, "invoices", "CREATE");
+  await assertBaseCurrency(prisma, params.companyId, params.currency);
 
   if (params.lines.length === 0) {
     throw new InvalidLineError("An invoice needs at least one line.");
@@ -105,6 +106,12 @@ export async function updateInvoice(params: {
   if (!before) throw new Error("Invoice not found.");
   if (before.status !== "DRAFT") {
     throw new InvalidLineError("Only a draft invoice can be edited. Once sent, correct it with a credit note or a new invoice.");
+  }
+  // Editing may keep the draft's current currency (so an edit never silently
+  // re-labels it) or move it to the base currency, but never to another
+  // foreign currency. Posting re-checks via postJournalEntry().
+  if (params.currency !== undefined && params.currency !== before.currency) {
+    await assertBaseCurrency(prisma, params.companyId, params.currency);
   }
 
   let subtotal = before.subtotal, taxTotal = before.taxTotal, total = before.total;
@@ -267,6 +274,7 @@ export async function recordInvoicePayment(params: {
     sourceId: paymentId,
     memo: params.memo ?? `Payment received — Invoice ${invoice.invoiceNumber}`,
     currency: invoice.currency,
+    inheritsPostedCurrency: true, // settles an invoice that is already posted
     lines: buildInvoicePaymentPosting({ amount: params.amount }),
     post: true,
   });

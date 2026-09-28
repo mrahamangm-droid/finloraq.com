@@ -2,7 +2,7 @@ import type Decimal from "decimal.js";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/rbac";
 import { recordAuditEvent } from "@/lib/audit";
-import { postJournalEntry, buildBillPosting, buildSupplierPaymentPosting, InvalidLineError } from "@/lib/ledger";
+import { postJournalEntry, buildBillPosting, buildSupplierPaymentPosting, InvalidLineError, assertBaseCurrency } from "@/lib/ledger";
 import { roundMoney, sum } from "@/lib/currency";
 import { nextDocumentNumber } from "@/lib/numbering";
 import { computeTaxedLines } from "@/lib/taxCalc";
@@ -25,6 +25,7 @@ export async function createBill(params: {
   lines: BillLineInput[];
 }) {
   await requirePermission(params.membershipId, "bills", "CREATE");
+  await assertBaseCurrency(prisma, params.companyId, params.currency);
 
   if (params.lines.length === 0) {
     throw new InvalidLineError("A bill needs at least one line.");
@@ -99,6 +100,12 @@ export async function updateBill(params: {
   if (!before) throw new Error("Bill not found.");
   if (before.status !== "DRAFT") {
     throw new InvalidLineError("Only a draft bill can be edited. Once approved, correct it with a debit note or a new bill.");
+  }
+  // Editing may keep the draft's current currency (so an edit never silently
+  // re-labels it) or move it to the base currency, but never to another
+  // foreign currency. Posting re-checks via postJournalEntry().
+  if (params.currency !== undefined && params.currency !== before.currency) {
+    await assertBaseCurrency(prisma, params.companyId, params.currency);
   }
 
   let subtotal = before.subtotal, taxTotal = before.taxTotal, total = before.total;
@@ -249,6 +256,7 @@ export async function recordSupplierPayment(params: {
     sourceId: paymentId,
     memo: `Payment sent — Bill ${bill.billNumber}`,
     currency: bill.currency,
+    inheritsPostedCurrency: true, // settles a bill that is already posted
     lines: buildSupplierPaymentPosting({ amount: params.amount }),
     post: true,
   });
