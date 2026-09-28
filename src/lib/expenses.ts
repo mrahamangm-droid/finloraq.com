@@ -31,6 +31,13 @@ export async function createExpense(params: {
   taxAmount?: number;
   expenseAccountCode?: string;
 }) {
+  // Recorded in the company's own base currency — never a hardcoded one,
+  // since companies can pick their base currency at onboarding.
+  const { baseCurrency } = await prisma.company.findUniqueOrThrow({
+    where: { id: params.companyId },
+    select: { baseCurrency: true },
+  });
+
   // post:false inside postJournalEntry only requires journals:CREATE, which
   // every role from STAFF up holds — so submitting an expense never
   // requires the APPROVE permission that posting does.
@@ -42,7 +49,7 @@ export async function createExpense(params: {
     sourceType: "EXPENSE",
     sourceId: `expense:${params.userId}:${Date.now()}`,
     memo: params.description,
-    currency: "AED",
+    currency: baseCurrency,
     lines: buildExpensePosting({
       amount: params.amount,
       taxAmount: params.taxAmount,

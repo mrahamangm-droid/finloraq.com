@@ -26,6 +26,7 @@ export default async function EditBillPage(props: { params: Promise<{ id: string
       <h1 className="text-xl font-semibold text-foreground">Edit Bill {bill.billNumber}</h1>
       <NewBillForm
         billId={bill.id}
+        currency={bill.currency}
         suppliers={suppliers.map((s) => ({ id: s.id, name: s.name }))}
         taxCodes={taxCodes.map((t) => ({ id: t.id, name: t.name, rate: t.rate.toNumber() }))}
         initial={{

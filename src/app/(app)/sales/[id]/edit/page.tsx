@@ -26,6 +26,7 @@ export default async function EditInvoicePage(props: { params: Promise<{ id: str
       <h1 className="text-xl font-semibold text-foreground">Edit Invoice {invoice.invoiceNumber}</h1>
       <NewInvoiceForm
         invoiceId={invoice.id}
+        currency={invoice.currency}
         customers={customers.map((c) => ({ id: c.id, name: c.name }))}
         taxCodes={taxCodes.map((t) => ({ id: t.id, name: t.name, rate: t.rate.toNumber() }))}
         initial={{

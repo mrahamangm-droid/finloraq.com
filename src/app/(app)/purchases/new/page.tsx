@@ -20,6 +20,7 @@ export default async function NewBillPage() {
     <div className="mx-auto max-w-3xl space-y-6">
       <h1 className="text-xl font-semibold text-foreground">New Bill</h1>
       <NewBillForm
+        currency={active.company.baseCurrency}
         suppliers={suppliers.map((s) => ({ id: s.id, name: s.name }))}
         taxCodes={taxCodes.map((t) => ({ id: t.id, name: t.name, rate: t.rate.toNumber() }))}
       />
