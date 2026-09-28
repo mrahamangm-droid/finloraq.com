@@ -55,13 +55,17 @@ const nextConfig = {
           // default) — preload is opt-in on hstspreload.org once the
           // domain is confirmed to always serve HTTPS; not submitted here.
           { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
-          // Deliberately not nonce-based yet — Next.js's own inline
-          // hydration script needs 'unsafe-inline' without one, and
-          // wiring a per-request nonce through the App Router is a
-          // real follow-up (Next supports it via middleware), not
-          // something to fake here. This still meaningfully narrows
-          // where scripts/styles/connections can come from vs. no CSP
-          // at all, and blocks this app from ever being framed.
+        ],
+      },
+      {
+        // Site-wide CSP for everything EXCEPT the signed-in app pages, which
+        // get a stricter per-request nonce policy from src/middleware.ts
+        // (src/lib/csp.ts) instead. The marketing/auth pages here stay
+        // statically prerendered — a nonce would force every one of them to
+        // render per request — so they keep 'unsafe-inline' for Next.js's
+        // inline hydration script. Prefix list = the middleware matcher's.
+        source: "/:path((?!(?:dashboard|accounting|sales|purchases|expenses|banking|customers|suppliers|projects|taxes|reports|documents|import|users|settings|audit|ai-copilot|billing)(?:/|$)).*)",
+        headers: [
           {
             key: "Content-Security-Policy",
             value: [
