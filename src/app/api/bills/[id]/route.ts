@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireTenantContext } from "@/lib/tenant";
 import { updateBill, deleteBill } from "@/lib/purchases";
 import { InvalidLineError } from "@/lib/ledger";
-import { ForbiddenError } from "@/lib/rbac";
+import { ForbiddenError, can } from "@/lib/rbac";
 import { prisma } from "@/lib/db";
 
 const patchSchema = z.object({
@@ -24,6 +24,11 @@ const patchSchema = z.object({
 export async function GET(_req: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const { active } = await requireTenantContext();
+  // Reads are gated on VIEW exactly like writes are gated on CREATE/EDIT —
+  // a role without bills:VIEW (e.g. STAFF) gets 403, not the data.
+  if (!(await can(active.id, "bills", "VIEW"))) {
+    return NextResponse.json({ error: "Missing VIEW on bills." }, { status: 403 });
+  }
   const bill = await prisma.bill.findFirst({
     where: { id: params.id, companyId: active.companyId },
     include: { supplier: true, lines: true },

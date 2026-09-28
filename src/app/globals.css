@@ -135,9 +135,11 @@
  * just the first — verified by rendering a 2-page test document with
  * Chromium's own print-to-PDF before shipping this.
  *
- * Top-of-page only, exactly 0.5in tall, full page width — logo + company
- * name, composited into a single image (public/letterhead/header.png,
- * 2481×150px @ 300dpi = 8.27in × 0.5in, matching A4 width). No footer.
+ * Top-of-page only, exactly 0.5in tall, full page width — the ACTIVE
+ * company's own logo + name (Company.logoUrl / Company.name), laid out in
+ * CSS rather than a shared static image, since every tenant prints its own
+ * letterhead. Accent rule uses the company's brand colour (--primary,
+ * set on #app-shell by brandStyle()). No footer.
  *
  * IMPORTANT — do not give `.print-letterhead-header` a negative `top`
  * offset. That was tried (to bleed the header past the @page margin to
@@ -156,8 +158,8 @@
  * starts essentially at the physical top edge. Vertical clearance for
  * the header is instead reserved with `.app-main`'s `padding-top`
  * below, sized to the header's own height (0.5in ≈ 12.7mm) plus a few
- * mm of breathing room. If the header image is ever replaced with a
- * different height, that padding-top needs to move with it.
+ * mm of breathing room. If the band's 0.5in height ever changes, that
+ * padding-top needs to move with it.
  */
 .print-letterhead-header {
   display: none;
@@ -204,9 +206,29 @@
     left: -12mm;
     width: calc(100% + 24mm);
   }
-  .print-letterhead-header img {
+  .print-letterhead-band {
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    gap: 0.14in;
+    height: 0.5in;
+    padding: 0 0.55in;
+    background: #fff;
+    border-bottom: 2px solid hsl(var(--primary));
+  }
+  .print-letterhead-logo {
     display: block;
-    width: 100%;
-    height: auto;
+    height: 0.34in;
+    width: auto;
+    max-width: 1.2in;
+    object-fit: contain;
+  }
+  .print-letterhead-name {
+    font-size: 15pt;
+    font-weight: 700;
+    color: #111;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }

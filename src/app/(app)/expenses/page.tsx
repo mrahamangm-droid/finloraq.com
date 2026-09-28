@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { requireTenantContext } from "@/lib/tenant";
+import { viewGate } from "@/lib/page-access";
 import { getFormatter } from "@/lib/customization/server";
-import { listRecentExpenses } from "@/lib/expenses";
+import { listRecentExpenses, expenseTotals } from "@/lib/expenses";
 import { pickerProps, resolvePeriod, type PeriodParams } from "@/lib/periods";
 import { can } from "@/lib/rbac";
 import { PeriodPicker } from "@/components/periods/period-picker";
@@ -21,6 +22,8 @@ type ExpensesPageParams = PeriodParams & { status?: string };
 export default async function ExpensesPage(props: { searchParams?: Promise<ExpensesPageParams> }) {
   const searchParams = (await props.searchParams) ?? {};
   const { active, userId } = await requireTenantContext();
+  const denied = await viewGate(active.id, "expenses");
+  if (denied) return denied;
   const [fmt, canEdit] = await Promise.all([getFormatter(userId), can(active.id, "expenses", "EDIT")]);
   const filtered = Boolean(searchParams.period);
   const period = resolvePeriod(searchParams);
@@ -32,7 +35,10 @@ export default async function ExpensesPage(props: { searchParams?: Promise<Expen
   const statusFilter = VALID_STATUSES.includes(searchParams.status as ExpenseStatus)
     ? (searchParams.status as ExpenseStatus)
     : undefined;
-  const expenses = await listRecentExpenses(active.companyId, filtered ? period : undefined, statusFilter);
+  const [expenses, totals] = await Promise.all([
+    listRecentExpenses(active.companyId, filtered ? period : undefined, statusFilter),
+    expenseTotals(active.companyId, filtered ? period : undefined, statusFilter),
+  ]);
 
   // Preserves every other query param (period/date/from/to) when switching
   // status tabs, same "keep the rest of the URL" behavior PeriodPicker uses
@@ -48,11 +54,6 @@ export default async function ExpensesPage(props: { searchParams?: Promise<Expen
     const qs = params.toString();
     return qs ? `/expenses?${qs}` : "/expenses";
   };
-  const amountOf = (e: (typeof expenses)[number]) => {
-    const bankLine = e.lines.find((l) => l.account.code === "1000");
-    return bankLine ? bankLine.credit.toNumber() : e.lines.reduce((a, l) => a + l.debit.toNumber(), 0);
-  };
-  const total = expenses.reduce((a, e) => a + amountOf(e), 0);
 
   return (
     <div className="space-y-6">
@@ -132,14 +133,23 @@ export default async function ExpensesPage(props: { searchParams?: Promise<Expen
             {filtered && expenses.length > 0 && (
               <tfoot className="border-t border-border font-medium">
                 <tr>
-                  <td className="px-4 py-2" colSpan={2}>Total · {period.label} · {expenses.length} {expenses.length === 1 ? "expense" : "expenses"}</td>
-                  <td className="px-4 py-2 text-right tabular-nums">{fmt.money(total)}</td>
+                  <td className="px-4 py-2" colSpan={2}>Total · {period.label} · {totals.count} {totals.count === 1 ? "expense" : "expenses"}</td>
+                  <td className="px-4 py-2 text-right tabular-nums">
+                    {totals.byCurrency.map((g) => (
+                      <div key={g.currency}>{fmt.money(g.total)} {g.currency}</div>
+                    ))}
+                  </td>
                   <td colSpan={2} />
                 </tr>
               </tfoot>
             )}
           </table>
         </div>
+        {expenses.length < totals.count && (
+          <p className="border-t border-border px-4 py-2 text-xs text-muted-foreground">
+            Showing the latest {expenses.length} of {totals.count} expenses{filtered ? "" : " — pick a period to see older ones"}.{filtered ? " The total above covers all of them." : ""}
+          </p>
+        )}
       </div>
     </div>
   );

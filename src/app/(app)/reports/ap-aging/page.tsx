@@ -1,5 +1,6 @@
 import { ReportActions } from "@/components/reports/report-actions";
 import { requireTenantContext } from "@/lib/tenant";
+import { viewGate } from "@/lib/page-access";
 import { getFormatter } from "@/lib/customization/server";
 import { apAging } from "@/lib/reports";
 
@@ -7,6 +8,8 @@ const BUCKETS = ["current", "1-30", "31-60", "61-90", "90+"] as const;
 
 export default async function ApAgingPage() {
   const { active, userId } = await requireTenantContext();
+  const denied = await viewGate(active.id, "reports");
+  if (denied) return denied;
   const fmt = await getFormatter(userId);
   const rows = await apAging(active.companyId);
 

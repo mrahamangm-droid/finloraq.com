@@ -1,4 +1,5 @@
 import { requireTenantContext } from "@/lib/tenant";
+import { viewGate } from "@/lib/page-access";
 import { can } from "@/lib/rbac";
 import { listCustomFields } from "@/lib/customization/server";
 import { SettingsTabs } from "@/components/settings/customize/settings-tabs";
@@ -8,6 +9,8 @@ export const metadata = { title: "Custom fields" };
 
 export default async function CustomFieldsPage() {
   const { active } = await requireTenantContext();
+  const denied = await viewGate(active.id, "settings");
+  if (denied) return denied;
   const [fields, canEdit] = await Promise.all([listCustomFields(active.companyId, undefined, false), can(active.id, "settings", "EDIT")]);
   return (
     <div className="mx-auto max-w-4xl space-y-6">

@@ -1,5 +1,5 @@
 import { requireTenantContext } from "@/lib/tenant";
-import { requirePermission } from "@/lib/rbac";
+import { viewGate } from "@/lib/page-access";
 import { prisma } from "@/lib/db";
 import Link from "next/link";
 
@@ -20,7 +20,8 @@ export default async function AuditPage(
 ) {
   const searchParams = await props.searchParams;
   const { active } = await requireTenantContext();
-  await requirePermission(active.id, "audit", "VIEW");
+  const denied = await viewGate(active.id, "audit");
+  if (denied) return denied;
 
   const page = Math.max(1, parseInt(searchParams.page ?? "1", 10) || 1);
   const where = {
