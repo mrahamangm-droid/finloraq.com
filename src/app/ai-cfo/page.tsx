@@ -72,8 +72,8 @@ export default function AiCfoPage() {
               <Link className="btn btn-primary" href="/register">
                 Start Free
               </Link>
-              <Link className="btn btn-ghost on-navy" href="/#agents">
-                See the Agents in Action
+              <Link className="btn btn-ghost on-navy" href="/#demo">
+                Explore the Demo
               </Link>
             </div>
           </div>

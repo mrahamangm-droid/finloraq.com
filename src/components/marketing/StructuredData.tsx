@@ -66,7 +66,7 @@ export function SoftwareApplicationJsonLd({
     offers: {
       "@type": "AggregateOffer",
       priceCurrency: "USD",
-      // Pulled from the real pricing table in MarketingHomePage.tsx
+      // Pulled from the plan catalog in src/lib/billing/plans.ts
       // (Starter free through AI CFO $299/mo; Enterprise is quote-based
       // and excluded since it has no fixed price to report). If that
       // pricing table changes, update these to match — this schema is
