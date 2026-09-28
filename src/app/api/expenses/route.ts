@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireTenantContext } from "@/lib/tenant";
+import { can } from "@/lib/rbac";
 import { createExpense, listRecentExpenses } from "@/lib/expenses";
 
 const schema = z.object({
@@ -12,6 +13,11 @@ const schema = z.object({
 
 export async function GET() {
   const { active } = await requireTenantContext();
+  // Reads are gated on VIEW exactly like writes are gated on CREATE/EDIT —
+  // a role without expenses:VIEW (e.g. STAFF) gets 403, not the data.
+  if (!(await can(active.id, "expenses", "VIEW"))) {
+    return NextResponse.json({ error: "Missing VIEW on expenses." }, { status: 403 });
+  }
   const expenses = await listRecentExpenses(active.companyId);
   return NextResponse.json(expenses);
 }
