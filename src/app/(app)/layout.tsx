@@ -8,6 +8,7 @@ import { Topbar } from "@/components/nav/topbar";
 import { ThemeSync } from "@/components/nav/theme-sync";
 import { PrintLetterhead } from "@/components/print/print-letterhead";
 import { NAV } from "@/components/nav/nav-items";
+import { visibleNavHrefs } from "@/lib/nav-access";
 import { getPreferences, readNavConfig } from "@/lib/customization/server";
 import { applyNavConfig } from "@/lib/customization/nav";
 import { brandStyle } from "@/lib/customization/color";
@@ -32,7 +33,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     getPreferences(ctx.userId),
   ]);
   // Menu order/visibility is a company-wide admin choice (Settings → Menu).
-  const navHrefs = applyNavConfig(NAV, readNavConfig(company.navConfig)).map((n) => n.href as string);
+  // …then trimmed to what this member's role can open (cosmetic only — the
+  // pages and APIs enforce permissions themselves; see src/lib/nav-access.ts).
+  const navHrefs = await visibleNavHrefs(ctx.active.id, applyNavConfig(NAV, readNavConfig(company.navConfig)).map((n) => n.href as string));
   const themeClass = prefs.theme === "dark" ? "theme-dark dark" : prefs.theme === "light" ? "theme-light" : "";
 
   return (
