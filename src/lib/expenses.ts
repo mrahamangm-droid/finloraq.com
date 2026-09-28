@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { requirePermission } from "@/lib/rbac";
+import { decideExpenseApproval, governingRule, roleSatisfies } from "@/lib/approvals";
+import { can, requirePermission } from "@/lib/rbac";
 import { recordAuditEvent } from "@/lib/audit";
 import {
   postJournalEntry,
@@ -152,22 +153,101 @@ export async function updateDraftExpense(params: {
   return updated;
 }
 
-/** TODO(Phase 5/13): before approval, check WorkflowRule for entityType
- *  "Expense" against the amount and require the specific role the
- *  matching rule names, rather than the flat journals:APPROVE check that
- *  postDraftJournalEntry() applies today. */
+export class ApprovalPolicyError extends Error {}
+
+/**
+ * Approves a DRAFT expense, applying the company's amount-based approval
+ * rules (Settings → Approvals; policy in src/lib/approvals.ts) before the
+ * usual posting. Rules only add restrictions: postDraftJournalEntry() still
+ * requires journals:APPROVE, so no rule can grant approval to anyone.
+ */
 export async function approveExpense(params: {
   companyId: string;
   membershipId: string;
   userId: string;
   journalEntryId: string;
 }) {
-  return postDraftJournalEntry({
+  // Permission first, so someone who can't approve at all hears that — not a
+  // policy reason. postDraftJournalEntry() re-checks it before posting.
+  if (!(await can(params.membershipId, "journals", "APPROVE"))) {
+    throw new InvalidLineError("Posting a journal entry requires the APPROVE permission on Journals.");
+  }
+
+  const [expense, approver, rules] = await Promise.all([
+    prisma.journalEntry.findFirst({
+      where: { id: params.journalEntryId, companyId: params.companyId, sourceType: "EXPENSE" },
+      include: { lines: { include: { account: true } } },
+    }),
+    prisma.companyMembership.findFirstOrThrow({ where: { id: params.membershipId, companyId: params.companyId } }),
+    prisma.workflowRule.findMany({ where: { companyId: params.companyId, entityType: "Expense" } }),
+  ]);
+  if (!expense) throw new ApprovalPolicyError("Expense not found.");
+
+  // Same amount rule as the Expenses list: the Bank line's credit, else the sum of debits.
+  const bankLine = expense.lines.find((l) => l.account.code === "1000");
+  const amount = bankLine ? bankLine.credit.toNumber() : expense.lines.reduce((a, l) => a + l.debit.toNumber(), 0);
+  const ruleRows = rules.map((r) => ({
+    id: r.id,
+    minAmount: r.minAmount === null ? null : r.minAmount.toNumber(),
+    maxAmount: r.maxAmount === null ? null : r.maxAmount.toNumber(),
+    requiredRole: r.requiredRole,
+    isActive: r.isActive,
+  }));
+
+  // Only needed for self-approval: could anyone else approve this one?
+  let otherEligibleApprovers = 0;
+  if (expense.createdBy === params.userId) {
+    const rule = governingRule(ruleRows, amount);
+    const others = await prisma.companyMembership.findMany({
+      where: { companyId: params.companyId, isActive: true, userId: { not: expense.createdBy } },
+      select: { id: true, role: true },
+    });
+    for (const m of others) {
+      if ((!rule || roleSatisfies(m.role, rule.requiredRole)) && (await can(m.id, "journals", "APPROVE"))) otherEligibleApprovers++;
+    }
+  }
+
+  const decision = decideExpenseApproval({
+    amount,
+    rules: ruleRows,
+    approverRole: approver.role,
+    approverUserId: params.userId,
+    submitterUserId: expense.createdBy,
+    otherEligibleApprovers,
+  });
+  if (!decision.ok) throw new ApprovalPolicyError(decision.reason);
+
+  const posted = await postDraftJournalEntry({
     companyId: params.companyId,
     membershipId: params.membershipId,
     userId: params.userId,
     journalEntryId: params.journalEntryId,
   });
+
+  if (decision.rule) {
+    await prisma.approval.create({
+      data: {
+        workflowRuleId: decision.rule.id,
+        entityType: "Expense",
+        entityId: posted.id,
+        status: "APPROVED",
+        decidedBy: params.userId,
+        decidedAt: new Date(),
+      },
+    });
+  }
+  if (decision.rule || decision.selfApproval) {
+    await recordAuditEvent({
+      companyId: params.companyId,
+      userId: params.userId,
+      action: decision.selfApproval ? "expense.self_approved_sole_approver" : "expense.approved_by_rule",
+      entityType: "JournalEntry",
+      entityId: posted.id,
+      newValue: { amount, ruleId: decision.rule?.id ?? null, requiredRole: decision.rule?.requiredRole ?? null, approverRole: approver.role },
+    });
+  }
+
+  return posted;
 }
 
 /**

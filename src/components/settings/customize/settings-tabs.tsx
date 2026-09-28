@@ -8,6 +8,7 @@ const TABS = [
   { href: "/settings/preferences", label: "My preferences" },
   { href: "/settings/branding", label: "Branding" },
   { href: "/settings/custom-fields", label: "Custom fields" },
+  { href: "/settings/approvals", label: "Approvals" },
   { href: "/settings/navigation", label: "Menu" },
 ];
 
