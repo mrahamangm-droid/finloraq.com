@@ -1,19 +1,11 @@
-// Shared design tokens + base rules for every marketing/SEO landing page
-// (the homepage plus /ai-accounting, /ai-cfo, /cash-flow-forecasting,
-// /guides, and any future page that composes <MarketingHeader>/<MarketingFooter>).
+// Shared design tokens + base rules for every marketing page (the homepage,
+// /pricing, /how-it-works, /ai-accounting, /ai-cfo, /cash-flow-forecasting,
+// /guides, and any future page that composes <MarketingHeader>/<MarketingFooter>):
+// colors, type, .btn, .hero, .sec-head, .final-cta, nav and footer. Page-only
+// components keep their own styles next to the page (e.g. home/home-style.ts).
 //
-// This is extracted verbatim from src/components/marketing/MarketingHomePage.tsx's
-// own STYLE string (same #fm-root-scoped tokens, buttons, hero, nav, footer)
-// so every marketing page shares one visual identity. It deliberately stops
-// at the generic building blocks — colors, type, .btn, .hero, .sec-head,
-// .final-cta, nav, footer — and leaves homepage-only components (the Business
-// Pulse demo, agent grid, pricing table, FAQ accordion, etc.) in
-// MarketingHomePage.tsx where they're actually used, so this file stays a
-// true "design system," not a dumping ground.
-//
-// Each page still gets its own #fm-root wrapper (scoped per-route, since
-// each route renders its own DOM), so there's no risk of these rules
-// leaking into the authenticated app or into each other.
+// Each page gets its own #fm-root wrapper, so none of this leaks into the
+// authenticated app.
 export const MARKETING_BASE_STYLE = `
   #fm-root{
     --bg:#F6F7FA; --canvas:#FFFFFF; --canvas-2:#F0F2F6;
@@ -28,7 +20,7 @@ export const MARKETING_BASE_STYLE = `
     --r-sm:6px; --r-md:10px; --r-lg:16px; --r-full:999px;
     --shadow-sm:0 1px 2px rgba(10,17,32,.06), 0 1px 1px rgba(10,17,32,.04);
     --shadow-md:0 12px 32px rgba(10,17,32,.10);
-    /* Same stacks as MarketingHomePage.tsx. Nothing else defines these
+    /* Nothing else defines these
        (layout.tsx has no next/font), so without them every var(--font-*)
        rule was invalid and each browser/OS fell back to its own system
        font — pages looked different in Safari, Chrome, Firefox and Edge.
@@ -195,13 +187,11 @@ export const MARKETING_BASE_STYLE = `
   #fm-root .final-cta .cta-row{justify-content:center;margin-top:30px}
 
   #fm-root footer{background:var(--navy);color:var(--on-navy-muted);border-top:1px solid var(--navy-line)}
-  #fm-root .foot-grid{display:grid;grid-template-columns:1.4fr repeat(4,1fr);gap:32px;padding-block:56px}
-  @media (max-width:820px){ #fm-root .foot-grid{grid-template-columns:repeat(2,1fr)} }
-  @media (max-width:520px){ #fm-root .foot-grid{grid-template-columns:1fr} }
-  #fm-root .foot-grid h6{color:#fff;font-size:12px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:14px}
-  #fm-root .foot-grid ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px;font-size:13.5px}
-  #fm-root .foot-grid a:hover{color:#fff}
-  /* Touch screens: footer links get a ≥24px tap area (WCAG 2.2 target size) without changing the desktop look */
-  @media (pointer:coarse){ #fm-root .foot-grid ul{gap:2px} #fm-root .foot-grid a{display:inline-block;padding-block:5px} }
+  #fm-root .foot-slim{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:18px 32px;padding-block:36px}
+  #fm-root footer .brand-mark{color:#fff}
+  #fm-root .foot-links{display:flex;flex-wrap:wrap;gap:6px 22px;font-size:13.5px}
+  #fm-root .foot-links a{display:inline-flex;align-items:center;min-height:32px}
+  #fm-root .foot-links a:hover, #fm-root .foot-bottom a:hover{color:#fff}
+  @media (max-width:720px){ #fm-root .foot-slim{flex-direction:column;align-items:flex-start;padding-block:28px} #fm-root .foot-links{gap:2px 18px} #fm-root .foot-links a{min-height:40px} }
   #fm-root .foot-bottom{border-top:1px solid var(--navy-line);padding:20px 0;font-size:12.5px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
 `;

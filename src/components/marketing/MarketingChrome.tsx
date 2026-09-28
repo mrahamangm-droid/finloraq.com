@@ -1,205 +1,123 @@
 import Link from "next/link";
-import { MARKETING_ROUTES } from "./marketing-routes";
+import { COMPANY_LINE } from "./home/home-content";
 
-// Shared header + footer for every marketing/SEO landing page. Pulled out
-// of MarketingHomePage.tsx (which keeps its own copy inline, since it's
-// already shipped as one self-contained block and re-plumbing a live,
-// tested page into this carries more regression risk than the ~40 lines
-// it'd save) so new landing pages get identical, real <Link> navigation —
-// including aria-current="page" on the active nav item — without
-// hand-copying markup per page.
-const PRODUCT_LINKS = [
-  { href: "/#demo", label: "Products" },
-  { href: "/ai-accounting", label: "AI Accounting" },
-  { href: "/cash-flow-forecasting", label: "Cash Flow" },
-];
+// Shared header + footer for every marketing page, including the homepage,
+// so navigation and the company line only exist in one place. Real <Link>
+// navigation with aria-current="page" on the active item.
 
-const SOLUTIONS_LINKS = [
-  { href: "/ai-cfo", label: "AI CFO" },
-  { href: "/#audience", label: "Who it's for" },
-];
-
-const RESOURCES_LINKS = [
+const NAV = [
+  { href: "/how-it-works", label: "How it works" },
+  { href: "/#features", label: "Features" },
+  { href: "/pricing", label: "Pricing" },
   { href: "/guides", label: "Guides" },
-  { href: "/#faq", label: "FAQ" },
 ];
 
-// The homepage's webfonts (same URL as MarketingHomePage.tsx, already allowed
-// by the CSP in next.config.mjs). Rendered with the header so every landing
-// page gets them without each route remembering to add it.
+// The mobile menu also lists the product landing pages, which don't fit the
+// desktop bar.
+const MOBILE_NAV = [
+  { href: "/", label: "Home" },
+  ...NAV.slice(0, 3),
+  { href: "/ai-accounting", label: "AI Accounting" },
+  { href: "/ai-cfo", label: "AI CFO" },
+  { href: "/cash-flow-forecasting", label: "Cash Flow Forecasting" },
+  NAV[3]!,
+];
+
+const FOOTER_LINKS = [
+  { href: "/how-it-works", label: "How it works" },
+  { href: "/pricing", label: "Pricing" },
+  { href: "/ai-accounting", label: "AI Accounting" },
+  { href: "/ai-cfo", label: "AI CFO" },
+  { href: "/cash-flow-forecasting", label: "Cash Flow" },
+  { href: "/guides", label: "Guides" },
+  { href: "/privacy", label: "Privacy" },
+  { href: "/terms", label: "Terms" },
+];
+
+// Webfonts shared by every marketing page (already allowed by the CSP).
 const FONTS_HREF =
   "https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@600;700;800&family=Public+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap";
 
 export function MarketingHeader({ currentPath }: { currentPath: string }) {
+  const current = (href: string) => (currentPath === href ? ("page" as const) : undefined);
   return (
     <>
-    {/* eslint-disable-next-line @next/next/no-page-custom-font */}
-    <link rel="stylesheet" href={FONTS_HREF} />
-    <header className="nav">
-      <div className="wrap nav-row">
-        <Link href="/" className="brand-mark">
-          <span className="dot" />
-          FINLORAQ
-        </Link>
-        <nav className="links">
-          <Link href="/how-it-works" aria-current={currentPath === "/how-it-works" ? "page" : undefined}>
-            How it works
+      {/* eslint-disable-next-line @next/next/no-page-custom-font */}
+      <link rel="stylesheet" href={FONTS_HREF} />
+      <header className="nav">
+        <div className="wrap nav-row">
+          <Link href="/" className="brand-mark" aria-label="Finloraq home">
+            <span className="dot" />
+            FINLORAQ
           </Link>
-          <Link href="/ai-accounting" aria-current={currentPath === "/ai-accounting" ? "page" : undefined}>
-            AI Accounting
-          </Link>
-          <Link href="/ai-cfo" aria-current={currentPath === "/ai-cfo" ? "page" : undefined}>
-            AI CFO
-          </Link>
-          <Link
-            href="/cash-flow-forecasting"
-            aria-current={currentPath === "/cash-flow-forecasting" ? "page" : undefined}
-          >
-            Cash Flow
-          </Link>
-          <Link href="/guides" aria-current={currentPath === "/guides" ? "page" : undefined}>
-            Guides
-          </Link>
-          <Link href="/#pricing">Pricing</Link>
-        </nav>
-        <div className="nav-right">
-          <Link className="btn btn-ghost btn-sm" href="/login">
-            Sign In
-          </Link>
-          <Link className="btn btn-primary btn-sm" href="/register">
-            Start Free
-          </Link>
-          {/* Mobile menu. Plain <a> (full page loads) so the <details> is
-              always closed on the next page without any client JS. */}
-          <details className="mnav">
-            <summary aria-label="Menu">
-              <span />
-              <span />
-              <span />
-            </summary>
-            <nav className="mnav-panel" aria-label="Main menu">
-              {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- full page load closes the <details> menu, see above */}
-              <a href="/">Home</a>
-              <a href="/how-it-works" aria-current={currentPath === "/how-it-works" ? "page" : undefined}>
-                How it works
-              </a>
-              {[
-                { href: "/ai-accounting", label: "AI Accounting" },
-                { href: "/ai-cfo", label: "AI CFO" },
-                { href: "/cash-flow-forecasting", label: "Cash Flow Forecasting" },
-                { href: "/guides", label: "Guides" },
-              ].map((l) => (
-                <a key={l.href} href={l.href} aria-current={currentPath === l.href ? "page" : undefined}>
-                  {l.label}
-                </a>
-              ))}
-              {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- full page load closes the <details> menu, see above */}
-              <a href="/#pricing">Pricing</a>
-              <div className="mnav-cta">
-                <a className="btn btn-ghost" href="/login">
-                  Sign In
-                </a>
-                <a className="btn btn-primary" href="/register">
-                  Start Free
-                </a>
-              </div>
-            </nav>
-          </details>
+          <nav className="links" aria-label="Main">
+            {NAV.map((l) => (
+              <Link key={l.href} href={l.href} aria-current={current(l.href)}>
+                {l.label}
+              </Link>
+            ))}
+          </nav>
+          <div className="nav-right">
+            <Link className="btn btn-ghost btn-sm" href="/login">
+              Sign In
+            </Link>
+            <Link className="btn btn-primary btn-sm" href="/register">
+              Start Free
+            </Link>
+            {/* Mobile menu. Plain <a> (full page loads) so the <details> is
+                always closed on the next page without any client JS. */}
+            <details className="mnav">
+              <summary aria-label="Menu">
+                <span />
+                <span />
+                <span />
+              </summary>
+              <nav className="mnav-panel" aria-label="Main menu">
+                {MOBILE_NAV.map((l) => (
+                  // eslint-disable-next-line @next/next/no-html-link-for-pages -- full page load closes the <details> menu, see above
+                  <a key={l.href} href={l.href} aria-current={current(l.href)}>
+                    {l.label}
+                  </a>
+                ))}
+                <div className="mnav-cta">
+                  <a className="btn btn-ghost" href="/login">
+                    Sign In
+                  </a>
+                  <a className="btn btn-primary" href="/register">
+                    Start Free
+                  </a>
+                </div>
+              </nav>
+            </details>
+          </div>
         </div>
-      </div>
-    </header>
+      </header>
     </>
   );
 }
 
 export function MarketingFooter() {
-  const productRoutes = MARKETING_ROUTES.filter((r) => r.footerGroup === "product");
-  const solutionsRoutes = MARKETING_ROUTES.filter((r) => r.footerGroup === "solutions");
-  const resourceRoutes = MARKETING_ROUTES.filter((r) => r.footerGroup === "resources");
-
+  const [company, place, email] = COMPANY_LINE.split(" | ");
   return (
     <footer>
-      <div className="wrap foot-grid">
-        <div>
-          <Link href="/" className="brand-mark" style={{ color: "#fff" }} aria-label="Finloraq home">
-            <span className="dot" />
-            FINLORAQ
-          </Link>
-          <p style={{ marginTop: 14, fontSize: 13, maxWidth: "32ch", lineHeight: 1.6 }}>
-            AI Finance Operating System — accounting foundation, AI intelligence,
-            human-controlled automation.
-          </p>
-        </div>
-        <div>
-          <h6>Product</h6>
-          <ul>
-            <li>
-              <Link href="/#foundation">Accounting</Link>
-            </li>
-            <li>
-              <Link href="/#demo">Business Pulse</Link>
-            </li>
-            {productRoutes.map((r) => (
-              <li key={r.path}>
-                <Link href={r.path}>{r.navLabel}</Link>
-              </li>
-            ))}
-          </ul>
-        </div>
-        <div>
-          <h6>Solutions</h6>
-          <ul>
-            <li>
-              <Link href="/#audience">Business Owners</Link>
-            </li>
-            <li>
-              <Link href="/#audience">Finance Teams</Link>
-            </li>
-            {solutionsRoutes.map((r) => (
-              <li key={r.path}>
-                <Link href={r.path}>{r.navLabel}</Link>
-              </li>
-            ))}
-          </ul>
-        </div>
-        <div>
-          <h6>Resources</h6>
-          <ul>
-            {resourceRoutes.map((r) => (
-              <li key={r.path}>
-                <Link href={r.path}>{r.navLabel}</Link>
-              </li>
-            ))}
-            <li>
-              <a href="mailto:hello@finloraq.com">Contact</a>
-            </li>
-          </ul>
-        </div>
-        <div>
-          <h6>Company</h6>
-          <ul>
-            <li>
-              <a href="mailto:hello@finloraq.com">About</a>
-            </li>
-            <li>
-              <a href="mailto:hello@finloraq.com">Contact</a>
-            </li>
-            <li>
-              <Link href="/privacy">Privacy Policy</Link>
-            </li>
-            <li>
-              <Link href="/terms">Terms of Service</Link>
-            </li>
-          </ul>
-        </div>
+      <div className="wrap foot-slim">
+        <Link href="/" className="brand-mark" aria-label="Finloraq home">
+          <span className="dot" />
+          FINLORAQ
+        </Link>
+        <nav className="foot-links" aria-label="Footer">
+          {FOOTER_LINKS.map((l) => (
+            <Link key={l.href} href={l.href}>
+              {l.label}
+            </Link>
+          ))}
+        </nav>
       </div>
       <div className="wrap foot-bottom">
         <span>
-          © {new Date().getFullYear()} Finloraq — PAPPLE WORLD FZE LLC | RAK, UAE |{" "}
-          <a href="mailto:support@finloraq.com">support@finloraq.com</a> ·{" "}
-          <Link href="/privacy">Privacy</Link> · <Link href="/terms">Terms</Link>
+          © {new Date().getFullYear()} {company} | {place} | <a href={`mailto:${email}`}>{email}</a>
         </span>
-        <span>Demo content shown throughout is illustrative and does not represent a real customer.</span>
+        <span>Demo content is illustrative and does not represent a real customer.</span>
       </div>
     </footer>
   );

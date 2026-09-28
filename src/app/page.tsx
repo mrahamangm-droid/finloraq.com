@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { MarketingHomePage } from "@/components/marketing/MarketingHomePage";
+import { HomePage } from "@/components/marketing/home/HomePage";
 import { getMarketingRoute, buildMarketingMetadata } from "@/components/marketing/marketing-routes";
 
 const route = getMarketingRoute("/")!;
@@ -21,9 +21,9 @@ const route = getMarketingRoute("/")!;
 // social/search click-through specifically).
 export const metadata: Metadata = buildMarketingMetadata(route, {
   description:
-    "Finloraq turns your financial data into clarity, predictions and controlled actions — real double-entry accounting plus AI that explains what happened, why, and what to do next. Try the live demo, no registration required.",
+    "AI-powered accounting and finance to record, understand, predict and act. Real double-entry books plus AI that explains what happened and what to do next. Try the live demo, no registration required.",
 });
 
 export default function RootPage() {
-  return <MarketingHomePage />;
+  return <HomePage />;
 }

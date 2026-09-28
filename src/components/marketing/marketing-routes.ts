@@ -29,7 +29,7 @@ export const MARKETING_ROUTES: MarketingRoute[] = [
     navLabel: "Home",
     description:
       "Finloraq turns your financial data into clarity, predictions and controlled actions.",
-    lastModified: "2026-09-24",
+    lastModified: "2026-09-28",
     changeFrequency: "weekly",
     priority: 1.0,
   },
@@ -39,10 +39,20 @@ export const MARKETING_ROUTES: MarketingRoute[] = [
     navLabel: "How it works",
     description:
       "Drop an invoice, receipt, bank statement or email and watch Finloraq read it, draft the entry, check it and explain it — with a person approving before anything posts.",
-    lastModified: "2026-09-24",
+    lastModified: "2026-09-28",
     changeFrequency: "monthly",
     priority: 0.8,
     footerGroup: "product",
+  },
+  {
+    path: "/pricing",
+    title: "Pricing — Finloraq Plans for Every Stage",
+    navLabel: "Pricing",
+    description:
+      "Start free, then pick a plan for your team size and AI usage. Fixed monthly prices in AED, SAR, QAR, USD, EUR, GBP, CAD and AUD, VAT included where it applies.",
+    lastModified: "2026-09-28",
+    changeFrequency: "monthly",
+    priority: 0.8,
   },
   {
     path: "/ai-accounting",
