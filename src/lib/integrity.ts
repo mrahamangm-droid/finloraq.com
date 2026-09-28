@@ -57,8 +57,57 @@ export interface IntegrityReport {
  * different code paths, so any drift here is a real bug in one of them,
  * not a data-entry mistake.
  */
+export type NonBaseCurrencyRecord = {
+  record: "journal entry" | "invoice" | "bill";
+  reference: string;
+  status: string;
+  date: string;
+  currency: string;
+  amount: string;
+};
+
+/**
+ * Read-only: every journal entry, invoice and bill whose currency isn't the
+ * company's base currency. Before the base-currency guard in
+ * postJournalEntry(), these could be created through the API and were posted
+ * at an exchange rate of 1, so reports summed their amounts as if they were
+ * base currency. This only lists them; nothing is changed.
+ */
+export async function nonBaseCurrencyRecords(companyId: string): Promise<{ baseCurrency: string; records: NonBaseCurrencyRecord[] }> {
+  const { baseCurrency } = await prisma.company.findUniqueOrThrow({ where: { id: companyId }, select: { baseCurrency: true } });
+  // Case-insensitive: codes are stored uppercase from now on, but rows saved
+  // earlier may be lowercase ("aed") and are still the base currency.
+  const notBase = { NOT: { currency: { equals: baseCurrency, mode: "insensitive" as const } } };
+  const [entries, invoices, bills] = await Promise.all([
+    prisma.journalEntry.findMany({
+      where: { companyId, ...notBase },
+      select: { entryNumber: true, status: true, date: true, currency: true, lines: { select: { debit: true } } },
+      orderBy: { date: "asc" },
+    }),
+    prisma.invoice.findMany({
+      where: { companyId, ...notBase },
+      select: { invoiceNumber: true, status: true, issueDate: true, currency: true, total: true },
+      orderBy: { issueDate: "asc" },
+    }),
+    prisma.bill.findMany({
+      where: { companyId, ...notBase },
+      select: { billNumber: true, status: true, issueDate: true, currency: true, total: true },
+      orderBy: { issueDate: "asc" },
+    }),
+  ]);
+  const day = (d: Date) => d.toISOString().slice(0, 10);
+  return {
+    baseCurrency,
+    records: [
+      ...entries.map((e) => ({ record: "journal entry" as const, reference: e.entryNumber, status: e.status, date: day(e.date), currency: e.currency, amount: roundMoney(sum(e.lines.map((l) => l.debit))).toFixed(2) })),
+      ...invoices.map((i) => ({ record: "invoice" as const, reference: i.invoiceNumber, status: i.status, date: day(i.issueDate), currency: i.currency, amount: i.total.toFixed(2) })),
+      ...bills.map((b) => ({ record: "bill" as const, reference: b.billNumber, status: b.status, date: day(b.issueDate), currency: b.currency, amount: b.total.toFixed(2) })),
+    ],
+  };
+}
+
 export async function runIntegrityCheck(companyId: string, asOf: Date = new Date()): Promise<IntegrityReport> {
-  const [entries, sheet, ar, ap] = await Promise.all([
+  const [entries, sheet, ar, ap, foreign] = await Promise.all([
     prisma.journalEntry.findMany({
       where: { companyId, status: "POSTED", date: { lte: asOf } },
       select: { id: true, entryNumber: true, sourceType: true, sourceId: true, reversalOfId: true, lines: { select: { id: true, debit: true, credit: true } } },
@@ -66,6 +115,7 @@ export async function runIntegrityCheck(companyId: string, asOf: Date = new Date
     balanceSheet(companyId, asOf),
     arAging(companyId, asOf),
     apAging(companyId, asOf),
+    nonBaseCurrencyRecords(companyId),
   ]);
 
   const entryIds = new Set<string>(entries.map((e) => e.id));
@@ -130,6 +180,12 @@ export async function runIntegrityCheck(companyId: string, asOf: Date = new Date
       name: "ap-control-reconciliation",
       description: "The Accounts Payable control account balance (2000) matches the sum of open bill balances (AP aging).",
       issues: apControlBalance.equals(apAgingTotal) ? [] : [{ controlAccountBalance: apControlBalance.toFixed(2), apAgingTotal: apAgingTotal.toFixed(2), difference: roundMoney(apControlBalance.minus(apAgingTotal)).toFixed(2) }],
+      passed: true,
+    },
+    {
+      name: "base-currency-only",
+      description: `Every journal entry, invoice and bill is in the base currency (${foreign.baseCurrency}). Anything listed was recorded at a rate of 1 and is counted as ${foreign.baseCurrency} in every report.`,
+      issues: foreign.records,
       passed: true,
     },
   ].map((c) => ({ ...c, passed: c.issues.length === 0 }));
