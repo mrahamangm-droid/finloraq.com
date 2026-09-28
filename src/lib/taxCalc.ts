@@ -1,6 +1,7 @@
 import type { PrismaClient, Prisma } from "@prisma/client";
 import type Decimal from "decimal.js";
 import { money, roundMoney, sum } from "@/lib/currency";
+import { InvalidLineError } from "@/lib/ledger";
 
 /**
  * Single source of truth for "line total = qty × unit price, line tax =
@@ -33,9 +34,9 @@ export interface TaxedLinesResult<T extends TaxableLineInput> {
 }
 
 /**
- * Looks up the referenced tax codes (scoped to `companyId`, so a
- * mistaken cross-tenant taxCodeId is silently treated as "no tax" rather
- * than leaking another company's rate) and computes each line's total
+ * Looks up the referenced tax codes (scoped to `companyId`; a taxCodeId
+ * that isn't this company's is refused rather than stored on the line,
+ * where it would point at another tenant's record) and computes each line's total
  * and tax, plus the document-level subtotal/tax/total. Accepts either
  * the ordinary Prisma client or a `$transaction` client, matching how
  * both sales.ts and purchases.ts call this from inside a transaction
@@ -50,6 +51,7 @@ export async function computeTaxedLines<T extends TaxableLineInput>(
   const taxCodes = taxCodeIds.length
     ? await db.taxCode.findMany({ where: { companyId, id: { in: taxCodeIds } } })
     : [];
+  if (taxCodes.length !== taxCodeIds.length) throw new InvalidLineError("Tax code not found.");
   const taxCodeById = new Map(taxCodes.map((t) => [t.id, t]));
 
   const computed = lines.map((line) => {

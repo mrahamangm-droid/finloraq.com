@@ -183,6 +183,14 @@ export async function createDraftExpenseFromExtraction(params: {
   amount: number;
   taxAmount?: number;
 }) {
+  // Checked before the expense exists, so another company's document id
+  // neither gets marked DRAFTED nor leaves a stray draft expense behind.
+  const document = await prisma.document.findFirst({
+    where: { id: params.documentId, companyId: params.companyId },
+    select: { id: true },
+  });
+  if (!document) throw new DocumentNotFoundError();
+
   const entry = await createExpense({
     companyId: params.companyId,
     membershipId: params.membershipId,
@@ -194,11 +202,17 @@ export async function createDraftExpenseFromExtraction(params: {
   });
 
   await prisma.document.update({
-    where: { id: params.documentId },
+    where: { id: document.id },
     data: { status: "DRAFTED", relatedEntity: `JournalEntry:${entry.id}` },
   });
 
   return entry;
+}
+
+export class DocumentNotFoundError extends Error {
+  constructor() {
+    super("Document not found.");
+  }
 }
 
 export function stripCodeFence(text: string): string {

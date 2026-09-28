@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { sum, isZero, money } from "@/lib/currency";
 import { recordAuditEvent } from "@/lib/audit";
 import { can } from "@/lib/rbac";
+import { foreignReferenceProblem } from "@/lib/tenantRefs";
 
 /**
  * ============================================================================
@@ -257,6 +258,15 @@ export async function postJournalEntry(input: PostJournalEntryInput) {
     for (const line of input.lines) {
       if (!accountByCode.has(line.accountCode)) {
         throw new InvalidLineError(`Unknown or inactive account code: ${line.accountCode}`);
+      }
+    }
+    // Cost centre, department and project tags must be this company's own.
+    // A reversal copies its original's tags verbatim and is exempt, so an
+    // entry tagged before this check existed can still be corrected.
+    if (input.sourceType !== "REVERSAL") {
+      for (const [kind, key] of [["costCentre", "costCentreId"], ["department", "departmentId"], ["project", "projectId"]] as const) {
+        const problem = await foreignReferenceProblem(tx, input.companyId, kind, input.lines.map((l) => l[key]));
+        if (problem) throw new InvalidLineError(problem);
       }
     }
 
