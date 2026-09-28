@@ -11,6 +11,7 @@ import { parseXlsxRows } from "@/lib/files/xlsx-lite";
 import { detectSourceKind } from "@/lib/files/source-kind";
 import { findCustomerMatches, type CustomerMatchCandidate } from "@/lib/customers/matching";
 import { createCustomer, updateCustomerFromReview } from "@/lib/parties";
+import { foreignReferenceProblem } from "@/lib/tenantRefs";
 
 /**
  * Customer File Intelligence (spec item 5): "when users upload any
@@ -300,6 +301,8 @@ export async function applyCustomerDocumentRecord(params: {
 
   let customerId: string;
   if (params.action.kind === "link") {
+    const customerProblem = await foreignReferenceProblem(prisma, params.companyId, "customer", [params.action.customerId]);
+    if (customerProblem) throw new Error(customerProblem);
     if (params.action.fillEmail || params.action.fillPhone) {
       await updateCustomerFromReview({
         companyId: params.companyId,

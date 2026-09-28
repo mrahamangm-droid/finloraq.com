@@ -45,16 +45,16 @@ describe("computeTaxedLines", () => {
     expect(result.total.toFixed(2)).toBe("260.00");
   });
 
-  it("treats an unknown/cross-tenant taxCodeId as no tax rather than throwing", async () => {
-    // computeTaxedLines is always called with companyId already scoped by
-    // the caller, so a taxCodeId that doesn't resolve within that company
-    // (deleted, or belonging to a different tenant) must never leak
-    // another company's rate — falling back to "no tax" is the safe
-    // default here, same behavior as the pre-refactor inline code.
+  it("refuses a taxCodeId that isn't this company's instead of storing it", async () => {
+    // computeTaxedLines is called with the caller's server-resolved
+    // companyId. A taxCodeId that doesn't resolve within that company
+    // (another tenant's, or made up) used to be treated as "no tax" and
+    // then written onto the line anyway, leaving a line that points at
+    // another company's tax code. It's refused now.
     const db = fakeDb([{ id: "other-companys-code", rate: 0.2 }]);
-    const result = await computeTaxedLines(db, "co1", [{ quantity: 1, unitPrice: 100, taxCodeId: "does-not-exist" }]);
-    expect(result.lines[0]!.lineTax.toFixed(2)).toBe("0.00");
-    expect(result.total.toFixed(2)).toBe("100.00");
+    await expect(
+      computeTaxedLines(db, "co1", [{ quantity: 1, unitPrice: 100, taxCodeId: "does-not-exist" }]),
+    ).rejects.toThrow("Tax code not found.");
   });
 
   it("rounds each line before summing, matching the pre-refactor per-line rounding behavior", async () => {

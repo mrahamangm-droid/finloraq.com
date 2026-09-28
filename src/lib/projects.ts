@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/rbac";
+import { foreignReferenceProblem } from "@/lib/tenantRefs";
 import { recordAuditEvent } from "@/lib/audit";
 import { sum } from "@/lib/currency";
 import { PartyInUseError } from "@/lib/parties";
@@ -14,6 +15,8 @@ export async function createProject(params: {
   budget?: number;
 }) {
   await requirePermission(params.membershipId, "projects", "CREATE");
+  const customerProblem = await foreignReferenceProblem(prisma, params.companyId, "customer", [params.customerId]);
+  if (customerProblem) throw new ProjectValidationError(customerProblem);
 
   const project = await prisma.project.create({
     data: {
@@ -68,6 +71,8 @@ export async function updateProject(params: {
   if (params.code !== undefined && params.code.trim() === "") {
     throw new ProjectValidationError("Project code can't be empty.");
   }
+  const customerProblem = await foreignReferenceProblem(prisma, params.companyId, "customer", [params.customerId]);
+  if (customerProblem) throw new ProjectValidationError(customerProblem);
 
   if (params.code !== undefined && params.code.trim() !== before.code) {
     const clash = await prisma.project.findUnique({

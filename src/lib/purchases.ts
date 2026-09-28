@@ -6,6 +6,7 @@ import { postJournalEntry, buildBillPosting, buildSupplierPaymentPosting, Invali
 import { roundMoney, sum } from "@/lib/currency";
 import { nextDocumentNumber } from "@/lib/numbering";
 import { computeTaxedLines } from "@/lib/taxCalc";
+import { foreignReferenceProblem } from "@/lib/tenantRefs";
 
 export interface BillLineInput {
   description: string;
@@ -30,6 +31,8 @@ export async function createBill(params: {
   if (params.lines.length === 0) {
     throw new InvalidLineError("A bill needs at least one line.");
   }
+  const supplierProblem = await foreignReferenceProblem(prisma, params.companyId, "supplier", [params.supplierId]);
+  if (supplierProblem) throw new InvalidLineError(supplierProblem);
 
   const { lines: computedLines, subtotal, taxTotal, total } = await computeTaxedLines(prisma, params.companyId, params.lines);
 
@@ -107,6 +110,8 @@ export async function updateBill(params: {
   if (params.currency !== undefined && normalizeCurrencyCode(params.currency) !== normalizeCurrencyCode(before.currency)) {
     await assertBaseCurrency(prisma, params.companyId, params.currency);
   }
+  const supplierProblem = await foreignReferenceProblem(prisma, params.companyId, "supplier", [params.supplierId]);
+  if (supplierProblem) throw new InvalidLineError(supplierProblem);
 
   let subtotal = before.subtotal, taxTotal = before.taxTotal, total = before.total;
   let lineData: { description: string; quantity: number; unitPrice: number; taxCodeId?: string; lineTotal: Decimal }[] | undefined;
