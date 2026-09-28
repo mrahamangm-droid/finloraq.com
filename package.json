@@ -71,5 +71,8 @@
     "opera 51",
     "safari 12",
     "ios_saf 12"
-  ]
+  ],
+  "overrides": {
+    "uuid": "11.1.1"
+  }
 }
