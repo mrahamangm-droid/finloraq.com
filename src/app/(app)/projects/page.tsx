@@ -1,4 +1,5 @@
 import { requireTenantContext } from "@/lib/tenant";
+import { viewGate } from "@/lib/page-access";
 import { getFormatter } from "@/lib/customization/server";
 import { prisma } from "@/lib/db";
 import { can } from "@/lib/rbac";
@@ -11,6 +12,8 @@ import { ProjectRow } from "@/components/forms/project-row";
 export default async function ProjectsPage(props: { searchParams?: Promise<{ archived?: string }> }) {
   const searchParams = (await props.searchParams) ?? {};
   const { active, userId } = await requireTenantContext();
+  const denied = await viewGate(active.id, "projects");
+  if (denied) return denied;
   const fmt = await getFormatter(userId);
   const now = new Date();
   const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));

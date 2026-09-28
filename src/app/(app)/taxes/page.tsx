@@ -1,4 +1,5 @@
 import { requireTenantContext } from "@/lib/tenant";
+import { viewGate } from "@/lib/page-access";
 import { getFormatter } from "@/lib/customization/server";
 import { prisma } from "@/lib/db";
 import { vatReturn } from "@/lib/reports";
@@ -8,6 +9,8 @@ import { PeriodPicker } from "@/components/periods/period-picker";
 export default async function TaxesPage(props: { searchParams?: Promise<PeriodParams> }) {
   const searchParams = (await props.searchParams) ?? {};
   const { active, userId } = await requireTenantContext();
+  const denied = await viewGate(active.id, "taxes");
+  if (denied) return denied;
   const fmt = await getFormatter(userId);
   const period = resolvePeriod(searchParams, new Date(), "quarter");
   const { from, to } = period;

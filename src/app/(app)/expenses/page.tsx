@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireTenantContext } from "@/lib/tenant";
+import { viewGate } from "@/lib/page-access";
 import { getFormatter } from "@/lib/customization/server";
 import { listRecentExpenses, expenseTotals } from "@/lib/expenses";
 import { pickerProps, resolvePeriod, type PeriodParams } from "@/lib/periods";
@@ -21,6 +22,8 @@ type ExpensesPageParams = PeriodParams & { status?: string };
 export default async function ExpensesPage(props: { searchParams?: Promise<ExpensesPageParams> }) {
   const searchParams = (await props.searchParams) ?? {};
   const { active, userId } = await requireTenantContext();
+  const denied = await viewGate(active.id, "expenses");
+  if (denied) return denied;
   const [fmt, canEdit] = await Promise.all([getFormatter(userId), can(active.id, "expenses", "EDIT")]);
   const filtered = Boolean(searchParams.period);
   const period = resolvePeriod(searchParams);
