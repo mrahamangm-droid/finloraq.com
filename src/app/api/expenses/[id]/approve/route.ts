@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { NotFoundError } from "@/lib/errors";
 import { requireTenantContext } from "@/lib/tenant";
 import { approveExpense, ApprovalPolicyError } from "@/lib/expenses";
 import { InvalidLineError, PeriodLockedError } from "@/lib/ledger";
@@ -15,6 +16,7 @@ export async function POST(_req: Request, props: { params: Promise<{ id: string 
     });
     return NextResponse.json({ id: entry.id, status: entry.status });
   } catch (err) {
+    if (err instanceof NotFoundError) return NextResponse.json({ error: err.message }, { status: 404 });
     if (err instanceof ApprovalPolicyError) {
       return NextResponse.json({ error: err.message }, { status: 403 });
     }

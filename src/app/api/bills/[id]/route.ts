@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { NotFoundError } from "@/lib/errors";
 import { z } from "zod";
 import { requireTenantContext } from "@/lib/tenant";
 import { updateBill, deleteBill } from "@/lib/purchases";
@@ -58,6 +59,7 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
     });
     return NextResponse.json({ id: bill.id });
   } catch (err) {
+    if (err instanceof NotFoundError) return NextResponse.json({ error: err.message }, { status: 404 });
     if (err instanceof ForbiddenError) return NextResponse.json({ error: err.message }, { status: 403 });
     if (err instanceof InvalidLineError) return NextResponse.json({ error: err.message }, { status: 400 });
     throw err;
@@ -71,6 +73,7 @@ export async function DELETE(_req: Request, props: { params: Promise<{ id: strin
     await deleteBill({ companyId: active.companyId, membershipId: active.id, userId, billId: params.id });
     return NextResponse.json({ ok: true });
   } catch (err) {
+    if (err instanceof NotFoundError) return NextResponse.json({ error: err.message }, { status: 404 });
     if (err instanceof ForbiddenError) return NextResponse.json({ error: err.message }, { status: 403 });
     if (err instanceof InvalidLineError) return NextResponse.json({ error: err.message }, { status: 400 });
     throw err;

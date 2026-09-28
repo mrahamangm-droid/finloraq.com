@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { NotFoundError } from "@/lib/errors";
 import { z } from "zod";
 import { requireTenantContext } from "@/lib/tenant";
 import { deleteProject, updateProject, ProjectValidationError } from "@/lib/projects";
@@ -29,6 +30,7 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
     });
     return NextResponse.json({ id: project.id });
   } catch (err) {
+    if (err instanceof NotFoundError) return NextResponse.json({ error: err.message }, { status: 404 });
     if (err instanceof ForbiddenError) {
       return NextResponse.json({ error: "Only a company admin can do this." }, { status: 403 });
     }
@@ -51,6 +53,7 @@ export async function DELETE(_req: Request, props: { params: Promise<{ id: strin
     });
     return NextResponse.json({ ok: true });
   } catch (err) {
+    if (err instanceof NotFoundError) return NextResponse.json({ error: err.message }, { status: 404 });
     if (err instanceof ForbiddenError) {
       return NextResponse.json({ error: "Only a company admin can do this." }, { status: 403 });
     }

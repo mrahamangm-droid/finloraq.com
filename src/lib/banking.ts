@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { NotFoundError } from "@/lib/errors";
 import { requirePermission } from "@/lib/rbac";
 import { recordAuditEvent } from "@/lib/audit";
 import { InvalidLineError } from "@/lib/ledger";
@@ -59,7 +60,7 @@ export async function updateBankAccount(params: {
   await requirePermission(params.membershipId, "banking", "EDIT");
 
   const before = await prisma.bankAccount.findFirst({ where: { id: params.bankAccountId, companyId: params.companyId } });
-  if (!before) throw new Error("Bank account not found.");
+  if (!before) throw new NotFoundError("Bank account not found.");
 
   if (params.name !== undefined && params.name.trim() === "") {
     throw new BankValidationError("Bank account name can't be empty.");
@@ -111,7 +112,7 @@ export async function deleteBankAccount(params: {
   await requirePermission(params.membershipId, "banking", "DELETE");
 
   const account = await prisma.bankAccount.findFirst({ where: { id: params.bankAccountId, companyId: params.companyId } });
-  if (!account) throw new Error("Bank account not found.");
+  if (!account) throw new NotFoundError("Bank account not found.");
 
   const txnCount = await prisma.bankTransaction.count({ where: { bankAccountId: account.id } });
   if (txnCount > 0) {
@@ -153,7 +154,7 @@ export async function updateBankTransaction(params: {
   const before = await prisma.bankTransaction.findFirst({
     where: { id: params.bankTransactionId, bankAccount: { companyId: params.companyId } },
   });
-  if (!before) throw new Error("Bank transaction not found.");
+  if (!before) throw new NotFoundError("Bank transaction not found.");
   if (before.status !== "UNMATCHED") {
     throw new BankValidationError(`This transaction is ${before.status.toLowerCase()} and can't be edited.`);
   }
@@ -196,7 +197,7 @@ export async function deleteBankTransaction(params: {
   const before = await prisma.bankTransaction.findFirst({
     where: { id: params.bankTransactionId, bankAccount: { companyId: params.companyId } },
   });
-  if (!before) throw new Error("Bank transaction not found.");
+  if (!before) throw new NotFoundError("Bank transaction not found.");
   if (before.status !== "UNMATCHED") {
     throw new BankValidationError(`This transaction is ${before.status.toLowerCase()} and can't be deleted.`);
   }
@@ -227,9 +228,10 @@ export async function recordBankTransaction(params: {
 }) {
   await requirePermission(params.membershipId, "banking", "CREATE");
 
-  const account = await prisma.bankAccount.findFirstOrThrow({
+  const account = await prisma.bankAccount.findFirst({
     where: { id: params.bankAccountId, companyId: params.companyId },
   });
+  if (!account) throw new NotFoundError("Bank account not found.");
 
   const tx = await prisma.bankTransaction.create({
     data: {
@@ -372,9 +374,10 @@ export async function reconcileBankAccount(params: {
 }) {
   await requirePermission(params.membershipId, "banking", "APPROVE");
 
-  const account = await prisma.bankAccount.findFirstOrThrow({
+  const account = await prisma.bankAccount.findFirst({
     where: { id: params.bankAccountId, companyId: params.companyId },
   });
+  if (!account) throw new NotFoundError("Bank account not found.");
 
   const result = await prisma.bankTransaction.updateMany({
     where: { bankAccountId: account.id, status: "MATCHED" },

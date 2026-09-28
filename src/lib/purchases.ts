@@ -1,5 +1,6 @@
 import type Decimal from "decimal.js";
 import { prisma } from "@/lib/db";
+import { NotFoundError } from "@/lib/errors";
 import { requirePermission } from "@/lib/rbac";
 import { recordAuditEvent } from "@/lib/audit";
 import { postJournalEntry, buildBillPosting, buildSupplierPaymentPosting, InvalidLineError, assertBaseCurrency, normalizeCurrencyCode } from "@/lib/ledger";
@@ -100,7 +101,7 @@ export async function updateBill(params: {
   await requirePermission(params.membershipId, "bills", "EDIT");
 
   const before = await prisma.bill.findFirst({ where: { id: params.billId, companyId: params.companyId }, include: { lines: true } });
-  if (!before) throw new Error("Bill not found.");
+  if (!before) throw new NotFoundError("Bill not found.");
   if (before.status !== "DRAFT") {
     throw new InvalidLineError("Only a draft bill can be edited. Once approved, correct it with a debit note or a new bill.");
   }
@@ -171,7 +172,7 @@ export async function deleteBill(params: {
   await requirePermission(params.membershipId, "bills", "DELETE");
 
   const bill = await prisma.bill.findFirst({ where: { id: params.billId, companyId: params.companyId } });
-  if (!bill) throw new Error("Bill not found.");
+  if (!bill) throw new NotFoundError("Bill not found.");
   if (bill.status !== "DRAFT") {
     throw new InvalidLineError("Only a draft bill can be deleted. An approved bill can't be removed — reverse it via a debit note instead.");
   }
@@ -204,7 +205,8 @@ export async function approveAndPostBill(params: {
 }) {
   await requirePermission(params.membershipId, "bills", "APPROVE");
 
-  const bill = await prisma.bill.findFirstOrThrow({ where: { id: params.billId, companyId: params.companyId } });
+  const bill = await prisma.bill.findFirst({ where: { id: params.billId, companyId: params.companyId } });
+  if (!bill) throw new NotFoundError("Bill not found.");
 
   if (bill.status !== "DRAFT") {
     throw new InvalidLineError("Only a draft bill can be approved and posted.");
@@ -244,7 +246,8 @@ export async function recordSupplierPayment(params: {
 }) {
   await requirePermission(params.membershipId, "bills", "EDIT");
 
-  const bill = await prisma.bill.findFirstOrThrow({ where: { id: params.billId, companyId: params.companyId } });
+  const bill = await prisma.bill.findFirst({ where: { id: params.billId, companyId: params.companyId } });
+  if (!bill) throw new NotFoundError("Bill not found.");
 
   if (!["APPROVED", "PARTIALLY_PAID", "OVERDUE"].includes(bill.status)) {
     throw new InvalidLineError("Only an approved bill can receive a payment.");

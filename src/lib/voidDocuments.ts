@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { NotFoundError } from "@/lib/errors";
 import { requirePermission } from "@/lib/rbac";
 import { recordAuditEvent } from "@/lib/audit";
 import { reverseJournalEntry, InvalidLineError } from "@/lib/ledger";
@@ -47,7 +48,7 @@ export async function voidInvoice(ctx: Ctx & { invoiceId: string; reason: string
   await requirePermission(ctx.membershipId, "invoices", "EDIT");
   const reason = checkReason(ctx.reason);
   const invoice = await prisma.invoice.findFirst({ where: { id: ctx.invoiceId, companyId: ctx.companyId } });
-  if (!invoice) throw new InvalidLineError("Invoice not found.");
+  if (!invoice) throw new NotFoundError("Invoice not found.");
   if (invoice.status === "DRAFT") throw new InvalidLineError("A draft invoice isn't posted yet. Delete it instead of voiding it.");
   if (invoice.status === "VOID") throw new InvalidLineError("This invoice is already void.");
   if (invoice.status === "PAID" || invoice.status === "PARTIALLY_PAID" || (await postedPaymentCount(ctx.companyId, invoice.id)) > 0) {
@@ -76,7 +77,7 @@ export async function voidBill(ctx: Ctx & { billId: string; reason: string }) {
   await requirePermission(ctx.membershipId, "bills", "APPROVE");
   const reason = checkReason(ctx.reason);
   const bill = await prisma.bill.findFirst({ where: { id: ctx.billId, companyId: ctx.companyId } });
-  if (!bill) throw new InvalidLineError("Bill not found.");
+  if (!bill) throw new NotFoundError("Bill not found.");
   if (bill.status === "DRAFT") throw new InvalidLineError("A draft bill isn't posted yet. Delete it instead of voiding it.");
   if (bill.status === "VOID") throw new InvalidLineError("This bill is already void.");
   if (bill.status === "PAID" || bill.status === "PARTIALLY_PAID" || (await postedPaymentCount(ctx.companyId, bill.id)) > 0) {

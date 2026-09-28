@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { NotFoundError } from "@/lib/errors";
 import { z } from "zod";
 import { requireTenantContext } from "@/lib/tenant";
 import { voidBill } from "@/lib/voidDocuments";
@@ -16,6 +17,7 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
     const r = await voidBill({ companyId: active.companyId, membershipId: active.id, userId, billId: params.id, reason: parsed.data.reason });
     return NextResponse.json({ id: r.billId, status: "VOID", reversalEntryId: r.reversalEntryId });
   } catch (err) {
+    if (err instanceof NotFoundError) return NextResponse.json({ error: err.message }, { status: 404 });
     if (err instanceof ForbiddenError) return NextResponse.json({ error: "You don't have permission to void bills." }, { status: 403 });
     if (err instanceof InvalidLineError || err instanceof DuplicatePostingError || err instanceof PeriodLockedError) {
       return NextResponse.json({ error: err.message }, { status: 400 });

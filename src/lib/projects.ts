@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { NotFoundError } from "@/lib/errors";
 import { requirePermission } from "@/lib/rbac";
 import { foreignReferenceProblem } from "@/lib/tenantRefs";
 import { recordAuditEvent } from "@/lib/audit";
@@ -63,7 +64,7 @@ export async function updateProject(params: {
   await requirePermission(params.membershipId, "projects", "EDIT");
 
   const before = await prisma.project.findFirst({ where: { id: params.projectId, companyId: params.companyId } });
-  if (!before) throw new Error("Project not found.");
+  if (!before) throw new NotFoundError("Project not found.");
 
   if (params.name !== undefined && params.name.trim() === "") {
     throw new ProjectValidationError("Project name can't be empty.");
@@ -191,7 +192,7 @@ export async function deleteProject(params: {
   await requirePermission(params.membershipId, "projects", "DELETE");
 
   const project = await prisma.project.findFirst({ where: { id: params.projectId, companyId: params.companyId } });
-  if (!project) throw new Error("Project not found.");
+  if (!project) throw new NotFoundError("Project not found.");
 
   const [invoiceCount, billCount] = await Promise.all([
     prisma.invoice.count({ where: { projectId: project.id } }),
@@ -231,7 +232,7 @@ export async function setProjectActive(params: {
   await requirePermission(params.membershipId, "projects", "DELETE");
 
   const project = await prisma.project.findFirst({ where: { id: params.projectId, companyId: params.companyId } });
-  if (!project) throw new Error("Project not found.");
+  if (!project) throw new NotFoundError("Project not found.");
 
   const updated = await prisma.project.update({ where: { id: project.id }, data: { isActive: params.isActive } });
 

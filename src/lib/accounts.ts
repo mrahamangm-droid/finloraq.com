@@ -1,5 +1,6 @@
 import type { AccountType } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { NotFoundError } from "@/lib/errors";
 import { requirePermission } from "@/lib/rbac";
 import { recordAuditEvent } from "@/lib/audit";
 
@@ -95,7 +96,7 @@ export async function updateAccount(params: {
   await requirePermission(params.membershipId, "accounting", "EDIT");
 
   const before = await prisma.account.findFirst({ where: { id: params.accountId, companyId: params.companyId } });
-  if (!before) throw new Error("Account not found.");
+  if (!before) throw new NotFoundError("Account not found.");
 
   if (params.name !== undefined && params.name.trim() === "") {
     throw new AccountValidationError("Account name can't be empty.");
@@ -171,7 +172,7 @@ export async function deleteAccount(params: {
   await requirePermission(params.membershipId, "accounting", "DELETE");
 
   const account = await prisma.account.findFirst({ where: { id: params.accountId, companyId: params.companyId } });
-  if (!account) throw new Error("Account not found.");
+  if (!account) throw new NotFoundError("Account not found.");
 
   if (account.isSystem) {
     throw new AccountInUseError(`${account.code} · ${account.name} is a system account and can't be deleted.`);

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { NotFoundError } from "@/lib/errors";
 import { z } from "zod";
 import { requireTenantContext } from "@/lib/tenant";
 import { updateBankTransaction, deleteBankTransaction, BankValidationError } from "@/lib/banking";
@@ -29,6 +30,7 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
     });
     return NextResponse.json({ id: tx.id });
   } catch (err) {
+    if (err instanceof NotFoundError) return NextResponse.json({ error: err.message }, { status: 404 });
     if (err instanceof ForbiddenError) return NextResponse.json({ error: err.message }, { status: 403 });
     if (err instanceof BankValidationError) return NextResponse.json({ error: err.message }, { status: 400 });
     throw err;
@@ -42,6 +44,7 @@ export async function DELETE(_req: Request, props: { params: Promise<{ id: strin
     await deleteBankTransaction({ companyId: active.companyId, membershipId: active.id, userId, bankTransactionId: params.id });
     return NextResponse.json({ ok: true });
   } catch (err) {
+    if (err instanceof NotFoundError) return NextResponse.json({ error: err.message }, { status: 404 });
     if (err instanceof ForbiddenError) return NextResponse.json({ error: err.message }, { status: 403 });
     if (err instanceof BankValidationError) return NextResponse.json({ error: err.message }, { status: 400 });
     throw err;

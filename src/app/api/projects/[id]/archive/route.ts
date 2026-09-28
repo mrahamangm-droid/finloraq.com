@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { NotFoundError } from "@/lib/errors";
 import { z } from "zod";
 import { requireTenantContext } from "@/lib/tenant";
 import { setProjectActive } from "@/lib/projects";
@@ -23,6 +24,7 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
     });
     return NextResponse.json({ id: project.id, isActive: project.isActive });
   } catch (err) {
+    if (err instanceof NotFoundError) return NextResponse.json({ error: err.message }, { status: 404 });
     if (err instanceof ForbiddenError) {
       return NextResponse.json({ error: "Only a company admin can do this." }, { status: 403 });
     }

@@ -1,6 +1,7 @@
 import type { Prisma, JournalSourceType, CompanyRole } from "@prisma/client";
 import Decimal from "decimal.js";
 import { prisma } from "@/lib/db";
+import { NotFoundError } from "@/lib/errors";
 import { sum, isZero, money } from "@/lib/currency";
 import { recordAuditEvent } from "@/lib/audit";
 import { can } from "@/lib/rbac";
@@ -337,9 +338,10 @@ export async function postDraftJournalEntry(params: {
     throw new InvalidLineError("Posting a journal entry requires the APPROVE permission on Journals.");
   }
 
-  const draft = await prisma.journalEntry.findFirstOrThrow({
+  const draft = await prisma.journalEntry.findFirst({
     where: { id: params.journalEntryId, companyId: params.companyId },
   });
+  if (!draft) throw new NotFoundError("Journal entry not found.");
   if (draft.status !== "DRAFT") {
     throw new InvalidLineError("Only a draft entry can be posted.");
   }
@@ -382,9 +384,10 @@ export async function deleteDraftJournalEntry(params: {
     throw new InvalidLineError("Deleting a journal entry requires the APPROVE permission on Journals.");
   }
 
-  const draft = await prisma.journalEntry.findFirstOrThrow({
+  const draft = await prisma.journalEntry.findFirst({
     where: { id: params.journalEntryId, companyId: params.companyId },
   });
+  if (!draft) throw new NotFoundError("Journal entry not found.");
   if (draft.status !== "DRAFT") {
     throw new InvalidLineError("Only a draft entry can be deleted. A posted entry can be reversed instead.");
   }
@@ -422,10 +425,11 @@ export async function reverseJournalEntry(params: {
     throw new InvalidLineError("Reversing a journal entry requires the APPROVE permission on Journals.");
   }
 
-  const original = await prisma.journalEntry.findFirstOrThrow({
+  const original = await prisma.journalEntry.findFirst({
     where: { id: params.journalEntryId, companyId: params.companyId },
     include: { lines: true },
   });
+  if (!original) throw new NotFoundError("Journal entry not found.");
 
   if (original.status !== "POSTED") {
     throw new InvalidLineError("Only a posted entry can be reversed.");
