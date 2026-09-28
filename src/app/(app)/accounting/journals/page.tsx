@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireTenantContext } from "@/lib/tenant";
+import { viewGate } from "@/lib/page-access";
 import { getFormatter } from "@/lib/customization/server";
 import { prisma } from "@/lib/db";
 
@@ -11,6 +12,8 @@ function statusColor(status: string) {
 
 export default async function JournalsPage() {
   const { active, userId } = await requireTenantContext();
+  const denied = await viewGate(active.id, "journals");
+  if (denied) return denied;
   const fmt = await getFormatter(userId);
 
   const entries = await prisma.journalEntry.findMany({
