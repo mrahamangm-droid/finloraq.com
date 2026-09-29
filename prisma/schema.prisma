@@ -272,6 +272,7 @@ model CompanyMembership {
   assignedDeals      Deal[]        @relation("DealAssignedTo")
   assignedActivities CrmActivity[] @relation("ActivityAssignedTo")
   createdActivities  CrmActivity[] @relation("ActivityCreatedBy")
+  createdRecurringInvoices RecurringInvoice[]
 
   @@unique([companyId, userId])
   @@index([userId])
@@ -1295,24 +1296,32 @@ enum RecurringStatus {
 }
 
 model RecurringInvoice {
-  id         String              @id @default(cuid())
-  companyId  String
-  customerId String
-  currency   String              @default("USD")
-  frequency  RecurringFrequency
-  startDate  DateTime
-  endDate    DateTime?
-  nextRunAt  DateTime
-  lastRunAt  DateTime?
-  status     RecurringStatus     @default(ACTIVE)
-  notes      String?
+  id                   String              @id @default(cuid())
+  companyId            String
+  customerId           String
+  currency             String              @default("USD")
+  frequency            RecurringFrequency
+  startDate            DateTime
+  endDate              DateTime?
+  nextRunAt            DateTime
+  lastRunAt            DateTime?
+  status               RecurringStatus     @default(ACTIVE)
+  notes                String?
+  /// The membership that created this schedule. The cron-driven scheduler
+  /// (processRecurringInvoices) runs generation through this membership's
+  /// own permissions rather than skipping RBAC — see src/lib/recurring-invoices.ts.
+  /// Nullable only because rows created before this column existed have no
+  /// value to backfill; the scheduler treats a null here as a pre-existing
+  /// row and skips the permission check for it (logged, not fatal).
+  createdByMembershipId String?
   createdAt  DateTime            @default(now())
   updatedAt  DateTime            @updatedAt
 
-  company  Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  customer Customer               @relation(fields: [customerId], references: [id])
-  lines    RecurringInvoiceLine[]
-  invoices Invoice[]
+  company    Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer   Customer               @relation(fields: [customerId], references: [id])
+  createdBy  CompanyMembership?     @relation(fields: [createdByMembershipId], references: [id])
+  lines      RecurringInvoiceLine[]
+  invoices   Invoice[]
 
   @@index([companyId])
   @@index([nextRunAt, status])
