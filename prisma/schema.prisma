@@ -1390,6 +1390,7 @@ model CreditNote {
   creditNumber   String
   issueDate      DateTime
   currency       String
+  exchangeRate   Decimal          @default(1) @db.Decimal(18, 8)
   subtotal       Decimal          @db.Decimal(18, 2)
   taxTotal       Decimal          @db.Decimal(18, 2)
   total          Decimal          @db.Decimal(18, 2)

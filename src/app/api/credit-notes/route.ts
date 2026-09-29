@@ -26,6 +26,7 @@ export async function POST(req: NextRequest) {
       invoiceId: body.invoiceId,
       issueDate: new Date(body.issueDate),
       currency: body.currency ?? "USD",
+      exchangeRate: body.exchangeRate,
       reason: body.reason,
       lines: body.lines ?? [],
     });
