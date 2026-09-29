@@ -64,7 +64,7 @@ const nextConfig = {
         // statically prerendered — a nonce would force every one of them to
         // render per request — so they keep 'unsafe-inline' for Next.js's
         // inline hydration script. Prefix list = the middleware matcher's.
-        source: "/:path((?!(?:dashboard|accounting|sales|purchases|expenses|banking|customers|suppliers|projects|taxes|reports|documents|import|users|settings|audit|ai-copilot|billing)(?:/|$)).*)",
+        source: "/:path((?!(?:dashboard|accounting|sales|purchases|expenses|banking|customers|suppliers|projects|taxes|reports|documents|import|users|settings|audit|ai-copilot|billing|approvals|credit-notes|crm|inventory|products|purchase-orders|quotes|recurring-invoices|sales-orders)(?:/|$)).*)",
         headers: [
           {
             key: "Content-Security-Policy",
