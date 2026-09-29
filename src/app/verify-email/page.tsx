@@ -50,7 +50,7 @@ function VerifyEmail() {
   }, [email, token, missing]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted px-4">
+    <main className="flex min-h-screen items-center justify-center bg-muted px-4">
       <div className="w-full max-w-sm rounded-lg border border-border bg-card p-8 shadow-sm">
         <h1 className="mb-2 text-xl font-semibold text-card-foreground">Confirm your email</h1>
         {state === "working" && <p className="text-sm text-muted-foreground">Confirming your email address…</p>}
@@ -71,6 +71,6 @@ function VerifyEmail() {
           </>
         )}
       </div>
-    </div>
+    </main>
   );
 }

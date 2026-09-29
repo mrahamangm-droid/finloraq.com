@@ -6,7 +6,23 @@
  * directive matches the site-wide policy in next.config.mjs, which still
  * covers the static marketing pages (see the note there).
  */
+/**
+ * Origin the browser sends Sentry events to, from NEXT_PUBLIC_SENTRY_DSN
+ * (https://<key>@o123.ingest.sentry.io/456 → https://o123.ingest.sentry.io).
+ * Null when unset or malformed, so connect-src stays 'self' only.
+ */
+export function sentryConnectOrigin(dsn = process.env.NEXT_PUBLIC_SENTRY_DSN): string | null {
+  if (!dsn) return null;
+  try {
+    const u = new URL(dsn);
+    return u.protocol === "https:" ? u.origin : null;
+  } catch {
+    return null;
+  }
+}
+
 export function appContentSecurityPolicy(nonce: string, isDev = process.env.NODE_ENV !== "production"): string {
+  const sentry = sentryConnectOrigin();
   return [
     "default-src 'self'",
     // React dev tooling evaluates code at runtime; production never does.
@@ -14,7 +30,7 @@ export function appContentSecurityPolicy(nonce: string, isDev = process.env.NODE
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' data: blob:",
     "font-src 'self' data: https://fonts.gstatic.com",
-    "connect-src 'self'",
+    `connect-src 'self'${sentry ? ` ${sentry}` : ""}`,
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",

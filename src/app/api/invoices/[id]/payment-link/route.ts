@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
+import { withApiErrors } from "@/lib/apiHandler";
 import { requireTenantContext } from "@/lib/tenant";
 import { getOrCreatePayLink, PaymentLinkError } from "@/lib/stripe/invoicePayments";
 
 /** Returns the invoice's shareable "Pay now" link (created on first request). */
-export async function POST(_req: Request, props: { params: Promise<{ id: string }> }) {
+async function handlePOST(_req: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const { active } = await requireTenantContext();
   try {
@@ -14,3 +15,5 @@ export async function POST(_req: Request, props: { params: Promise<{ id: string 
     throw err;
   }
 }
+
+export const POST = withApiErrors(handlePOST);

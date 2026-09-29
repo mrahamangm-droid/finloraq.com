@@ -8,6 +8,21 @@
 
 import { prisma } from "@/lib/db";
 import type { LeadStatus, ActivityType, ActivityStatus } from "@prisma/client";
+import { NotFoundError, ValidationError } from "@/lib/errors";
+import { foreignReferenceProblem, type TenantRefKind } from "@/lib/tenantRefs";
+
+/**
+ * Ids taken from a request body (an assignee, a linked customer, contact,
+ * lead or deal) must be the acting company's own records. Without this,
+ * company A could link company B's records to its own leads/deals/activities
+ * and then read their names and emails back through A's list endpoints.
+ */
+async function assertOwnedRefs(companyId: string, refs: Partial<Record<TenantRefKind, string | null | undefined>>) {
+  for (const [kind, id] of Object.entries(refs)) {
+    const problem = await foreignReferenceProblem(prisma, companyId, kind as TenantRefKind, [id]);
+    if (problem) throw new ValidationError(problem);
+  }
+}
 
 // ─────────────────────────────────────────────────────────────────────────
 // Pipelines
@@ -112,6 +127,7 @@ export async function createLead(
   membershipId: string,
   data: LeadInput
 ) {
+  await assertOwnedRefs(companyId, { membership: data.assignedToId });
   return prisma.lead.create({
     data: { companyId, createdById: membershipId, ...data },
   });
@@ -124,6 +140,7 @@ export async function updateLead(
 ) {
   const lead = await prisma.lead.findFirst({ where: { id, companyId } });
   if (!lead) return null;
+  await assertOwnedRefs(companyId, { membership: data.assignedToId });
   return prisma.lead.update({ where: { id }, data });
 }
 
@@ -145,8 +162,8 @@ export async function convertLead(
   }
 ) {
   const lead = await prisma.lead.findFirst({ where: { id: leadId, companyId } });
-  if (!lead) throw new Error("Lead not found");
-  if (lead.status === "CONVERTED") throw new Error("Lead already converted");
+  if (!lead) throw new NotFoundError("Lead not found");
+  if (lead.status === "CONVERTED") throw new ValidationError("Lead already converted");
 
   // Find or create the Customer record
   let customer = await prisma.customer.findFirst({
@@ -179,13 +196,13 @@ export async function convertLead(
     const pipeline = opts.pipelineId
       ? await prisma.pipeline.findFirst({ where: { id: opts.pipelineId, companyId } })
       : await getOrCreateDefaultPipeline(companyId);
-    if (!pipeline) throw new Error("Pipeline not found");
+    if (!pipeline) throw new ValidationError("Pipeline not found");
 
     const firstStage = await prisma.pipelineStage.findFirst({
       where: { pipelineId: pipeline.id },
       orderBy: { position: "asc" },
     });
-    if (!firstStage) throw new Error("Pipeline has no stages");
+    if (!firstStage) throw new ValidationError("Pipeline has no stages");
 
     deal = await prisma.deal.create({
       data: {
@@ -243,6 +260,7 @@ export async function listContacts(
 }
 
 export async function createContact(companyId: string, data: ContactInput) {
+  await assertOwnedRefs(companyId, { customer: data.customerId });
   return prisma.crmContact.create({ data: { companyId, ...data } });
 }
 
@@ -253,12 +271,16 @@ export async function updateContact(
 ) {
   const contact = await prisma.crmContact.findFirst({ where: { id, companyId } });
   if (!contact) return null;
+  await assertOwnedRefs(companyId, { customer: data.customerId });
   return prisma.crmContact.update({ where: { id }, data });
 }
 
 // ─────────────────────────────────────────────────────────────────────────
 // Deals
 // ─────────────────────────────────────────────────────────────────────────
+
+/** Deal.value is Decimal(18, 4): anything at or above 10^14 overflows the column (a 500 from Postgres). */
+export const MAX_DEAL_VALUE = 1e13;
 
 export interface DealInput {
   name: string;
@@ -336,7 +358,8 @@ export async function createDeal(
   const stage = await prisma.pipelineStage.findFirst({
     where: { id: data.stageId, pipelineId: data.pipelineId, companyId },
   });
-  if (!stage) throw new Error("Stage not found in pipeline for this company");
+  if (!stage) throw new ValidationError("Stage not found in pipeline for this company");
+  await assertOwnedRefs(companyId, { customer: data.customerId, crmContact: data.contactId, membership: data.assignedToId });
 
   return prisma.deal.create({
     data: {
@@ -357,9 +380,9 @@ export async function moveDeal(
     prisma.deal.findFirst({ where: { id: dealId, companyId } }),
     prisma.pipelineStage.findFirst({ where: { id: stageId, companyId } }),
   ]);
-  if (!deal) throw new Error("Deal not found");
-  if (!stage) throw new Error("Stage not found");
-  if (stage.pipelineId !== deal.pipelineId) throw new Error("Stage not in same pipeline");
+  if (!deal) throw new NotFoundError("Deal not found");
+  if (!stage) throw new ValidationError("Stage not found");
+  if (stage.pipelineId !== deal.pipelineId) throw new ValidationError("Stage not in same pipeline");
 
   const updates: any = { stage: { connect: { id: stageId } } };
   if (stage.isWon) {
@@ -384,6 +407,13 @@ export async function updateDeal(
 ) {
   const deal = await prisma.deal.findFirst({ where: { id, companyId } });
   if (!deal) return null;
+  if (data.pipelineId !== undefined || data.stageId !== undefined) {
+    const stage = await prisma.pipelineStage.findFirst({
+      where: { id: data.stageId ?? deal.stageId, pipelineId: data.pipelineId ?? deal.pipelineId, companyId },
+    });
+    if (!stage) throw new ValidationError("Stage not found in pipeline for this company");
+  }
+  await assertOwnedRefs(companyId, { customer: data.customerId, crmContact: data.contactId, membership: data.assignedToId });
   return prisma.deal.update({ where: { id }, data });
 }
 
@@ -441,6 +471,13 @@ export async function createActivity(
   membershipId: string,
   data: ActivityInput
 ) {
+  await assertOwnedRefs(companyId, {
+    lead: data.leadId,
+    deal: data.dealId,
+    crmContact: data.contactId,
+    customer: data.customerId,
+    membership: data.assignedToId,
+  });
   return prisma.crmActivity.create({
     data: { companyId, createdById: membershipId, status: "PLANNED", ...data },
   });

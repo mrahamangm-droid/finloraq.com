@@ -1,3 +1,14 @@
+// Browser Sentry events go to the DSN's origin; allowed in connect-src only
+// when NEXT_PUBLIC_SENTRY_DSN is set (same rule as src/lib/csp.ts).
+const sentryOrigin = (() => {
+  try {
+    const u = new URL(process.env.NEXT_PUBLIC_SENTRY_DSN ?? "");
+    return u.protocol === "https:" ? u.origin : null;
+  } catch {
+    return null;
+  }
+})();
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -64,7 +75,7 @@ const nextConfig = {
         // statically prerendered — a nonce would force every one of them to
         // render per request — so they keep 'unsafe-inline' for Next.js's
         // inline hydration script. Prefix list = the middleware matcher's.
-        source: "/:path((?!(?:dashboard|accounting|sales|purchases|expenses|banking|customers|suppliers|projects|taxes|reports|documents|import|users|settings|audit|ai-copilot|billing)(?:/|$)).*)",
+        source: "/:path((?!(?:dashboard|accounting|sales|purchases|expenses|banking|customers|suppliers|projects|taxes|reports|documents|import|users|settings|audit|ai-copilot|billing|approvals|credit-notes|crm|inventory|products|purchase-orders|quotes|recurring-invoices|sales-orders)(?:/|$)).*)",
         headers: [
           {
             key: "Content-Security-Policy",
@@ -74,7 +85,7 @@ const nextConfig = {
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "img-src 'self' data: blob:",
               "font-src 'self' data: https://fonts.gstatic.com",
-              "connect-src 'self'",
+              `connect-src 'self'${sentryOrigin ? ` ${sentryOrigin}` : ""}`,
               "frame-ancestors 'none'",
               "base-uri 'self'",
               "form-action 'self'",

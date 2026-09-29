@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { withApiErrors } from "@/lib/apiHandler";
 import { z } from "zod";
 import { requireTenantContext } from "@/lib/tenant";
 import { requirePermission, can } from "@/lib/rbac";
@@ -23,7 +24,7 @@ const patchSchema = z.object({
 
 type RouteProps = { params: Promise<{ id: string }> };
 
-export async function GET(_req: Request, props: RouteProps) {
+async function handleGET(_req: Request, props: RouteProps) {
   const params = await props.params;
   const { id } = params;
   const { active } = await requireTenantContext();
@@ -35,7 +36,7 @@ export async function GET(_req: Request, props: RouteProps) {
   return NextResponse.json(product);
 }
 
-export async function PATCH(req: Request, props: RouteProps) {
+async function handlePATCH(req: Request, props: RouteProps) {
   const params = await props.params;
   const { id } = params;
   const { active } = await requireTenantContext();
@@ -70,7 +71,7 @@ export async function PATCH(req: Request, props: RouteProps) {
   }
 }
 
-export async function DELETE(_req: Request, props: RouteProps) {
+async function handleDELETE(_req: Request, props: RouteProps) {
   const params = await props.params;
   const { id } = params;
   const { active } = await requireTenantContext();
@@ -82,3 +83,7 @@ export async function DELETE(_req: Request, props: RouteProps) {
   if (!product) return NextResponse.json({ error: "Not found." }, { status: 404 });
   return NextResponse.json({ ok: true });
 }
+
+export const GET = withApiErrors(handleGET);
+export const PATCH = withApiErrors(handlePATCH);
+export const DELETE = withApiErrors(handleDELETE);

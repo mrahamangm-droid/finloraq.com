@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
+import { withApiErrors } from "@/lib/apiHandler";
 import { requireTenantContext } from "@/lib/tenant";
 import { requirePermission } from "@/lib/rbac";
 import { markActivityDone } from "@/lib/crm";
 
-export async function POST(
+async function handlePOST(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -15,3 +16,5 @@ export async function POST(
   if (!activity) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json(activity);
 }
+
+export const POST = withApiErrors(handlePOST);

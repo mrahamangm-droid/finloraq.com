@@ -3,6 +3,8 @@ import { z } from "zod";
 import { requireTenantContext } from "@/lib/tenant";
 import { requirePermission } from "@/lib/rbac";
 import { parseVoiceCommand } from "@/lib/ai/voice";
+import { aiErrorResponse, aiRateLimitResponse } from "@/lib/ai/limits";
+import { withApiErrors } from "@/lib/apiHandler";
 
 const schema = z.object({ transcript: z.string().min(1).max(2000) });
 
@@ -13,7 +15,7 @@ const schema = z.object({ transcript: z.string().min(1).max(2000) });
  * separately POST to /api/voice/confirm to actually execute. This route
  * never has side effects itself.
  */
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   const { active, userId } = await requireTenantContext();
   await requirePermission(active.id, "ai_copilot", "CREATE");
 
@@ -22,12 +24,22 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid input." }, { status: 400 });
   }
 
-  const result = await parseVoiceCommand({
-    companyId: active.companyId,
-    membershipId: active.id,
-    userId,
-    transcript: parsed.data.transcript,
-  });
+  const limited = await aiRateLimitResponse("chat", userId, req.headers);
+  if (limited) return limited;
 
-  return NextResponse.json(result);
+  try {
+    const result = await parseVoiceCommand({
+      companyId: active.companyId,
+      membershipId: active.id,
+      userId,
+      transcript: parsed.data.transcript,
+    });
+    return NextResponse.json(result);
+  } catch (err) {
+    const res = aiErrorResponse(err, "voice/command");
+    if (res) return res;
+    throw err;
+  }
 }
+
+export const POST = withApiErrors(handlePOST);

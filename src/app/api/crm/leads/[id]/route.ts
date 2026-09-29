@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { withApiErrors } from "@/lib/apiHandler";
 import { requireTenantContext } from "@/lib/tenant";
 import { requirePermission } from "@/lib/rbac";
 import { getLead, updateLead } from "@/lib/crm";
@@ -17,7 +18,7 @@ const UpdateLeadSchema = z.object({
   status:       z.enum(["NEW", "CONTACTED", "QUALIFIED", "UNQUALIFIED", "CONVERTED"]).optional(),
 });
 
-export async function GET(
+async function handleGET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -30,7 +31,7 @@ export async function GET(
   return NextResponse.json(lead);
 }
 
-export async function PATCH(
+async function handlePATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -47,7 +48,7 @@ export async function PATCH(
   return NextResponse.json(lead);
 }
 
-export async function DELETE(
+async function handleDELETE(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -62,3 +63,7 @@ export async function DELETE(
   await prisma.lead.delete({ where: { id } });
   return new NextResponse(null, { status: 204 });
 }
+
+export const GET = withApiErrors(handleGET);
+export const PATCH = withApiErrors(handlePATCH);
+export const DELETE = withApiErrors(handleDELETE);

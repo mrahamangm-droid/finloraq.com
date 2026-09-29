@@ -1,25 +1,16 @@
 /**
- * Minimal, dependency-free error reporting.
+ * Minimal error reporting used by the error boundaries (src/app/error.tsx,
+ * global-error.tsx).
  *
- * Why not @sentry/nextjs directly: adding a new npm dependency here would
- * change package.json without an accurate package-lock.json to match (this
- * environment's npm registry access is policy-blocked, so `npm install`
- * can't regenerate the lockfile), and CI runs `npm ci`, which fails hard on
- * a lockfile mismatch. So this stays dependency-free today. It is not a
- * placeholder, though — every error already reaches Vercel's own Runtime
- * Logs (Project → Observability → Logs, or `vercel logs`) via the
- * console.error() call below, so nothing is silently swallowed in the
- * meantime. If/when @sentry/nextjs is added properly (`npm install` run
- * with real registry access, so the lockfile updates correctly), swap the
- * body of `captureException` for `Sentry.captureException(error, {extra:
- * context})` — every call site below stays the same.
- *
- * `MONITORING_WEBHOOK_URL` (optional, unset by default — see
- * .env.example) can point at any endpoint that accepts a JSON POST, e.g. a
- * Slack "Incoming Webhook" URL from an existing Slack workspace, so you get
- * a push notification the moment something breaks in production without
- * creating any new third-party account. If it's unset, this is a no-op
- * beyond the console.error.
+ * Every error is logged with console.error(), which reaches the host's
+ * runtime logs (Vercel: Project → Observability → Logs). On top of that,
+ * optionally:
+ *   - Sentry, when SENTRY_DSN (server) / NEXT_PUBLIC_SENTRY_DSN (browser) is
+ *     set — @sentry/nextjs is imported lazily, only then, so with no DSN it
+ *     costs nothing (initialised in src/instrumentation*.ts);
+ *   - `MONITORING_WEBHOOK_URL` (server only), any endpoint that accepts a
+ *     JSON POST, e.g. a Slack "Incoming Webhook", for a push notification.
+ * Either one failing never breaks the error page itself.
  */
 
 export interface ErrorContext {
@@ -38,6 +29,13 @@ export function captureException(error: unknown, context: ErrorContext): void {
   // Always logged — this alone reaches Vercel's Runtime Logs / Runtime
   // Errors views for both server and edge execution.
   console.error(`[${context.boundary}]`, message, { digest: context.digest, path: context.path, stack });
+
+  const sentryDsn = typeof window === "undefined" ? process.env.SENTRY_DSN : process.env.NEXT_PUBLIC_SENTRY_DSN;
+  if (sentryDsn) {
+    void import("@sentry/nextjs")
+      .then((Sentry) => Sentry.captureException(error, { tags: { boundary: context.boundary }, extra: { digest: context.digest, path: context.path } }))
+      .catch(() => {});
+  }
 
   const webhookUrl = process.env.MONITORING_WEBHOOK_URL;
   if (!webhookUrl) return;

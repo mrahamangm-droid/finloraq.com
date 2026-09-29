@@ -236,8 +236,9 @@ export function BrandingPanel({
               />
 
               <div>
-                <label className="text-xs font-medium text-muted-foreground">Tagline</label>
+                <label htmlFor="brand-tagline" className="text-xs font-medium text-muted-foreground">Tagline</label>
                 <input
+                  id="brand-tagline"
                   value={fields.tagline ?? ""}
                   onChange={(e) => setFields({ ...fields, tagline: e.target.value })}
                   maxLength={140}
@@ -248,8 +249,9 @@ export function BrandingPanel({
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="text-xs font-medium text-muted-foreground">Contact email</label>
+                  <label htmlFor="brand-contact-email" className="text-xs font-medium text-muted-foreground">Contact email</label>
                   <input
+                    id="brand-contact-email"
                     type="email"
                     value={fields.brandEmail ?? ""}
                     onChange={(e) => setFields({ ...fields, brandEmail: e.target.value })}
@@ -258,8 +260,9 @@ export function BrandingPanel({
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-muted-foreground">Contact phone</label>
+                  <label htmlFor="brand-contact-phone" className="text-xs font-medium text-muted-foreground">Contact phone</label>
                   <input
+                    id="brand-contact-phone"
                     value={fields.brandPhone ?? ""}
                     onChange={(e) => setFields({ ...fields, brandPhone: e.target.value })}
                     maxLength={40}
@@ -269,8 +272,9 @@ export function BrandingPanel({
               </div>
 
               <div>
-                <label className="text-xs font-medium text-muted-foreground">Business address</label>
+                <label htmlFor="brand-business-address" className="text-xs font-medium text-muted-foreground">Business address</label>
                 <textarea
+                  id="brand-business-address"
                   value={fields.brandAddress ?? ""}
                   onChange={(e) => setFields({ ...fields, brandAddress: e.target.value })}
                   maxLength={300}

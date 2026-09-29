@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
+import { withApiErrors } from "@/lib/apiHandler";
 import { requireTenantContext } from "@/lib/tenant";
 import { requirePermission } from "@/lib/rbac";
-import { getDeal, updateDeal } from "@/lib/crm";
+import { getDeal, updateDeal, MAX_DEAL_VALUE } from "@/lib/crm";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
 
 const UpdateDealSchema = z.object({
   name:              z.string().min(1).optional(),
-  value:             z.number().min(0).optional(),
+  value:             z.number().min(0).max(MAX_DEAL_VALUE).optional(),
   currency:          z.string().length(3).optional(),
   stageId:           z.string().optional(),
   customerId:        z.string().optional().nullable(),
@@ -18,7 +19,7 @@ const UpdateDealSchema = z.object({
   lostReason:        z.string().optional().nullable(),
 });
 
-export async function GET(
+async function handleGET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -31,7 +32,7 @@ export async function GET(
   return NextResponse.json(deal);
 }
 
-export async function PATCH(
+async function handlePATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -54,7 +55,7 @@ export async function PATCH(
   return NextResponse.json(deal);
 }
 
-export async function DELETE(
+async function handleDELETE(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -68,3 +69,7 @@ export async function DELETE(
   await prisma.deal.delete({ where: { id } });
   return new NextResponse(null, { status: 204 });
 }
+
+export const GET = withApiErrors(handleGET);
+export const PATCH = withApiErrors(handlePATCH);
+export const DELETE = withApiErrors(handleDELETE);

@@ -104,7 +104,7 @@ export const HOME_STYLE = `
   #fm-root .flow-arrow{display:flex;justify-content:center;color:var(--brand);padding-block:6px}
   #fm-root .flow-card{width:100%;background:var(--canvas);border:1px solid var(--line);border-radius:16px;padding:18px 20px;box-shadow:var(--shadow-sm);transition:border-color .3s ease, box-shadow .3s ease}
   #fm-root .flow-title{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
-  #fm-root .flow-n{font-size:12px;color:var(--ink-subtle);letter-spacing:0}
+  #fm-root .flow-n{font-size:12px;color:var(--ink-muted);letter-spacing:0}
   #fm-root .flow-items{list-style:none;margin:12px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:8px}
   #fm-root .flow-items li{font-size:13px;font-weight:600;padding:6px 12px;border-radius:99px;background:var(--canvas-2);border:1px solid var(--line)}
   #fm-root .flow-ai .flow-card{background:linear-gradient(135deg,var(--brand),#3B7DD8);border-color:transparent;color:#fff}

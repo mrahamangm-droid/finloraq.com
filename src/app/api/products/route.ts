@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { withApiErrors } from "@/lib/apiHandler";
 import { z } from "zod";
 import { requireTenantContext } from "@/lib/tenant";
 import { requirePermission, can } from "@/lib/rbac";
@@ -20,7 +21,7 @@ const createSchema = z.object({
   reorderPoint: z.number().nonnegative().optional().nullable(),
 });
 
-export async function GET(req: Request) {
+async function handleGET(req: Request) {
   const { active } = await requireTenantContext();
   if (!(await can(active.id, "products", "VIEW"))) {
     return NextResponse.json({ error: "Missing VIEW on products." }, { status: 403 });
@@ -44,7 +45,7 @@ export async function GET(req: Request) {
   return NextResponse.json(result);
 }
 
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   const { active } = await requireTenantContext();
   await requirePermission(active.id, "products", "CREATE");
 
@@ -68,3 +69,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: message }, { status: 409 });
   }
 }
+
+export const GET = withApiErrors(handleGET);
+export const POST = withApiErrors(handlePOST);

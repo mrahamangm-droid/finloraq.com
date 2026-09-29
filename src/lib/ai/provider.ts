@@ -55,6 +55,18 @@ export class AiNotConfiguredError extends Error {
   }
 }
 
+/**
+ * The provider answered with an error (bad request, overloaded, auth). The
+ * message carries the provider's response body for the server log; API routes
+ * must not show it to the client (see src/lib/ai/limits.ts aiErrorResponse).
+ */
+export class AiProviderError extends Error {
+  constructor(message: string, public readonly status: number) {
+    super(message);
+    this.name = "AiProviderError";
+  }
+}
+
 class AnthropicProvider implements AiProvider {
   readonly name = "anthropic";
   constructor(private apiKey: string, private model = "claude-sonnet-4-5") {}
@@ -114,12 +126,12 @@ class AnthropicProvider implements AiProvider {
 
     if (!res.ok) {
       const body = await res.text().catch(() => "");
-      throw new Error(`Anthropic API error ${res.status}: ${body.slice(0, 500)}`);
+      throw new AiProviderError(`Anthropic API error ${res.status}: ${body.slice(0, 500)}`, res.status);
     }
 
     const data = (await res.json()) as { content: { type: string; text?: string }[] };
     const text = data.content.find((b) => b.type === "text")?.text;
-    if (!text) throw new Error("Anthropic API returned no text content.");
+    if (!text) throw new AiProviderError("Anthropic API returned no text content.", 502);
     return text;
   }
 }

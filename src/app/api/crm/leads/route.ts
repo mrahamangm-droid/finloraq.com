@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { LeadStatus } from "@prisma/client";
+import { enumParam, pageParams, withApiErrors } from "@/lib/apiHandler";
 import { requireTenantContext } from "@/lib/tenant";
 import { requirePermission } from "@/lib/rbac";
 import { createLead, listLeads } from "@/lib/crm";
@@ -16,21 +18,20 @@ const CreateLeadSchema = z.object({
   assignedToId: z.string().optional().nullable(),
 });
 
-export async function GET(req: Request) {
+async function handleGET(req: Request) {
   const { active } = await requireTenantContext();
   await requirePermission(active.id, "crm", "VIEW");
 
   const url = new URL(req.url);
-  const status  = url.searchParams.get("status") ?? undefined;
+  const status  = enumParam(url, "status", Object.values(LeadStatus));
   const assignedToId = url.searchParams.get("assignedToId") ?? undefined;
-  const page  = parseInt(url.searchParams.get("page") ?? "1", 10);
-  const limit = parseInt(url.searchParams.get("limit") ?? "50", 10);
+  const { page, limit } = pageParams(url);
 
-  const result = await listLeads(active.companyId, { status: status as never, assignedToId, page, limit });
+  const result = await listLeads(active.companyId, { status, assignedToId, page, limit });
   return NextResponse.json(result);
 }
 
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   const { active } = await requireTenantContext();
   await requirePermission(active.id, "crm", "CREATE");
 
@@ -41,3 +42,6 @@ export async function POST(req: Request) {
   const lead = await createLead(active.companyId, active.id, parsed.data);
   return NextResponse.json(lead, { status: 201 });
 }
+
+export const GET = withApiErrors(handleGET);
+export const POST = withApiErrors(handlePOST);

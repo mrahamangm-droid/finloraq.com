@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { pageParams, withApiErrors } from "@/lib/apiHandler";
 import { requireTenantContext } from "@/lib/tenant";
 import { requirePermission } from "@/lib/rbac";
 import { createContact, listContacts } from "@/lib/crm";
@@ -15,20 +16,19 @@ const CreateContactSchema = z.object({
   customerId: z.string().optional().nullable(),
 });
 
-export async function GET(req: Request) {
+async function handleGET(req: Request) {
   const { active } = await requireTenantContext();
   await requirePermission(active.id, "crm", "VIEW");
 
   const url = new URL(req.url);
   const customerId = url.searchParams.get("customerId") ?? undefined;
-  const page  = parseInt(url.searchParams.get("page") ?? "1", 10);
-  const limit = parseInt(url.searchParams.get("limit") ?? "50", 10);
+  const { page, limit } = pageParams(url);
 
   const result = await listContacts(active.companyId, { customerId, page, limit });
   return NextResponse.json(result);
 }
 
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   const { active } = await requireTenantContext();
   await requirePermission(active.id, "crm", "CREATE");
 
@@ -39,3 +39,6 @@ export async function POST(req: Request) {
   const contact = await createContact(active.companyId, parsed.data);
   return NextResponse.json(contact, { status: 201 });
 }
+
+export const GET = withApiErrors(handleGET);
+export const POST = withApiErrors(handlePOST);

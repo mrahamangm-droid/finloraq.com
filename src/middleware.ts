@@ -77,6 +77,18 @@ export const config = {
     "/audit/:path*",
     "/ai-copilot/:path*",
     "/billing/:path*",
+    "/approvals/:path*",
+    "/credit-notes/:path*",
+    "/crm/:path*",
+    "/inventory/:path*",
+    "/products/:path*",
+    "/purchase-orders/:path*",
+    "/quotes/:path*",
+    "/recurring-invoices/:path*",
+    "/sales-orders/:path*",
+    // Every top-level folder under src/app/(app) must be listed above (and in
+    // next.config.mjs's CSP exclusion) — src/lib/appRouteProtection.test.ts
+    // fails the build otherwise.
     // Protect all API routes except NextAuth's own and the inbound
     // webhooks (email/WhatsApp/Stripe) — those are unauthenticated
     // server-to-server callbacks with no user session to check; each one
