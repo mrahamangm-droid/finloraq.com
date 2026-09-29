@@ -172,7 +172,17 @@ export function agingBucket(dueDate: Date, asOf: Date): AgingRow["bucket"] {
  *  bucketed by days past due date. Balance is total minus payments
  *  actually posted against that invoice (via JournalSourceType.PAYMENT
  *  entries whose sourceId is prefixed with the invoice id), not a status
- *  flag alone. */
+ *  flag alone.
+ *
+ *  total/paid/balance are all in base currency, not the invoice's own
+ *  currency — every caller (the control-account reconciliation in
+ *  src/lib/integrity.ts, the cash-flow forecast in src/lib/cashflow.ts,
+ *  and this page's own bucket totals) sums these across rows that can be
+ *  in different currencies, so a per-row figure in its own document
+ *  currency would silently misstate every one of those sums. `total` is
+ *  converted at the invoice's own booking rate; `paid` already is (it's
+ *  the raw AR credit sum from postings, which are always base currency).
+ */
 export async function arAging(companyId: string, asOf: Date = new Date()): Promise<AgingRow[]> {
   const [invoices, accountsReceivableCode] = await Promise.all([
     prisma.invoice.findMany({
@@ -188,16 +198,11 @@ export async function arAging(companyId: string, asOf: Date = new Date()): Promi
       where: { companyId, sourceType: "PAYMENT", sourceId: { startsWith: `${inv.id}:` }, status: "POSTED" },
       include: { lines: { include: { account: true } } },
     });
-    // The AR credit lines are in base currency; divide back by the
-    // invoice's own booking rate to get "paid" in the invoice's own
-    // currency, comparable to inv.total — same conversion sumInvoicePayments
-    // does in src/lib/sales.ts. For a base-currency invoice (rate 1) this is
-    // numerically identical to the raw base-currency sum.
-    const baseArCleared = sum(
+    const paid = sum(
       payments.flatMap((e: any) => e.lines.filter((l: any) => l.account.code === accountsReceivableCode)).map((l: any) => l.credit)
-    );
-    const paid = roundMoney(baseArCleared.dividedBy(inv.exchangeRate)).toNumber();
-    const balance = inv.total.toNumber() - paid;
+    ).toNumber();
+    const total = roundMoney(money(inv.total).times(inv.exchangeRate)).toNumber();
+    const balance = total - paid;
     if (balance <= 0.005) continue;
 
     rows.push({
@@ -205,7 +210,7 @@ export async function arAging(companyId: string, asOf: Date = new Date()): Promi
       number: inv.invoiceNumber,
       partyName: inv.customer.name,
       dueDate: inv.dueDate,
-      total: inv.total.toNumber(),
+      total,
       paid,
       balance,
       bucket: agingBucket(inv.dueDate, asOf),
@@ -214,7 +219,8 @@ export async function arAging(companyId: string, asOf: Date = new Date()): Promi
   return rows;
 }
 
-/** Accounts Payable aging — the same shape for bills. */
+/** Accounts Payable aging — the same shape for bills. total/paid/balance
+ *  are in base currency for the same reason as arAging() above. */
 export async function apAging(companyId: string, asOf: Date = new Date()): Promise<AgingRow[]> {
   const [bills, accountsPayableCode] = await Promise.all([
     prisma.bill.findMany({
@@ -230,16 +236,11 @@ export async function apAging(companyId: string, asOf: Date = new Date()): Promi
       where: { companyId, sourceType: "PAYMENT", sourceId: { startsWith: `${bill.id}:` }, status: "POSTED" },
       include: { lines: { include: { account: true } } },
     });
-    // The AP debit lines are in base currency; divide back by the bill's
-    // own booking rate to get "paid" in the bill's own currency, comparable
-    // to bill.total — same conversion sumBillPayments does in
-    // src/lib/purchases.ts. For a base-currency bill (rate 1) this is
-    // numerically identical to the raw base-currency sum.
-    const baseApCleared = sum(
+    const paid = sum(
       payments.flatMap((e: any) => e.lines.filter((l: any) => l.account.code === accountsPayableCode)).map((l: any) => l.debit)
-    );
-    const paid = roundMoney(baseApCleared.dividedBy(bill.exchangeRate)).toNumber();
-    const balance = bill.total.toNumber() - paid;
+    ).toNumber();
+    const total = roundMoney(money(bill.total).times(bill.exchangeRate)).toNumber();
+    const balance = total - paid;
     if (balance <= 0.005) continue;
 
     rows.push({
@@ -247,7 +248,7 @@ export async function apAging(companyId: string, asOf: Date = new Date()): Promi
       number: bill.billNumber,
       partyName: bill.supplier.name,
       dueDate: bill.dueDate,
-      total: bill.total.toNumber(),
+      total,
       paid,
       balance,
       bucket: agingBucket(bill.dueDate, asOf),
