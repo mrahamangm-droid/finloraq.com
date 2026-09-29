@@ -15,6 +15,7 @@ const AREA_LABEL: Record<Module, string> = {
   suppliers: "suppliers",
   crm: "the CRM",
   quotes: "quotes",
+  sales_orders: "sales orders",
   purchase_orders: "purchase orders",
   credit_notes: "credit notes",
   recurring_invoices: "recurring invoices",

@@ -22,6 +22,7 @@ export type Module =
   | "suppliers"
   | "crm"
   | "quotes"
+  | "sales_orders"
   | "purchase_orders"
   | "credit_notes"
   | "recurring_invoices"
@@ -53,7 +54,7 @@ const DEFAULT_MATRIX: Record<CompanyRole, Partial<Record<Module, PermissionActio
   COMPANY_ADMIN: Object.fromEntries(
     ([
       "dashboard", "accounting", "journals", "sales", "invoices", "purchases", "bills",
-      "expenses", "banking", "customers", "suppliers", "crm", "quotes", "purchase_orders",
+      "expenses", "banking", "customers", "suppliers", "crm", "quotes", "sales_orders", "purchase_orders",
       "credit_notes", "recurring_invoices", "products", "inventory", "projects", "taxes", "reports",
       "documents", "users", "settings", "audit", "ai_copilot", "workflows", "approvals",
     ] as Module[]).map((m) => [m, ALL])
@@ -76,6 +77,7 @@ const DEFAULT_MATRIX: Record<CompanyRole, Partial<Record<Module, PermissionActio
     products: VIEW_EXPORT,
     inventory: VIEW_EXPORT,
     quotes: VIEW_EXPORT,
+    sales_orders: VIEW_EXPORT,
     purchase_orders: VIEW_EXPORT,
     credit_notes: ["VIEW", "APPROVE", "EXPORT"],
     recurring_invoices: VIEW_EXPORT,
@@ -106,6 +108,7 @@ const DEFAULT_MATRIX: Record<CompanyRole, Partial<Record<Module, PermissionActio
     products: VIEW_CREATE_EDIT,
     inventory: VIEW_CREATE_EDIT,
     quotes: VIEW_CREATE_EDIT,
+    sales_orders: VIEW_CREATE_EDIT,
     purchase_orders: VIEW_CREATE_EDIT,
     credit_notes: ["VIEW", "CREATE", "EDIT", "APPROVE"],
     recurring_invoices: VIEW_CREATE_EDIT,
@@ -136,6 +139,7 @@ const DEFAULT_MATRIX: Record<CompanyRole, Partial<Record<Module, PermissionActio
     products: VIEW_CREATE_EDIT, // accountants manage product/service catalog
     inventory: VIEW_CREATE_EDIT, // accountants track stock movements
     quotes: VIEW_ONLY, // quotes that became invoices are visible for context
+    sales_orders: VIEW_CREATE_EDIT, // shipments off a sales order drive COGS postings
     purchase_orders: VIEW_CREATE_EDIT, // bills come from POs
     credit_notes: VIEW_CREATE_EDIT, // can draft; posting requires APPROVE which finance managers hold
     recurring_invoices: VIEW_CREATE_EDIT, // accountants manage the template schedule
@@ -158,6 +162,7 @@ const DEFAULT_MATRIX: Record<CompanyRole, Partial<Record<Module, PermissionActio
     crm: VIEW_CREATE_EDIT, // staff handle day-to-day CRM: leads, contacts, deals
     products: VIEW_ONLY, // staff can browse the catalog but not modify it
     quotes: VIEW_CREATE_EDIT, // staff can create and send quotes
+    sales_orders: VIEW_CREATE_EDIT, // staff can raise orders; shipping still needs inventory:EDIT-equivalent judgment calls left to whoever records it
     purchase_orders: [], // purchasing is finance/management territory
     credit_notes: [], // credit notes are a finance function
     recurring_invoices: [], // recurring invoice templates are a finance function
@@ -169,7 +174,7 @@ const DEFAULT_MATRIX: Record<CompanyRole, Partial<Record<Module, PermissionActio
   AUDITOR: Object.fromEntries(
     ([
       "dashboard", "accounting", "journals", "sales", "invoices", "purchases", "bills",
-      "expenses", "banking", "customers", "suppliers", "crm", "quotes", "purchase_orders",
+      "expenses", "banking", "customers", "suppliers", "crm", "quotes", "sales_orders", "purchase_orders",
       "credit_notes", "recurring_invoices", "products", "inventory", "projects", "taxes", "reports",
       "documents", "audit", "approvals",
     ] as Module[]).map((m) => [m, VIEW_EXPORT])
