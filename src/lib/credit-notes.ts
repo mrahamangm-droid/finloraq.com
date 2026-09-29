@@ -175,9 +175,9 @@ export async function postCreditNote(
   if (cn.journalEntryId) throw new Error("Credit note is already posted.");
 
   const postingLines = buildCreditNotePosting({
-    subtotal: cn.subtotal,
-    taxTotal: cn.taxTotal,
-    total: cn.total,
+    subtotal: cn.subtotal.toNumber(),
+    taxTotal: cn.taxTotal.toNumber(),
+    total: cn.total.toNumber(),
   });
 
   // Validate double-entry balance before posting

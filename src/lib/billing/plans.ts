@@ -1,4 +1,4 @@
-import type { SubscriptionPlan } from "@/lib/prisma-enums";
+import type { SubscriptionPlan } from "@prisma/client";
 import type { BillingCurrency } from "@/lib/billing/currency";
 
 /**

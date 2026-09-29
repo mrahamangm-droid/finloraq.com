@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { CustomFieldEntity, CustomFieldType } from "@/lib/prisma-enums";
+import type { CustomFieldEntity, CustomFieldType } from "@prisma/client";
 import { requireTenantContext } from "@/lib/tenant";
 import { ForbiddenError } from "@/lib/rbac";
 import {

@@ -52,9 +52,9 @@ export default async function CustomerDetailPage(props: { params: Promise<{ id: 
     }).catch(() => []),  // graceful if CreditNote model not available
     prisma.crmActivity.findMany({
       where: { companyId: active.companyId, customerId: id },
-      orderBy: { dueDate: "desc" },
+      orderBy: { dueAt: "desc" },
       take: 10,
-      select: { id: true, type: true, subject: true, dueDate: true, completedAt: true },
+      select: { id: true, type: true, subject: true, dueAt: true, doneAt: true },
     }).catch(() => []),
   ]);
 
@@ -238,8 +238,8 @@ export default async function CustomerDetailPage(props: { params: Promise<{ id: 
                   <p className="mt-0.5 text-xs text-muted-foreground">{a.type}</p>
                 </div>
                 <div className="ml-4 shrink-0 text-right">
-                  <p className="text-xs text-muted-foreground">{fmt.date(new Date(a.dueDate))}</p>
-                  {a.completedAt && (
+                  <p className="text-xs text-muted-foreground">{fmt.date(new Date(a.dueAt))}</p>
+                  {a.doneAt && (
                     <p className="text-xs text-emerald-600 dark:text-emerald-400">Done</p>
                   )}
                 </div>

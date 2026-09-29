@@ -16,7 +16,7 @@
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/rbac";
 import { recordAuditEvent } from "@/lib/audit";
-import type { CompanyRole } from "@/lib/prisma-enums";
+import type { CompanyRole } from "@prisma/client";
 
 // ─── Role hierarchy ────────────────────────────────────────────────────────────
 // Higher number = more authority. Used to decide whether a caller's role

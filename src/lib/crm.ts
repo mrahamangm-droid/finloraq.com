@@ -7,7 +7,7 @@
  */
 
 import { prisma } from "@/lib/db";
-import type { LeadStatus, ActivityType, ActivityStatus } from "@/lib/prisma-enums";
+import type { LeadStatus, ActivityType, ActivityStatus } from "@prisma/client";
 
 // ─────────────────────────────────────────────────────────────────────────
 // Pipelines

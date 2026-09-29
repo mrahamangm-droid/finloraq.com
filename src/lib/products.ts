@@ -12,7 +12,7 @@
  */
 
 import { prisma } from "@/lib/db";
-import type { ProductType } from "@/lib/prisma-enums";
+import type { ProductType } from "@prisma/client";
 
 export interface ProductInput {
   name: string;

@@ -346,7 +346,7 @@ export async function sumInvoicePayments(companyId: string, invoiceId: string) {
   const bankDebits = entries.flatMap((e: any) => e.lines.filter((l: any) => l.account.code === "1000"));
   const cashPaid = sum(bankDebits.map((l: any) => l.debit));
   const creditApplied = appliedCreditNotes.reduce((s: number, cn: any) => s + Number(cn.total), 0);
-  return roundMoney(cashPaid + creditApplied);
+  return roundMoney(cashPaid.plus(creditApplied));
 }
 
 /**

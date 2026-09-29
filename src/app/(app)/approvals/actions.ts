@@ -6,7 +6,7 @@ import { decideApproval, getApprovalForEntity } from "@/lib/workflow";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/rbac";
 import { roleAtLeast } from "@/lib/workflow";
-import type { CompanyRole } from "@/lib/prisma-enums";
+import type { CompanyRole } from "@prisma/client";
 import { postDraftJournalEntry } from "@/lib/ledger";
 
 /**

@@ -1,5 +1,5 @@
 import type { Prisma } from "@prisma/client";
-import type { JournalSourceType, CompanyRole } from "@/lib/prisma-enums";
+import type { JournalSourceType, CompanyRole } from "@prisma/client";
 import Decimal from "decimal.js";
 import { prisma } from "@/lib/db";
 import { NotFoundError } from "@/lib/errors";

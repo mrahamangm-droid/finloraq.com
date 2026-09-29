@@ -4,10 +4,11 @@ import { requireTenantContext } from "@/lib/tenant";
 import { requirePermission } from "@/lib/rbac";
 import { getBudget } from "@/lib/budget";
 import { prisma } from "@/lib/db";
+import { AccountType } from "@prisma/client";
 import { BudgetEditor } from "@/components/budgets/budget-editor";
 
 // Account types we want in the budget editor
-const BUDGET_ACCOUNT_TYPES = ["REVENUE", "EXPENSE"];
+const BUDGET_ACCOUNT_TYPES: AccountType[] = [AccountType.REVENUE, AccountType.EXPENSE];
 
 interface EditBudgetPageProps {
   params: Promise<{ id: string }>;

@@ -88,9 +88,14 @@ export const config = {
     // marketing site — no user data).
     // /api/pay/* is the public "Pay now" checkout for invoice links —
     // protected by its unguessable token instead of a session.
+    // /api/cron/* is invoked by the scheduler (Vercel Cron), which has no
+    // user session — each route verifies its own CRON_SECRET bearer token
+    // instead (see src/app/api/cron/*/route.ts). Without this exclusion,
+    // withAuth would 401 every cron invocation before it ever reached that
+    // check.
     // NB: the lookahead must sit in front of `.*` — the previous form
     // "/api/((?!auth|webhooks|public).)*" compiled to single-character
     // segments and never matched real paths like /api/billing/subscription.
-    "/api/((?!auth/|auth$|webhooks/|public/|pay/).*)",
+    "/api/((?!auth/|auth$|webhooks/|public/|pay/|cron/).*)",
   ],
 };

@@ -1,4 +1,4 @@
-import type { CompanyRole, PermissionAction } from "@/lib/prisma-enums";
+import type { CompanyRole, PermissionAction } from "@prisma/client";
 import { prisma } from "@/lib/db";
 
 /**

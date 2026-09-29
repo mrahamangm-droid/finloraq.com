@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { AccountType } from "@/lib/prisma-enums";
+import type { AccountType } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { can, requirePermission, ForbiddenError } from "@/lib/rbac";
 import { recordAuditEvent } from "@/lib/audit";

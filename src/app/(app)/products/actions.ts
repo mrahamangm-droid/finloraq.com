@@ -16,7 +16,7 @@ export async function createProductAction(formData: FormData) {
   const reorderPoint = reorderPointRaw ? parseFloat(String(reorderPointRaw)) : null;
   const trackInventory = formData.get("trackInventory") === "on";
 
-  const product = await createProduct(active.companyId, {
+  await createProduct(active.companyId, {
     name: String(formData.get("name") ?? "").trim(),
     description: String(formData.get("description") ?? "").trim() || null,
     sku: String(formData.get("sku") ?? "").trim() || null,
@@ -34,7 +34,6 @@ export async function createProductAction(formData: FormData) {
 
   revalidatePath("/products");
   redirect(`/products`);
-  return product;
 }
 
 export async function updateProductAction(id: string, formData: FormData) {

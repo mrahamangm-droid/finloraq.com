@@ -1,4 +1,4 @@
-import type { CompanyRole } from "@/lib/prisma-enums";
+import type { CompanyRole } from "@prisma/client";
 
 /**
  * Amount-based approval routing for expenses (spec section 13), read from

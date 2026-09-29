@@ -14,6 +14,7 @@
  */
 
 import { randomBytes } from "crypto";
+import { InvoiceStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/rbac";
 import { SITE_URL } from "@/lib/site";
@@ -53,8 +54,8 @@ function mintToken(): string {
   return randomBytes(24).toString("base64url");
 }
 
-const OPEN_STATUSES = ["SENT", "OVERDUE", "PARTIALLY_PAID"];
-const PAID_STATUSES = ["PAID"];
+const OPEN_STATUSES: InvoiceStatus[] = [InvoiceStatus.SENT, InvoiceStatus.OVERDUE, InvoiceStatus.PARTIALLY_PAID];
+const PAID_STATUSES: InvoiceStatus[] = [InvoiceStatus.PAID];
 
 // ─── Public read — no auth required (token IS the credential) ─────────────────
 

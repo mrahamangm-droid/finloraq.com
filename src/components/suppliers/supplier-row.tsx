@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import type { Supplier } from "@/lib/prisma-enums";
+import type { Supplier } from "@prisma/client";
 import { displayFieldValue, type FieldDef } from "@/lib/customization/customFields";
 import { CustomFieldInputs, fieldValues } from "@/components/custom-fields/custom-field-inputs";
 import { updateSupplierAction, deleteSupplierAction, setSupplierActiveAction, type ActionResult } from "@/app/(app)/suppliers/actions";

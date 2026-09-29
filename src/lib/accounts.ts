@@ -1,4 +1,4 @@
-import type { AccountType } from "@/lib/prisma-enums";
+import type { AccountType } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { NotFoundError } from "@/lib/errors";
 import { requirePermission } from "@/lib/rbac";

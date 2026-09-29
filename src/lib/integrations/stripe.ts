@@ -1,4 +1,4 @@
-import type { SubscriptionPlan } from "@/lib/prisma-enums";
+import type { SubscriptionPlan } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { recordAuditEvent } from "@/lib/audit";
 import { planDefinition } from "@/lib/billing/plans";

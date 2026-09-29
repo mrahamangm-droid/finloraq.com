@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import type { Pipeline, PipelineStage } from "@/lib/prisma-enums";
+import type { Pipeline, PipelineStage } from "@prisma/client";
 
 interface Props {
   pipeline: Pipeline & { stages: PipelineStage[] };

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireTenantContext } from "@/lib/tenant";
 import { requirePermission, can } from "@/lib/rbac";
 import { listProducts } from "@/lib/products";
-import type { ProductType } from "@/lib/prisma-enums";
+import type { ProductType } from "@prisma/client";
 
 interface ProductRow {
   id: string;

@@ -7,7 +7,7 @@ import {
   updateWorkflowRule,
   deleteWorkflowRule,
 } from "@/lib/workflow";
-import type { CompanyRole } from "@/lib/prisma-enums";
+import type { CompanyRole } from "@prisma/client";
 
 export async function createWorkflowRuleAction(formData: FormData) {
   const { active } = await requireTenantContext();

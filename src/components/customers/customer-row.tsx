@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import type { Customer } from "@/lib/prisma-enums";
+import type { Customer } from "@prisma/client";
 import { displayFieldValue, type FieldDef } from "@/lib/customization/customFields";
 import { CustomFieldInputs, fieldValues } from "@/components/custom-fields/custom-field-inputs";
 import { updateCustomerAction, deleteCustomerAction, setCustomerActiveAction, type ActionResult } from "@/app/(app)/customers/actions";

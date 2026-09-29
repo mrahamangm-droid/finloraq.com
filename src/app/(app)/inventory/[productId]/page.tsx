@@ -131,7 +131,10 @@ export default async function InventoryProductPage(props: {
         <div className="rounded-lg border border-border bg-card p-4">
           <h2 className="mb-3 text-sm font-semibold text-card-foreground">Set Opening Stock</h2>
           <form
-            action={setOpeningStockAction.bind(null, productId)}
+            action={async (formData: FormData) => {
+              "use server";
+              await setOpeningStockAction(productId, formData);
+            }}
             className="grid grid-cols-1 gap-3 sm:grid-cols-4"
           >
             <div>
@@ -188,7 +191,10 @@ export default async function InventoryProductPage(props: {
             Use a positive quantity to add stock (e.g. +10 for received goods) or a negative quantity to remove it (e.g. -5 for a write-off).
           </p>
           <form
-            action={adjustStockAction.bind(null, productId)}
+            action={async (formData: FormData) => {
+              "use server";
+              await adjustStockAction(productId, formData);
+            }}
             className="grid grid-cols-1 gap-3 sm:grid-cols-4"
           >
             <div>
