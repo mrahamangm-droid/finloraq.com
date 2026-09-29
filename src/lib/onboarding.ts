@@ -14,7 +14,7 @@ const UAE_TAX_CODES = [
  *  to have real accounts to hit (AR, AP, Bank, Revenue, Output/Input Tax).
  *  Full country-specific COA templates are a Phase 2+ enhancement. */
 const STARTER_ACCOUNTS: { code: string; name: string; type: "ASSET" | "LIABILITY" | "EQUITY" | "REVENUE" | "EXPENSE"; isSystem?: boolean }[] = [
-  { code: "1000", name: "Bank", type: "ASSET" },
+  { code: "1000", name: "Bank", type: "ASSET", isSystem: true },
   { code: "1100", name: "Accounts Receivable", type: "ASSET", isSystem: true },
   { code: "1200", name: "Input Tax Receivable", type: "ASSET", isSystem: true },
   { code: "2000", name: "Accounts Payable", type: "LIABILITY", isSystem: true },
