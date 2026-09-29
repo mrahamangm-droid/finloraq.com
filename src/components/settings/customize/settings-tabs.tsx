@@ -10,6 +10,8 @@ const TABS = [
   { href: "/settings/custom-fields", label: "Custom fields" },
   { href: "/settings/approvals", label: "Approvals" },
   { href: "/settings/navigation", label: "Menu" },
+  // Lives at /billing (plan, invoices, "Manage billing" → Stripe portal); linked here so it's findable from Settings.
+  { href: "/billing", label: "Billing & plan" },
 ];
 
 export function SettingsTabs() {
