@@ -481,22 +481,24 @@ export function buildInvoicePosting(input: {
   subtotal: Decimal.Value;
   taxTotal: Decimal.Value;
   total: Decimal.Value;
+  accountsReceivableCode?: string;
+  outputTaxCode?: string;
 }): LineInput[] {
   const lines: LineInput[] = [
-    { accountCode: "1100", debit: input.total, description: "Accounts Receivable" },
+    { accountCode: input.accountsReceivableCode ?? "1100", debit: input.total, description: "Accounts Receivable" },
     { accountCode: "4000", credit: input.subtotal, description: "Sales Revenue" },
   ];
   if (!isZero(input.taxTotal)) {
-    lines.push({ accountCode: "2100", credit: input.taxTotal, description: "Output Tax Payable" });
+    lines.push({ accountCode: input.outputTaxCode ?? "2100", credit: input.taxTotal, description: "Output Tax Payable" });
   }
   return lines;
 }
 
 /** Customer payment: DR Bank, CR Accounts Receivable */
-export function buildInvoicePaymentPosting(input: { amount: Decimal.Value; bankAccountCode?: string }): LineInput[] {
+export function buildInvoicePaymentPosting(input: { amount: Decimal.Value; bankAccountCode?: string; accountsReceivableCode?: string }): LineInput[] {
   return [
     { accountCode: input.bankAccountCode ?? "1000", debit: input.amount, description: "Bank" },
-    { accountCode: "1100", credit: input.amount, description: "Accounts Receivable" },
+    { accountCode: input.accountsReceivableCode ?? "1100", credit: input.amount, description: "Accounts Receivable" },
   ];
 }
 
@@ -506,21 +508,23 @@ export function buildBillPosting(input: {
   taxTotal: Decimal.Value;
   total: Decimal.Value;
   expenseAccountCode?: string;
+  inputTaxCode?: string;
+  accountsPayableCode?: string;
 }): LineInput[] {
   const lines: LineInput[] = [
     { accountCode: input.expenseAccountCode ?? "5000", debit: input.subtotal, description: "Expense" },
   ];
   if (!isZero(input.taxTotal)) {
-    lines.push({ accountCode: "1200", debit: input.taxTotal, description: "Input Tax Receivable" });
+    lines.push({ accountCode: input.inputTaxCode ?? "1200", debit: input.taxTotal, description: "Input Tax Receivable" });
   }
-  lines.push({ accountCode: "2000", credit: input.total, description: "Accounts Payable" });
+  lines.push({ accountCode: input.accountsPayableCode ?? "2000", credit: input.total, description: "Accounts Payable" });
   return lines;
 }
 
 /** Supplier payment: DR Accounts Payable, CR Bank */
-export function buildSupplierPaymentPosting(input: { amount: Decimal.Value; bankAccountCode?: string }): LineInput[] {
+export function buildSupplierPaymentPosting(input: { amount: Decimal.Value; bankAccountCode?: string; accountsPayableCode?: string }): LineInput[] {
   return [
-    { accountCode: "2000", debit: input.amount, description: "Accounts Payable" },
+    { accountCode: input.accountsPayableCode ?? "2000", debit: input.amount, description: "Accounts Payable" },
     { accountCode: input.bankAccountCode ?? "1000", credit: input.amount, description: "Bank" },
   ];
 }
@@ -533,12 +537,13 @@ export function buildExpensePosting(input: {
   taxAmount?: Decimal.Value;
   expenseAccountCode?: string;
   bankAccountCode?: string;
+  inputTaxCode?: string;
 }): LineInput[] {
   const lines: LineInput[] = [
     { accountCode: input.expenseAccountCode ?? "5000", debit: input.amount, description: "Expense" },
   ];
   if (input.taxAmount && !isZero(input.taxAmount)) {
-    lines.push({ accountCode: "1200", debit: input.taxAmount, description: "Input Tax Receivable" });
+    lines.push({ accountCode: input.inputTaxCode ?? "1200", debit: input.taxAmount, description: "Input Tax Receivable" });
   }
   const total = money(input.amount).plus(input.taxAmount ?? 0);
   lines.push({ accountCode: input.bankAccountCode ?? "1000", credit: total, description: "Bank" });

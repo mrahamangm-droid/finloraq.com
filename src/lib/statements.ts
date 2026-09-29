@@ -13,7 +13,7 @@
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/rbac";
 import { sum, roundMoney } from "@/lib/currency";
-import { getBankAccountCode } from "@/lib/accounts";
+import { getBankAccountCode, getAccountsPayableCode } from "@/lib/accounts";
 import Decimal from "decimal.js";
 
 export type StatementEntryType = "INVOICE" | "PAYMENT" | "CREDIT_NOTE" | "BILL" | "BILL_PAYMENT";
@@ -351,17 +351,20 @@ async function sumBillPaymentsBefore(
   billId: string,
   before: Date
 ): Promise<Decimal> {
-  const entries = await prisma.journalEntry.findMany({
-    where: {
-      companyId,
-      sourceType: "PAYMENT",
-      sourceId: { startsWith: `${billId}:` },
-      status: "POSTED",
-      date: { lt: before },
-    },
-    include: { lines: { include: { account: true } } },
-  });
-  const apCredits = entries.flatMap((e: any) => e.lines.filter((l: any) => l.account.code === "2000"));
+  const [entries, accountsPayableCode] = await Promise.all([
+    prisma.journalEntry.findMany({
+      where: {
+        companyId,
+        sourceType: "PAYMENT",
+        sourceId: { startsWith: `${billId}:` },
+        status: "POSTED",
+        date: { lt: before },
+      },
+      include: { lines: { include: { account: true } } },
+    }),
+    getAccountsPayableCode(companyId),
+  ]);
+  const apCredits = entries.flatMap((e: any) => e.lines.filter((l: any) => l.account.code === accountsPayableCode));
   return roundMoney(sum(apCredits.map((l: any) => l.debit)));
 }
 
@@ -373,15 +376,18 @@ async function periodPaymentsForBills(
 ): Promise<Array<{ date: Date; entryNumber: string; memo: string | null; amount: number }>> {
   if (billIds.length === 0) return [];
 
-  const entries = await prisma.journalEntry.findMany({
-    where: {
-      companyId,
-      sourceType: "PAYMENT",
-      status: "POSTED",
-      date: { gte: from, lte: to },
-    },
-    include: { lines: { include: { account: true } } },
-  });
+  const [entries, accountsPayableCode] = await Promise.all([
+    prisma.journalEntry.findMany({
+      where: {
+        companyId,
+        sourceType: "PAYMENT",
+        status: "POSTED",
+        date: { gte: from, lte: to },
+      },
+      include: { lines: { include: { account: true } } },
+    }),
+    getAccountsPayableCode(companyId),
+  ]);
 
   const result = [];
   for (const entry of entries) {
@@ -389,7 +395,7 @@ async function periodPaymentsForBills(
     const isForOneOfOurBills = billIds.some((id) => entry.sourceId!.startsWith(`${id}:`));
     if (!isForOneOfOurBills) continue;
 
-    const apDebits = entry.lines.filter((l: any) => l.account.code === "2000");
+    const apDebits = entry.lines.filter((l: any) => l.account.code === accountsPayableCode);
     const amount = roundMoney(sum(apDebits.map((l: any) => l.debit))).toNumber();
     if (amount > 0.005) {
       result.push({

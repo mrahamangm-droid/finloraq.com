@@ -122,8 +122,8 @@ export async function runIntegrityCheck(companyId: string, asOf: Date = new Date
   const allLines = entries.flatMap((e: any) => e.lines);
 
   const [arControlAccount, apControlAccount] = await Promise.all([
-    prisma.account.findFirst({ where: { companyId, code: "1100" } }),
-    prisma.account.findFirst({ where: { companyId, code: "2000" } }),
+    prisma.account.findFirst({ where: { companyId, purpose: "ACCOUNTS_RECEIVABLE" } }),
+    prisma.account.findFirst({ where: { companyId, purpose: "ACCOUNTS_PAYABLE" } }),
   ]);
   const [arControlLines, apControlLines] = await Promise.all([
     arControlAccount
