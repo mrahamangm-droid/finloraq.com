@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { sum, roundMoney, money } from "@/lib/currency";
+import { getAccountsReceivableCode, getAccountsPayableCode } from "@/lib/accounts";
 import type Decimal from "decimal.js";
 
 /**
@@ -173,10 +174,13 @@ export function agingBucket(dueDate: Date, asOf: Date): AgingRow["bucket"] {
  *  entries whose sourceId is prefixed with the invoice id), not a status
  *  flag alone. */
 export async function arAging(companyId: string, asOf: Date = new Date()): Promise<AgingRow[]> {
-  const invoices = await prisma.invoice.findMany({
-    where: { companyId, status: { in: ["SENT", "PARTIALLY_PAID", "OVERDUE"] } },
-    include: { customer: true },
-  });
+  const [invoices, accountsReceivableCode] = await Promise.all([
+    prisma.invoice.findMany({
+      where: { companyId, status: { in: ["SENT", "PARTIALLY_PAID", "OVERDUE"] } },
+      include: { customer: true },
+    }),
+    getAccountsReceivableCode(companyId),
+  ]);
 
   const rows: AgingRow[] = [];
   for (const inv of invoices) {
@@ -185,7 +189,7 @@ export async function arAging(companyId: string, asOf: Date = new Date()): Promi
       include: { lines: { include: { account: true } } },
     });
     const paid = sum(
-      payments.flatMap((e: any) => e.lines.filter((l: any) => l.account.code === "1100")).map((l: any) => l.credit)
+      payments.flatMap((e: any) => e.lines.filter((l: any) => l.account.code === accountsReceivableCode)).map((l: any) => l.credit)
     ).toNumber();
     const balance = inv.total.toNumber() - paid;
     if (balance <= 0.005) continue;
@@ -206,10 +210,13 @@ export async function arAging(companyId: string, asOf: Date = new Date()): Promi
 
 /** Accounts Payable aging — the same shape for bills. */
 export async function apAging(companyId: string, asOf: Date = new Date()): Promise<AgingRow[]> {
-  const bills = await prisma.bill.findMany({
-    where: { companyId, status: { in: ["APPROVED", "PARTIALLY_PAID", "OVERDUE"] } },
-    include: { supplier: true },
-  });
+  const [bills, accountsPayableCode] = await Promise.all([
+    prisma.bill.findMany({
+      where: { companyId, status: { in: ["APPROVED", "PARTIALLY_PAID", "OVERDUE"] } },
+      include: { supplier: true },
+    }),
+    getAccountsPayableCode(companyId),
+  ]);
 
   const rows: AgingRow[] = [];
   for (const bill of bills) {
@@ -218,7 +225,7 @@ export async function apAging(companyId: string, asOf: Date = new Date()): Promi
       include: { lines: { include: { account: true } } },
     });
     const paid = sum(
-      payments.flatMap((e: any) => e.lines.filter((l: any) => l.account.code === "2000")).map((l: any) => l.debit)
+      payments.flatMap((e: any) => e.lines.filter((l: any) => l.account.code === accountsPayableCode)).map((l: any) => l.debit)
     ).toNumber();
     const balance = bill.total.toNumber() - paid;
     if (balance <= 0.005) continue;
@@ -243,8 +250,8 @@ export async function apAging(companyId: string, asOf: Date = new Date()): Promi
  *  negative = a refund/credit position. */
 export async function vatReturn(companyId: string, from: Date, to: Date) {
   const [outputAccount, inputAccount] = await Promise.all([
-    prisma.account.findFirst({ where: { companyId, code: "2100" } }),
-    prisma.account.findFirst({ where: { companyId, code: "1200" } }),
+    prisma.account.findFirst({ where: { companyId, purpose: "OUTPUT_TAX_PAYABLE" } }),
+    prisma.account.findFirst({ where: { companyId, purpose: "INPUT_TAX_RECEIVABLE" } }),
   ]);
 
   const lines = await prisma.journalLine.findMany({

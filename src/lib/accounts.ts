@@ -1,4 +1,4 @@
-import type { AccountType } from "@prisma/client";
+import type { AccountType, SystemAccountPurpose } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { NotFoundError } from "@/lib/errors";
 import { requirePermission } from "@/lib/rbac";
@@ -204,17 +204,32 @@ export async function deleteAccount(params: {
 }
 
 /**
- * Resolves this company's Bank account code instead of assuming the literal
- * "1000" — that code is only guaranteed for companies onboarded after
+ * Resolves one of this company's five well-known system accounts by role
+ * instead of assuming a literal code ("1000" for Bank, "1100" for AR, etc.)
+ * — those codes are only guaranteed for companies onboarded after
  * Account.purpose existed (see the account_system_purpose migration's
- * backfill). Every posting/reporting path that needs "the Bank line" should
- * call this once and pass the result through, rather than hard-coding the
- * code directly.
+ * backfill). Every posting/reporting path that needs one of these accounts
+ * should resolve it once via this (or one of the named wrappers below) and
+ * pass the result through, rather than hard-coding the code directly.
  */
-export async function getBankAccountCode(companyId: string): Promise<string> {
-  const account = await prisma.account.findFirst({ where: { companyId, purpose: "BANK" } });
+export async function getSystemAccountCode(companyId: string, purpose: SystemAccountPurpose): Promise<string> {
+  const account = await prisma.account.findFirst({ where: { companyId, purpose } });
   if (!account) {
-    throw new NotFoundError("This company has no Bank account configured.");
+    throw new NotFoundError(`This company has no ${SYSTEM_ACCOUNT_LABEL[purpose]} account configured.`);
   }
   return account.code;
 }
+
+const SYSTEM_ACCOUNT_LABEL: Record<SystemAccountPurpose, string> = {
+  BANK: "Bank",
+  ACCOUNTS_RECEIVABLE: "Accounts Receivable",
+  INPUT_TAX_RECEIVABLE: "Input Tax Receivable",
+  ACCOUNTS_PAYABLE: "Accounts Payable",
+  OUTPUT_TAX_PAYABLE: "Output Tax Payable",
+};
+
+export const getBankAccountCode = (companyId: string) => getSystemAccountCode(companyId, "BANK");
+export const getAccountsReceivableCode = (companyId: string) => getSystemAccountCode(companyId, "ACCOUNTS_RECEIVABLE");
+export const getInputTaxReceivableCode = (companyId: string) => getSystemAccountCode(companyId, "INPUT_TAX_RECEIVABLE");
+export const getAccountsPayableCode = (companyId: string) => getSystemAccountCode(companyId, "ACCOUNTS_PAYABLE");
+export const getOutputTaxPayableCode = (companyId: string) => getSystemAccountCode(companyId, "OUTPUT_TAX_PAYABLE");

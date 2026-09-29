@@ -8,7 +8,7 @@ import { postJournalEntry, buildBillPosting, buildSupplierPaymentPosting, Invali
 import { roundMoney, sum } from "@/lib/currency";
 import { nextDocumentNumber } from "@/lib/numbering";
 import { computeTaxedLines } from "@/lib/taxCalc";
-import { getBankAccountCode } from "@/lib/accounts";
+import { getBankAccountCode, getInputTaxReceivableCode, getAccountsPayableCode } from "@/lib/accounts";
 import { foreignReferenceProblem } from "@/lib/tenantRefs";
 
 export interface BillLineInput {
@@ -219,6 +219,11 @@ export async function approveAndPostBill(params: {
     throw new InvalidLineError("Only a draft bill can be approved and posted.");
   }
 
+  const [inputTaxCode, accountsPayableCode] = await Promise.all([
+    getInputTaxReceivableCode(params.companyId),
+    getAccountsPayableCode(params.companyId),
+  ]);
+
   const entry = await postJournalEntry({
     companyId: params.companyId,
     membershipId: params.membershipId,
@@ -233,6 +238,8 @@ export async function approveAndPostBill(params: {
       taxTotal: bill.taxTotal,
       total: bill.total,
       expenseAccountCode: params.expenseAccountCode,
+      inputTaxCode,
+      accountsPayableCode,
     }),
     post: true,
   });
@@ -288,7 +295,10 @@ export async function recordSupplierPayment(params: {
   }
 
   const paymentId = `${bill.id}:${Date.now()}`;
-  const bankAccountCode = await getBankAccountCode(params.companyId);
+  const [bankAccountCode, accountsPayableCode] = await Promise.all([
+    getBankAccountCode(params.companyId),
+    getAccountsPayableCode(params.companyId),
+  ]);
 
   const entry = await postJournalEntry({
     companyId: params.companyId,
@@ -300,7 +310,7 @@ export async function recordSupplierPayment(params: {
     memo: `Payment sent — Bill ${bill.billNumber}`,
     currency: bill.currency,
     inheritsPostedCurrency: true, // settles a bill that is already posted
-    lines: buildSupplierPaymentPosting({ amount: params.amount, bankAccountCode }),
+    lines: buildSupplierPaymentPosting({ amount: params.amount, bankAccountCode, accountsPayableCode }),
     post: true,
   });
 

@@ -9,7 +9,7 @@ import { roundMoney, sum } from "@/lib/currency";
 import { nextDocumentNumber } from "@/lib/numbering";
 import { computeTaxedLines } from "@/lib/taxCalc";
 import { foreignReferenceProblem } from "@/lib/tenantRefs";
-import { getBankAccountCode } from "@/lib/accounts";
+import { getBankAccountCode, getAccountsReceivableCode, getOutputTaxPayableCode } from "@/lib/accounts";
 
 export interface InvoiceLineInput {
   description: string;
@@ -230,6 +230,11 @@ export async function postInvoiceToLedger(params: {
     throw new InvalidLineError("Only a draft invoice can be posted.");
   }
 
+  const [accountsReceivableCode, outputTaxCode] = await Promise.all([
+    getAccountsReceivableCode(params.companyId),
+    getOutputTaxPayableCode(params.companyId),
+  ]);
+
   const entry = await postJournalEntry({
     companyId: params.companyId,
     membershipId: params.membershipId,
@@ -239,7 +244,7 @@ export async function postInvoiceToLedger(params: {
     sourceId: invoice.id,
     memo: `Invoice ${invoice.invoiceNumber}`,
     currency: invoice.currency,
-    lines: buildInvoicePosting({ subtotal: invoice.subtotal, taxTotal: invoice.taxTotal, total: invoice.total }),
+    lines: buildInvoicePosting({ subtotal: invoice.subtotal, taxTotal: invoice.taxTotal, total: invoice.total, accountsReceivableCode, outputTaxCode }),
     post: true,
   });
 
@@ -309,7 +314,10 @@ export async function recordInvoicePayment(params: {
 
   // unique per payment so multiple partial payments can each post
   const paymentId = `${invoice.id}:${params.sourceRef ?? Date.now()}`;
-  const bankAccountCode = await getBankAccountCode(params.companyId);
+  const [bankAccountCode, accountsReceivableCode] = await Promise.all([
+    getBankAccountCode(params.companyId),
+    getAccountsReceivableCode(params.companyId),
+  ]);
 
   const entry = await postJournalEntry({
     companyId: params.companyId,
@@ -321,7 +329,7 @@ export async function recordInvoicePayment(params: {
     memo: params.memo ?? `Payment received — Invoice ${invoice.invoiceNumber}`,
     currency: invoice.currency,
     inheritsPostedCurrency: true, // settles an invoice that is already posted
-    lines: buildInvoicePaymentPosting({ amount: params.amount, bankAccountCode }),
+    lines: buildInvoicePaymentPosting({ amount: params.amount, bankAccountCode, accountsReceivableCode }),
     post: true,
   });
 

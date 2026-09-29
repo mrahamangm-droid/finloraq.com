@@ -8,7 +8,7 @@ import { createInvoice, postInvoiceToLedger, recordInvoicePayment } from "@/lib/
 import { createBill, approveAndPostBill, recordSupplierPayment } from "@/lib/purchases";
 import { createCustomer, createSupplier } from "@/lib/parties";
 import { parseIsoDay } from "@/lib/periods";
-import { getBankAccountCode } from "@/lib/accounts";
+import { getBankAccountCode, getOutputTaxPayableCode, getInputTaxReceivableCode } from "@/lib/accounts";
 import { rowKeys, type DocRow, type ImportKind, type ImportRow, type TxnRow } from "./rows";
 
 /**
@@ -233,7 +233,11 @@ export async function commitRows(ctx: Ctx & { currency: string }, kind: ImportKi
   const partyCache = new Map<string, string>();
   const taxCache = new Map<string, string | undefined>();
   const results: RowResult[] = [];
-  const bankAccountCode = await getBankAccountCode(ctx.companyId);
+  const [bankAccountCode, outputTaxCode, inputTaxCode] = await Promise.all([
+    getBankAccountCode(ctx.companyId),
+    getOutputTaxPayableCode(ctx.companyId),
+    getInputTaxReceivableCode(ctx.companyId),
+  ]);
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i]!;
@@ -250,11 +254,11 @@ export async function commitRows(ctx: Ctx & { currency: string }, kind: ImportKi
           ? [
               { accountCode: bankAccountCode, debit: r.amount, description: "Bank" },
               { accountCode: account, credit: net, description: r.description || r.category || "Income" },
-              ...(r.tax ? [{ accountCode: "2100", credit: r.tax, description: "Output Tax Payable" }] : []),
+              ...(r.tax ? [{ accountCode: outputTaxCode, credit: r.tax, description: "Output Tax Payable" }] : []),
             ]
           : [
               { accountCode: account, debit: net, description: r.description || r.category || "Expense" },
-              ...(r.tax ? [{ accountCode: "1200", debit: r.tax, description: "Input Tax Receivable" }] : []),
+              ...(r.tax ? [{ accountCode: inputTaxCode, debit: r.tax, description: "Input Tax Receivable" }] : []),
               { accountCode: bankAccountCode, credit: r.amount, description: "Bank" },
             ];
         await postJournalEntry({

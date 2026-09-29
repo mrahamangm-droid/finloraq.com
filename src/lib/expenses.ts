@@ -12,7 +12,7 @@ import {
   findOpenPeriod,
   InvalidLineError,
 } from "@/lib/ledger";
-import { getBankAccountCode } from "@/lib/accounts";
+import { getBankAccountCode, getInputTaxReceivableCode } from "@/lib/accounts";
 
 /**
  * A direct/employee expense paid immediately (not a supplier bill on
@@ -36,12 +36,13 @@ export async function createExpense(params: {
 }) {
   // Recorded in the company's own base currency — never a hardcoded one,
   // since companies can pick their base currency at onboarding.
-  const [{ baseCurrency }, bankAccountCode] = await Promise.all([
+  const [{ baseCurrency }, bankAccountCode, inputTaxCode] = await Promise.all([
     prisma.company.findUniqueOrThrow({
       where: { id: params.companyId },
       select: { baseCurrency: true },
     }),
     getBankAccountCode(params.companyId),
+    getInputTaxReceivableCode(params.companyId),
   ]);
 
   // post:false inside postJournalEntry only requires journals:CREATE, which
@@ -61,6 +62,7 @@ export async function createExpense(params: {
       taxAmount: params.taxAmount,
       expenseAccountCode: params.expenseAccountCode,
       bankAccountCode,
+      inputTaxCode,
     }),
     post: false,
   });
@@ -103,16 +105,19 @@ export async function updateDraftExpense(params: {
     throw new InvalidLineError("Only a draft expense can be edited. Once approved, correct it with a reversal instead.");
   }
 
-  const bankAccountCode = await getBankAccountCode(params.companyId);
-  const currentExpenseLine = before.lines.find((l: any) => l.account.code !== bankAccountCode && l.account.code !== "1200");
-  const currentTaxLine = before.lines.find((l: any) => l.account.code === "1200");
+  const [bankAccountCode, inputTaxCode] = await Promise.all([
+    getBankAccountCode(params.companyId),
+    getInputTaxReceivableCode(params.companyId),
+  ]);
+  const currentExpenseLine = before.lines.find((l: any) => l.account.code !== bankAccountCode && l.account.code !== inputTaxCode);
+  const currentTaxLine = before.lines.find((l: any) => l.account.code === inputTaxCode);
 
   const amount = params.amount ?? currentExpenseLine?.debit.toNumber() ?? 0;
   const taxAmount = params.taxAmount ?? currentTaxLine?.debit.toNumber() ?? undefined;
   const expenseAccountCode = params.expenseAccountCode ?? currentExpenseLine?.account.code;
   const date = params.date ?? before.date;
 
-  const newLines = buildExpensePosting({ amount, taxAmount, expenseAccountCode, bankAccountCode });
+  const newLines = buildExpensePosting({ amount, taxAmount, expenseAccountCode, bankAccountCode, inputTaxCode });
   validateBalanced(newLines);
 
   const accounts = (await prisma.account.findMany({

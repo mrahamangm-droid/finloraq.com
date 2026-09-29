@@ -8,7 +8,7 @@ import { can } from "@/lib/rbac";
 import { PeriodPicker } from "@/components/periods/period-picker";
 import { NewExpenseForm } from "@/components/forms/new-expense-form";
 import { ExpenseRow } from "@/components/forms/expense-row";
-import { getBankAccountCode } from "@/lib/accounts";
+import { getBankAccountCode, getInputTaxReceivableCode } from "@/lib/accounts";
 
 type ExpenseStatus = "DRAFT" | "POSTED" | "REVERSED";
 const STATUS_TABS: { value: ExpenseStatus | "ALL"; label: string }[] = [
@@ -37,10 +37,11 @@ export default async function ExpensesPage(props: { searchParams?: Promise<Expen
   const statusFilter = VALID_STATUSES.includes(sp.status as ExpenseStatus)
     ? (sp.status as ExpenseStatus)
     : undefined;
-  const [expenses, totals, bankAccountCode] = await Promise.all([
+  const [expenses, totals, bankAccountCode, inputTaxCode] = await Promise.all([
     listRecentExpenses(active.companyId, filtered ? period : undefined, statusFilter),
     expenseTotals(active.companyId, filtered ? period : undefined, statusFilter),
     getBankAccountCode(active.companyId),
+    getInputTaxReceivableCode(active.companyId),
   ]);
 
   // Preserves every other query param (period/date/from/to) when switching
@@ -114,7 +115,7 @@ export default async function ExpensesPage(props: { searchParams?: Promise<Expen
                 // amount (expense + tax); the debit side splits across 1-2 lines.
                 const bankLine = e.lines.find((l: any) => l.account.code === bankAccountCode);
                 const amount = bankLine ? bankLine.credit.toNumber() : e.lines.reduce((a: any, l: any) => a + l.debit.toNumber(), 0);
-                const taxLine = e.lines.find((l: any) => l.account.code === "1200");
+                const taxLine = e.lines.find((l: any) => l.account.code === inputTaxCode);
                 return (
                   <ExpenseRow
                     key={e.id}

@@ -25,7 +25,7 @@ import {
   validateBalanced,
   type LineInput,
 } from "@/lib/ledger";
-import { getBankAccountCode } from "@/lib/accounts";
+import { getBankAccountCode, getAccountsReceivableCode, getOutputTaxPayableCode } from "@/lib/accounts";
 
 export interface CreditNoteLineInput {
   description: string;
@@ -38,6 +38,8 @@ function buildCreditNotePosting(input: {
   subtotal: number | string;
   taxTotal: number | string;
   total: number | string;
+  outputTaxCode: string;
+  accountsReceivableCode: string;
 }): LineInput[] {
   const sub = Number(input.subtotal);
   const tax = Number(input.taxTotal);
@@ -47,9 +49,9 @@ function buildCreditNotePosting(input: {
     { accountCode: "4000", debit: sub, description: "Sales Revenue (Credit Note)" },
   ];
   if (tax !== 0) {
-    lines.push({ accountCode: "2100", debit: tax, description: "Output Tax Payable (Credit Note)" });
+    lines.push({ accountCode: input.outputTaxCode, debit: tax, description: "Output Tax Payable (Credit Note)" });
   }
-  lines.push({ accountCode: "1100", credit: tot, description: "Accounts Receivable (Credit Note)" });
+  lines.push({ accountCode: input.accountsReceivableCode, credit: tot, description: "Accounts Receivable (Credit Note)" });
 
   return lines;
 }
@@ -175,10 +177,17 @@ export async function postCreditNote(
   if (cn.status !== "DRAFT") throw new Error("Only draft credit notes can be posted.");
   if (cn.journalEntryId) throw new Error("Credit note is already posted.");
 
+  const [outputTaxCode, accountsReceivableCode] = await Promise.all([
+    getOutputTaxPayableCode(companyId),
+    getAccountsReceivableCode(companyId),
+  ]);
+
   const postingLines = buildCreditNotePosting({
     subtotal: cn.subtotal.toNumber(),
     taxTotal: cn.taxTotal.toNumber(),
     total: cn.total.toNumber(),
+    outputTaxCode,
+    accountsReceivableCode,
   });
 
   // Validate double-entry balance before posting
