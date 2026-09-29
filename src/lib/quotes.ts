@@ -5,6 +5,7 @@ import { roundMoney, sum } from "@/lib/currency";
 import { nextDocumentNumber } from "@/lib/numbering";
 import { computeTaxedLines } from "@/lib/taxCalc";
 import { createInvoice } from "@/lib/sales";
+import { createSalesOrder } from "@/lib/sales-orders";
 import type Decimal from "decimal.js";
 
 export interface QuoteLineInput {
@@ -12,6 +13,7 @@ export interface QuoteLineInput {
   quantity: number;
   unitPrice: number;
   taxCodeId?: string;
+  productId?: string;
 }
 
 // ─── List ─────────────────────────────────────────────────────────────────────
@@ -99,6 +101,7 @@ export async function createQuote(params: {
             unitPrice: l.line.unitPrice,
             taxCodeId: l.line.taxCodeId,
             lineTotal: l.lineTotal,
+            ...(l.line.productId ? { productId: l.line.productId } : {}),
           })),
         },
       },
@@ -165,11 +168,12 @@ export async function convertQuoteToInvoice(params: {
 
   const quote = await prisma.quote.findFirst({
     where: { id: params.quoteId, companyId: params.companyId },
-    include: { lines: true },
+    include: { lines: true, salesOrder: true },
   });
   if (!quote) throw new Error("Quote not found");
   if (quote.status !== "ACCEPTED") throw new Error("Only an accepted quote can be converted to an invoice.");
   if (quote.invoiceId) throw new Error("This quote has already been converted to an invoice.");
+  if (quote.salesOrder) throw new Error("This quote has already been converted to a sales order.");
 
   // Create the invoice with the same lines
   const invoice = await createInvoice({
@@ -185,6 +189,7 @@ export async function convertQuoteToInvoice(params: {
       quantity: Number(l.quantity),
       unitPrice: Number(l.unitPrice),
       taxCodeId: l.taxCodeId ?? undefined,
+      productId: l.productId ?? undefined,
     })),
   });
 
@@ -204,6 +209,70 @@ export async function convertQuoteToInvoice(params: {
   });
 
   return invoice;
+}
+
+// ─── Convert accepted quote to sales order ────────────────────────────────────
+
+/**
+ * The alternative path off an accepted quote, for a sale that needs to
+ * track shipment before invoicing (see src/lib/sales-orders.ts) rather
+ * than invoicing immediately. Mutually exclusive with
+ * convertQuoteToInvoice — a quote converts to one or the other, never
+ * both (SalesOrder.quoteId is a unique FK, so a second attempt would fail
+ * at the database level regardless, but this checks first for a clearer
+ * error message).
+ */
+export async function convertQuoteToSalesOrder(params: {
+  companyId: string;
+  membershipId: string;
+  userId: string;
+  quoteId: string;
+}) {
+  await requirePermission(params.membershipId, "quotes", "EDIT");
+  await requirePermission(params.membershipId, "sales_orders", "CREATE");
+
+  const quote = await prisma.quote.findFirst({
+    where: { id: params.quoteId, companyId: params.companyId },
+    include: { lines: true, salesOrder: true },
+  });
+  if (!quote) throw new Error("Quote not found");
+  if (quote.status !== "ACCEPTED") throw new Error("Only an accepted quote can be converted to a sales order.");
+  if (quote.invoiceId) throw new Error("This quote has already been converted to an invoice.");
+  if (quote.salesOrder) throw new Error("This quote has already been converted to a sales order.");
+
+  // Quote.status is left as ACCEPTED — unlike invoicing, converting to a
+  // sales order isn't the quote's terminal state (there's no QuoteStatus
+  // value for it, and the order itself now carries the workflow forward
+  // through Confirm/Ship/Invoice). The link back is SalesOrder.quoteId,
+  // set directly by createSalesOrder below — a unique FK, so a quote can
+  // produce at most one sales order (enforced at the database level too).
+  const order = await createSalesOrder({
+    companyId: params.companyId,
+    membershipId: params.membershipId,
+    userId: params.userId,
+    customerId: quote.customerId,
+    issueDate: new Date(),
+    currency: quote.currency,
+    quoteId: quote.id,
+    lines: quote.lines.map((l: any) => ({
+      description: l.description,
+      quantity: Number(l.quantity),
+      unitPrice: Number(l.unitPrice),
+      taxCodeId: l.taxCodeId ?? undefined,
+      productId: l.productId ?? undefined,
+    })),
+  });
+
+  await recordAuditEvent({
+    companyId: params.companyId,
+    userId: params.userId,
+    action: "quote.converted_to_sales_order",
+    entityType: "Quote",
+    entityId: params.quoteId,
+    newValue: { salesOrderId: order.id },
+  });
+
+  return order;
 }
 
 // ─── Delete (draft only) ──────────────────────────────────────────────────────

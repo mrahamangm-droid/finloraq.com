@@ -20,7 +20,8 @@ export default async function QuoteDetailPage(props: { params: Promise<{ id: str
       deal: true,
       project: true,
       invoice: true,
-      lines: { include: { taxCode: true } },
+      salesOrder: true,
+      lines: { include: { taxCode: true, product: true } },
     },
   });
 
@@ -61,6 +62,7 @@ export default async function QuoteDetailPage(props: { params: Promise<{ id: str
               id: quote.id,
               status: quote.status,
               invoiceId: quote.invoiceId ?? null,
+              salesOrderId: quote.salesOrder?.id ?? null,
             }}
             canEdit={canEdit}
             canDelete={canDelete}
@@ -68,12 +70,20 @@ export default async function QuoteDetailPage(props: { params: Promise<{ id: str
         )}
       </div>
 
-      {/* Invoice link */}
+      {/* Invoice / sales order link */}
       {quote.invoiceId && quote.invoice && (
         <div className="rounded-md border border-success/30 bg-success/5 px-4 py-3 text-sm">
           Converted to invoice{" "}
           <Link href={`/sales/${quote.invoiceId}`} className="text-primary hover:underline font-mono">
             {quote.invoice.invoiceNumber}
+          </Link>
+        </div>
+      )}
+      {quote.salesOrder && (
+        <div className="rounded-md border border-success/30 bg-success/5 px-4 py-3 text-sm">
+          Converted to sales order{" "}
+          <Link href={`/sales-orders/${quote.salesOrder.id}`} className="text-primary hover:underline font-mono">
+            {quote.salesOrder.orderNumber}
           </Link>
         </div>
       )}
@@ -129,7 +139,10 @@ export default async function QuoteDetailPage(props: { params: Promise<{ id: str
           <tbody className="divide-y divide-border">
             {quote.lines.map((l: any) => (
               <tr key={l.id}>
-                <td className="px-4 py-2">{l.description}</td>
+                <td className="px-4 py-2">
+                  {l.description}
+                  {l.product?.trackInventory && <span className="ml-1 text-xs text-muted-foreground">(tracked)</span>}
+                </td>
                 <td className="px-4 py-2 text-right tabular-nums">{Number(l.quantity)}</td>
                 <td className="px-4 py-2 text-right tabular-nums">{fmt.money(l.unitPrice)}</td>
                 <td className="px-4 py-2 text-muted-foreground">{l.taxCode?.name ?? "—"}</td>

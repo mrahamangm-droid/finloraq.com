@@ -7,7 +7,7 @@ import { ChevronDown } from "lucide-react";
 type QuoteStatus = "DRAFT" | "SENT" | "ACCEPTED" | "REJECTED" | "EXPIRED" | "INVOICED";
 
 interface QuoteActionsProps {
-  quote: { id: string; status: QuoteStatus; invoiceId: string | null };
+  quote: { id: string; status: QuoteStatus; invoiceId: string | null; salesOrderId: string | null };
   canEdit: boolean;
   canDelete: boolean;
 }
@@ -21,6 +21,7 @@ export function QuoteActions({ quote, canEdit, canDelete }: QuoteActionsProps) {
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const canConvert = quote.status === "ACCEPTED" && !quote.invoiceId && !quote.salesOrderId;
 
   const statusOptions = (
     [
@@ -66,6 +67,20 @@ export function QuoteActions({ quote, canEdit, canDelete }: QuoteActionsProps) {
     router.push(`/sales/${invoice.id}`);
   }
 
+  async function convertToSalesOrder() {
+    setLoading(true);
+    setError(null);
+    const res = await fetch(`/api/quotes/${quote.id}/convert-to-order`, { method: "POST" });
+    setLoading(false);
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      setError(d.error ?? "Conversion failed.");
+      return;
+    }
+    const { order } = await res.json();
+    router.push(`/sales-orders/${order.id}`);
+  }
+
   async function deleteQuote() {
     if (!confirm("Delete this draft quote?")) return;
     setLoading(true);
@@ -83,8 +98,9 @@ export function QuoteActions({ quote, canEdit, canDelete }: QuoteActionsProps) {
     <div className="flex items-center gap-2">
       {error && <p className="text-sm text-destructive">{error}</p>}
 
-      {/* Convert to invoice — shown when accepted and not yet invoiced */}
-      {canEdit && quote.status === "ACCEPTED" && !quote.invoiceId && (
+      {/* Convert to invoice or sales order — shown when accepted and not
+          yet converted either way (mutually exclusive, see canConvert). */}
+      {canEdit && canConvert && (
         <>
           {convertOpen ? (
             <div className="flex items-center gap-2">
@@ -106,6 +122,10 @@ export function QuoteActions({ quote, canEdit, canDelete }: QuoteActionsProps) {
               Convert to Invoice
             </button>
           )}
+          <button onClick={convertToSalesOrder} disabled={loading}
+            className="rounded-md border border-success/40 px-3 py-1.5 text-sm font-medium text-success disabled:opacity-50">
+            {loading ? "Converting…" : "Convert to Sales Order"}
+          </button>
         </>
       )}
 

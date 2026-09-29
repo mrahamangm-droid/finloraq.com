@@ -48,6 +48,10 @@ export async function createSalesOrder(params: {
   issueDate: Date;
   currency: string;
   lines: SalesOrderLineInput[];
+  /** Set only by convertQuoteToSalesOrder() in src/lib/quotes.ts — links
+   *  this order back to the quote it came from (SalesOrder.quoteId is a
+   *  unique FK, so a quote can produce at most one sales order). */
+  quoteId?: string;
 }) {
   await requirePermission(params.membershipId, "sales_orders", "CREATE");
   await assertBaseCurrency(prisma, params.companyId, params.currency);
@@ -76,6 +80,7 @@ export async function createSalesOrder(params: {
         taxTotal,
         total,
         status: "DRAFT",
+        ...(params.quoteId ? { quoteId: params.quoteId } : {}),
         lines: {
           create: computedLines.map((l) => ({
             description: l.line.description,
