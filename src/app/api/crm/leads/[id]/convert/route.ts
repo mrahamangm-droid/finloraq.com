@@ -2,14 +2,14 @@ import { NextResponse } from "next/server";
 import { withApiErrors } from "@/lib/apiHandler";
 import { requireTenantContext } from "@/lib/tenant";
 import { requirePermission } from "@/lib/rbac";
-import { convertLead } from "@/lib/crm";
+import { convertLead, MAX_DEAL_VALUE } from "@/lib/crm";
 import { z } from "zod";
 
 const ConvertSchema = z.object({
   customerName: z.string().min(1),
   createDeal:   z.boolean().default(false),
   dealName:     z.string().optional(),
-  dealValue:    z.number().min(0).optional(),
+  dealValue:    z.number().min(0).max(MAX_DEAL_VALUE).optional(),
   pipelineId:   z.string().optional(),
 });
 

@@ -2,13 +2,13 @@ import { NextResponse } from "next/server";
 import { withApiErrors } from "@/lib/apiHandler";
 import { requireTenantContext } from "@/lib/tenant";
 import { requirePermission } from "@/lib/rbac";
-import { getDeal, updateDeal } from "@/lib/crm";
+import { getDeal, updateDeal, MAX_DEAL_VALUE } from "@/lib/crm";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
 
 const UpdateDealSchema = z.object({
   name:              z.string().min(1).optional(),
-  value:             z.number().min(0).optional(),
+  value:             z.number().min(0).max(MAX_DEAL_VALUE).optional(),
   currency:          z.string().length(3).optional(),
   stageId:           z.string().optional(),
   customerId:        z.string().optional().nullable(),

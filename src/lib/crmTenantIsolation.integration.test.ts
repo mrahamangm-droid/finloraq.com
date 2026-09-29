@@ -221,6 +221,8 @@ describe.skipIf(!enabled)("CRM tenant isolation (real Postgres)", () => {
     sessionUserId = A.userId;
     const bad = await call("crm/leads", "POST", {}, undefined, { raw: "{not json" });
     expect(bad.status).toBe(400);
+    // Beyond Decimal(18, 4) — was an uncaught numeric-overflow 500.
+    expect((await call("crm/deals", "POST", {}, { name: "Huge", value: 1e300 })).status).toBe(400);
   });
 
   it("clamps list pagination and ignores unknown status filters", async () => {

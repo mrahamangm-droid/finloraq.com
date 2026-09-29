@@ -279,6 +279,9 @@ export async function updateContact(
 // Deals
 // ─────────────────────────────────────────────────────────────────────────
 
+/** Deal.value is Decimal(18, 4): anything at or above 10^14 overflows the column (a 500 from Postgres). */
+export const MAX_DEAL_VALUE = 1e13;
+
 export interface DealInput {
   name: string;
   value: number;

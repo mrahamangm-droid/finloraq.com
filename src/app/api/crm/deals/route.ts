@@ -2,12 +2,12 @@ import { NextResponse } from "next/server";
 import { pageParams, withApiErrors } from "@/lib/apiHandler";
 import { requireTenantContext } from "@/lib/tenant";
 import { requirePermission } from "@/lib/rbac";
-import { createDeal, listDeals, getOrCreateDefaultPipeline } from "@/lib/crm";
+import { createDeal, listDeals, getOrCreateDefaultPipeline, MAX_DEAL_VALUE } from "@/lib/crm";
 import { z } from "zod";
 
 const CreateDealSchema = z.object({
   name:              z.string().min(1),
-  value:             z.number().min(0),
+  value:             z.number().min(0).max(MAX_DEAL_VALUE),
   currency:          z.string().length(3).optional(),
   pipelineId:        z.string().optional(), // defaults to company default pipeline
   stageId:           z.string().optional(), // defaults to first stage of pipeline
