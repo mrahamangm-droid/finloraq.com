@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
+import { withApiErrors } from "@/lib/apiHandler";
 import { NotFoundError } from "@/lib/errors";
 import { requireTenantContext } from "@/lib/tenant";
 import { approveAndPostBill } from "@/lib/purchases";
 import { InvalidLineError, DuplicatePostingError, PeriodLockedError } from "@/lib/ledger";
 
-export async function POST(_req: Request, props: { params: Promise<{ id: string }> }) {
+async function handlePOST(_req: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const { id } = params;
   const { active, userId } = await requireTenantContext();
@@ -24,3 +25,5 @@ export async function POST(_req: Request, props: { params: Promise<{ id: string 
     throw err;
   }
 }
+
+export const POST = withApiErrors(handlePOST);

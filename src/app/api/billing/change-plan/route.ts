@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { withApiErrors } from "@/lib/apiHandler";
 import { z } from "zod";
 import { BILLING_CURRENCIES } from "@/lib/billing/currency";
 import { requireTenantContext } from "@/lib/tenant";
@@ -29,7 +30,7 @@ function appOrigin(req: Request): string {
  * Without Stripe: the original simulated flow, unchanged.
  * Responses with `redirectUrl` tell the client to navigate there.
  */
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   const { active, userId } = await requireTenantContext();
   await requirePermission(active.id, "settings", "EDIT");
 
@@ -70,3 +71,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: err instanceof Error ? err.message : "Could not change plan." }, { status: 400 });
   }
 }
+
+export const POST = withApiErrors(handlePOST);

@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
+import { withApiErrors } from "@/lib/apiHandler";
 import { requireTenantContext } from "@/lib/tenant";
 import { requirePermission } from "@/lib/rbac";
 import { createPortalSession, isStripeConfigured } from "@/lib/integrations/stripe";
 
 /** Opens the Stripe Customer Portal (payment method, invoices, plan changes, cancellation). */
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   const { active } = await requireTenantContext();
   await requirePermission(active.id, "settings", "EDIT");
 
@@ -20,3 +21,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: err instanceof Error ? err.message : "Could not open billing portal." }, { status: 400 });
   }
 }
+
+export const POST = withApiErrors(handlePOST);
