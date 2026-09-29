@@ -28,7 +28,7 @@ export default async function EditInvoicePage(props: { params: Promise<{ id: str
       <h1 className="text-xl font-semibold text-foreground">Edit Invoice {invoice.invoiceNumber}</h1>
       <NewInvoiceForm
         invoiceId={invoice.id}
-        currency={invoice.currency}
+        currency={active.company.baseCurrency}
         customers={customers.map((c) => ({ id: c.id, name: c.name }))}
         taxCodes={taxCodes.map((t) => ({ id: t.id, name: t.name, rate: t.rate.toNumber() }))}
         products={products.map((p) => ({ id: p.id, name: p.name, unitPrice: p.unitPrice.toNumber(), trackInventory: p.trackInventory, quantityOnHand: p.quantityOnHand.toNumber() }))}
@@ -36,6 +36,8 @@ export default async function EditInvoicePage(props: { params: Promise<{ id: str
           customerId: invoice.customerId,
           issueDate: invoice.issueDate.toISOString().slice(0, 10),
           dueDate: invoice.dueDate.toISOString().slice(0, 10),
+          currency: invoice.currency,
+          exchangeRate: invoice.exchangeRate.toString(),
           lines: invoice.lines.map((l: any) => ({
             description: l.description,
             quantity: l.quantity.toString(),

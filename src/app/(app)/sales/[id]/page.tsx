@@ -155,6 +155,8 @@ export default async function InvoiceDetailPage(props: { params: Promise<{ id: s
         balanceDue={balanceDue}
         canEdit={canEdit}
         canDelete={canDelete}
+        currency={invoice.currency !== company.baseCurrency ? invoice.currency : undefined}
+        bookedExchangeRate={invoice.currency !== company.baseCurrency ? invoice.exchangeRate.toNumber() : undefined}
       />
 
       {["SENT", "OVERDUE"].includes(invoice.status) && payments.length === 0 && canEdit && canApproveJournals && (

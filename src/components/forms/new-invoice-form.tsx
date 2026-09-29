@@ -11,7 +11,7 @@ type Line = { description: string; quantity: string; unitPrice: string; taxCodeI
 const emptyLine = (): Line => ({ description: "", quantity: "1", unitPrice: "", taxCodeId: "", productId: "" });
 
 export function NewInvoiceForm({
-  currency,
+  currency: baseCurrency,
   customers,
   taxCodes,
   products = [],
@@ -19,9 +19,11 @@ export function NewInvoiceForm({
   invoiceId,
   initial,
 }: {
-  /** ISO currency the document is recorded in — the company's base currency
-   *  for a new document, the document's own currency when editing (so an
-   *  edit never silently re-labels it). Passed from the server page. */
+  /** The company's base currency. Also the default for a new invoice's own
+   *  currency field below — most invoices are base-currency, but this form
+   *  lets that be changed to bill a customer in a foreign currency (see
+   *  resolveDocumentCurrency in src/lib/ledger.ts, which the API enforces
+   *  server-side either way). */
   currency: string;
   customers: { id: string; name: string }[];
   taxCodes: { id: string; name: string; rate: number }[];
@@ -40,6 +42,10 @@ export function NewInvoiceForm({
     issueDate: string;
     dueDate: string;
     lines: Line[];
+    /** The invoice's own currency/rate when editing — omitted for a new
+     *  invoice, which starts out in the company's base currency. */
+    currency?: string;
+    exchangeRate?: string;
   };
 }) {
   const editing = Boolean(invoiceId);
@@ -48,9 +54,12 @@ export function NewInvoiceForm({
   const [customerId, setCustomerId] = useState(initial?.customerId ?? customers[0]?.id ?? "");
   const [issueDate, setIssueDate] = useState(initial?.issueDate ?? new Date().toISOString().slice(0, 10));
   const [dueDate, setDueDate] = useState(initial?.dueDate ?? new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10));
+  const [currency, setCurrency] = useState((initial?.currency ?? baseCurrency).toUpperCase());
+  const [exchangeRate, setExchangeRate] = useState(initial?.exchangeRate ?? "1");
   const [lines, setLines] = useState<Line[]>(initial?.lines ?? [emptyLine()]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const isForeignCurrency = currency.trim().toUpperCase() !== baseCurrency.trim().toUpperCase();
 
   function updateLine(i: number, patch: Partial<Line>) {
     setLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
@@ -89,6 +98,7 @@ export function NewInvoiceForm({
       issueDate,
       dueDate,
       currency,
+      exchangeRate: isForeignCurrency ? parseFloat(exchangeRate) || undefined : undefined,
       ...(editing ? {} : { customFields }),
       lines: lines
         .filter((l) => l.description && l.unitPrice)
@@ -145,6 +155,23 @@ export function NewInvoiceForm({
           <label className="mb-1 block text-sm font-medium text-card-foreground">Due date</label>
           <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm" />
         </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-card-foreground">Currency</label>
+          <input value={currency} onChange={(e) => setCurrency(e.target.value.toUpperCase())} maxLength={3}
+            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm font-mono uppercase" />
+        </div>
+        {isForeignCurrency && (
+          <div>
+            <label className="mb-1 block text-sm font-medium text-card-foreground">
+              Exchange rate <span className="font-normal text-muted-foreground">(1 {currency} = ? {baseCurrency})</span>
+            </label>
+            <input type="number" step="any" min="0" value={exchangeRate} onChange={(e) => setExchangeRate(e.target.value)}
+              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm" />
+            <p className="mt-1 text-xs text-muted-foreground">
+              There&apos;s no live rate lookup — enter today&apos;s rate. The ledger always posts in {baseCurrency}.
+            </p>
+          </div>
+        )}
       </div>
 
       {fields.length > 0 && (
@@ -212,7 +239,7 @@ export function NewInvoiceForm({
           </button>
           <div className="text-sm text-muted-foreground">
             Subtotal {subtotal.toFixed(2)} · Tax {taxTotal.toFixed(2)} ·{" "}
-            <span className="font-medium text-card-foreground">Total {(subtotal + taxTotal).toFixed(2)}</span>
+            <span className="font-medium text-card-foreground">Total {(subtotal + taxTotal).toFixed(2)} {currency}</span>
           </div>
         </div>
       </div>
