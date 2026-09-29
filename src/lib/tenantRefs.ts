@@ -10,7 +10,9 @@ import type { Prisma, PrismaClient } from "@prisma/client";
  * then read that customer back through A's invoice list. Callers throw their
  * own validation error when this returns anything.
  */
-export type TenantRefKind = "customer" | "supplier" | "project" | "costCentre" | "department" | "account" | "taxCode";
+export type TenantRefKind =
+  | "customer" | "supplier" | "project" | "costCentre" | "department" | "account" | "taxCode"
+  | "membership" | "lead" | "deal" | "crmContact" | "pipeline" | "pipelineStage";
 
 const LABELS: Record<TenantRefKind, string> = {
   customer: "Customer",
@@ -20,6 +22,12 @@ const LABELS: Record<TenantRefKind, string> = {
   department: "Department",
   account: "Account",
   taxCode: "Tax code",
+  membership: "Team member",
+  lead: "Lead",
+  deal: "Deal",
+  crmContact: "Contact",
+  pipeline: "Pipeline",
+  pipelineStage: "Pipeline stage",
 };
 
 type Db = PrismaClient | Prisma.TransactionClient;
@@ -34,6 +42,12 @@ async function countOwned(db: Db, kind: TenantRefKind, companyId: string, ids: s
     case "department": return db.department.count({ where });
     case "account": return db.account.count({ where });
     case "taxCode": return db.taxCode.count({ where });
+    case "membership": return db.companyMembership.count({ where });
+    case "lead": return db.lead.count({ where });
+    case "deal": return db.deal.count({ where });
+    case "crmContact": return db.crmContact.count({ where });
+    case "pipeline": return db.pipeline.count({ where });
+    case "pipelineStage": return db.pipelineStage.count({ where });
   }
 }
 

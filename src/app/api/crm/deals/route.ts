@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { pageParams, withApiErrors } from "@/lib/apiHandler";
 import { requireTenantContext } from "@/lib/tenant";
 import { requirePermission } from "@/lib/rbac";
 import { createDeal, listDeals, getOrCreateDefaultPipeline } from "@/lib/crm";
@@ -17,7 +18,7 @@ const CreateDealSchema = z.object({
   notes:             z.string().optional().nullable(),
 });
 
-export async function GET(req: Request) {
+async function handleGET(req: Request) {
   const { active } = await requireTenantContext();
   await requirePermission(active.id, "crm", "VIEW");
 
@@ -27,14 +28,13 @@ export async function GET(req: Request) {
   const assignedToId = url.searchParams.get("assignedToId") ?? undefined;
   const openParam    = url.searchParams.get("open");
   const open         = openParam === "true" ? true : openParam === "false" ? false : undefined;
-  const page  = parseInt(url.searchParams.get("page") ?? "1", 10);
-  const limit = parseInt(url.searchParams.get("limit") ?? "50", 10);
+  const { page, limit } = pageParams(url);
 
   const result = await listDeals(active.companyId, { pipelineId, stageId, assignedToId, open, page, limit });
   return NextResponse.json(result);
 }
 
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   const { active } = await requireTenantContext();
   await requirePermission(active.id, "crm", "CREATE");
 
@@ -54,15 +54,14 @@ export async function POST(req: Request) {
     }
   }
 
-  try {
-    const deal = await createDeal(active.companyId, active.id, {
-      pipelineId: pipelineId!,
-      stageId: stageId!,
-      ...rest,
-      expectedCloseDate: rest.expectedCloseDate ? new Date(rest.expectedCloseDate) : null,
-    });
-    return NextResponse.json(deal, { status: 201 });
-  } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 400 });
-  }
+  const deal = await createDeal(active.companyId, active.id, {
+    pipelineId: pipelineId!,
+    stageId: stageId!,
+    ...rest,
+    expectedCloseDate: rest.expectedCloseDate ? new Date(rest.expectedCloseDate) : null,
+  });
+  return NextResponse.json(deal, { status: 201 });
 }
+
+export const GET = withApiErrors(handleGET);
+export const POST = withApiErrors(handlePOST);

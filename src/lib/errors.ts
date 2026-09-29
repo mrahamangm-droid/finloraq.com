@@ -10,3 +10,15 @@ export class NotFoundError extends Error {
     this.name = "NotFoundError";
   }
 }
+
+/**
+ * A request body is well-formed but names something it can't use — most often
+ * a foreign key that isn't one of the caller's company's records. API routes
+ * map this to 400 (src/lib/apiHandler.ts).
+ */
+export class ValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ValidationError";
+  }
+}

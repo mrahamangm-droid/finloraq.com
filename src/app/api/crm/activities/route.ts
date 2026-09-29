@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { ActivityStatus } from "@prisma/client";
+import { enumParam, pageParams, withApiErrors } from "@/lib/apiHandler";
 import { requireTenantContext } from "@/lib/tenant";
 import { requirePermission } from "@/lib/rbac";
 import { createActivity, listActivities } from "@/lib/crm";
@@ -16,7 +18,7 @@ const CreateActivitySchema = z.object({
   assignedToId: z.string().optional().nullable(),
 });
 
-export async function GET(req: Request) {
+async function handleGET(req: Request) {
   const { active } = await requireTenantContext();
   await requirePermission(active.id, "crm", "VIEW");
 
@@ -27,16 +29,15 @@ export async function GET(req: Request) {
     contactId:   url.searchParams.get("contactId")   ?? undefined,
     customerId:  url.searchParams.get("customerId")  ?? undefined,
     assignedToId: url.searchParams.get("assignedToId") ?? undefined,
-    status:      url.searchParams.get("status") as never ?? undefined,
-    page:        parseInt(url.searchParams.get("page") ?? "1", 10),
-    limit:       parseInt(url.searchParams.get("limit") ?? "50", 10),
+    status:      enumParam(url, "status", Object.values(ActivityStatus)),
+    ...pageParams(url),
   };
 
   const result = await listActivities(active.companyId, filters);
   return NextResponse.json(result);
 }
 
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   const { active } = await requireTenantContext();
   await requirePermission(active.id, "crm", "CREATE");
 
@@ -51,3 +52,6 @@ export async function POST(req: Request) {
   });
   return NextResponse.json(activity, { status: 201 });
 }
+
+export const GET = withApiErrors(handleGET);
+export const POST = withApiErrors(handlePOST);

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { withApiErrors } from "@/lib/apiHandler";
 import { requireTenantContext } from "@/lib/tenant";
 import { requirePermission } from "@/lib/rbac";
 import { convertLead } from "@/lib/crm";
@@ -12,7 +13,7 @@ const ConvertSchema = z.object({
   pipelineId:   z.string().optional(),
 });
 
-export async function POST(
+async function handlePOST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -24,10 +25,8 @@ export async function POST(
   const parsed = ConvertSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
-  try {
-    const result = await convertLead(active.companyId, active.id, id, parsed.data);
-    return NextResponse.json(result, { status: 201 });
-  } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 400 });
-  }
+  const result = await convertLead(active.companyId, active.id, id, parsed.data);
+  return NextResponse.json(result, { status: 201 });
 }
+
+export const POST = withApiErrors(handlePOST);
