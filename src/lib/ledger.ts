@@ -523,12 +523,25 @@ export async function reverseJournalEntry(params: {
 // ─────────────────────────────────────────────────────────────────────────
 
 /** Invoice: DR Accounts Receivable, CR Revenue, CR Output Tax */
+/**
+ * `cogsLines` (grouped by resolved COGS account, one entry per distinct
+ * code) and `inventoryAssetCode` are supplied only when this invoice ships
+ * at least one tracked-inventory product — see postInvoiceToLedger in
+ * src/lib/sales.ts, which computes each line's FIFO cost via
+ * previewFifoCost() before calling this. When given, they add DR Cost of
+ * Goods Sold / CR Inventory Asset lines to the same entry, so revenue
+ * recognition and cost relief always post atomically together. Omitted (or
+ * all-zero) entirely for an invoice with no tracked-inventory lines —
+ * unchanged from the pre-COGS behavior.
+ */
 export function buildInvoicePosting(input: {
   subtotal: Decimal.Value;
   taxTotal: Decimal.Value;
   total: Decimal.Value;
   accountsReceivableCode?: string;
   outputTaxCode?: string;
+  cogsLines?: { accountCode: string; amount: Decimal.Value }[];
+  inventoryAssetCode?: string;
 }): LineInput[] {
   const lines: LineInput[] = [
     { accountCode: input.accountsReceivableCode ?? "1100", debit: input.total, description: "Accounts Receivable" },
@@ -536,6 +549,17 @@ export function buildInvoicePosting(input: {
   ];
   if (!isZero(input.taxTotal)) {
     lines.push({ accountCode: input.outputTaxCode ?? "2100", credit: input.taxTotal, description: "Output Tax Payable" });
+  }
+  const cogsTotal = sum((input.cogsLines ?? []).map((l) => l.amount));
+  if (!isZero(cogsTotal)) {
+    if (!input.inventoryAssetCode) {
+      throw new InvalidLineError("Inventory asset account required when cost-of-goods-sold lines are given.");
+    }
+    for (const l of input.cogsLines!) {
+      if (isZero(l.amount)) continue;
+      lines.push({ accountCode: l.accountCode, debit: l.amount, description: "Cost of Goods Sold" });
+    }
+    lines.push({ accountCode: input.inventoryAssetCode, credit: cogsTotal, description: "Inventory Asset" });
   }
   return lines;
 }
@@ -578,18 +602,25 @@ export function buildInvoicePaymentPosting(input: {
   return lines;
 }
 
-/** Supplier bill: DR Expense, DR Input Tax, CR Accounts Payable */
+/**
+ * Supplier bill: one DR line per distinct debit account in `expenseLines`
+ * (must sum to `subtotal` — see approveAndPostBill in src/lib/purchases.ts,
+ * which groups each bill line by its resolved account: a tracked-inventory
+ * line capitalizes to the Inventory Asset account instead of expensing
+ * immediately, an ordinary line expenses to its product's own
+ * expenseAccountCode or the bill-level default), DR Input Tax, CR Accounts
+ * Payable.
+ */
 export function buildBillPosting(input: {
-  subtotal: Decimal.Value;
+  expenseLines: { accountCode: string; amount: Decimal.Value }[];
   taxTotal: Decimal.Value;
   total: Decimal.Value;
-  expenseAccountCode?: string;
   inputTaxCode?: string;
   accountsPayableCode?: string;
 }): LineInput[] {
-  const lines: LineInput[] = [
-    { accountCode: input.expenseAccountCode ?? "5000", debit: input.subtotal, description: "Expense" },
-  ];
+  const lines: LineInput[] = input.expenseLines
+    .filter((l) => !isZero(l.amount))
+    .map((l) => ({ accountCode: l.accountCode, debit: l.amount, description: "Expense" }));
   if (!isZero(input.taxTotal)) {
     lines.push({ accountCode: input.inputTaxCode ?? "1200", debit: input.taxTotal, description: "Input Tax Receivable" });
   }

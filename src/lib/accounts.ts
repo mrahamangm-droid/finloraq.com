@@ -227,6 +227,8 @@ const SYSTEM_ACCOUNT_LABEL: Record<SystemAccountPurpose, string> = {
   ACCOUNTS_PAYABLE: "Accounts Payable",
   OUTPUT_TAX_PAYABLE: "Output Tax Payable",
   EXCHANGE_GAIN_LOSS: "Exchange Gain/Loss",
+  INVENTORY_ASSET: "Inventory Asset",
+  COGS_EXPENSE: "Cost of Goods Sold",
 };
 
 export const getBankAccountCode = (companyId: string) => getSystemAccountCode(companyId, "BANK");
@@ -245,18 +247,51 @@ export const getOutputTaxPayableCode = (companyId: string) => getSystemAccountCo
  * never change, it can never be deleted — see updateAccount/deleteAccount).
  */
 export async function getOrCreateExchangeGainLossCode(companyId: string): Promise<string> {
-  const existing = await prisma.account.findFirst({ where: { companyId, purpose: "EXCHANGE_GAIN_LOSS" } });
+  return getOrCreateLazySystemAccount(companyId, "EXCHANGE_GAIN_LOSS", "EXPENSE", 7000, 7999);
+}
+
+/**
+ * This company's Inventory Asset control account (balance-sheet ASSET),
+ * created lazily on first use — same reasoning as Exchange Gain/Loss: only
+ * a company with at least one tracked-inventory product needs it. Debited
+ * when a Bill receives tracked-inventory stock (capitalized instead of
+ * expensed immediately) and credited when an Invoice ships it, relieving
+ * the asset to COGS_EXPENSE — see approveAndPostBill/postInvoiceToLedger in
+ * src/lib/purchases.ts / src/lib/sales.ts.
+ */
+export async function getOrCreateInventoryAssetCode(companyId: string): Promise<string> {
+  return getOrCreateLazySystemAccount(companyId, "INVENTORY_ASSET", "ASSET", 1400, 1499);
+}
+
+/**
+ * This company's default Cost of Goods Sold account (P&L EXPENSE), created
+ * lazily on first use. A product's own `expenseAccountCode` overrides this
+ * per line when set (see postInvoiceToLedger) — this is only the fallback
+ * for a tracked-inventory product that doesn't specify one.
+ */
+export async function getOrCreateCogsExpenseCode(companyId: string): Promise<string> {
+  return getOrCreateLazySystemAccount(companyId, "COGS_EXPENSE", "EXPENSE", 5100, 5199);
+}
+
+async function getOrCreateLazySystemAccount(
+  companyId: string,
+  purpose: SystemAccountPurpose,
+  type: AccountType,
+  codeRangeStart: number,
+  codeRangeEnd: number
+): Promise<string> {
+  const existing = await prisma.account.findFirst({ where: { companyId, purpose } });
   if (existing) return existing.code;
 
   return prisma.$transaction(async (tx) => {
-    // Re-check inside the transaction: two concurrent foreign-currency
-    // payments on a company's first-ever one could otherwise both find
-    // nothing and both try to create it.
-    const raced = await tx.account.findFirst({ where: { companyId, purpose: "EXCHANGE_GAIN_LOSS" } });
+    // Re-check inside the transaction: two concurrent postings on a
+    // company's first-ever one of these could otherwise both find nothing
+    // and both try to create it.
+    const raced = await tx.account.findFirst({ where: { companyId, purpose } });
     if (raced) return raced.code;
 
-    let code = "7000";
-    for (let n = 7000; n <= 7999; n++) {
+    let code = String(codeRangeStart);
+    for (let n = codeRangeStart; n <= codeRangeEnd; n++) {
       const candidate = String(n);
       const clash = await tx.account.findUnique({ where: { companyId_code: { companyId, code: candidate } } });
       if (!clash) { code = candidate; break; }
@@ -266,10 +301,10 @@ export async function getOrCreateExchangeGainLossCode(companyId: string): Promis
       data: {
         companyId,
         code,
-        name: "Exchange Gain/Loss",
-        type: "EXPENSE",
+        name: SYSTEM_ACCOUNT_LABEL[purpose],
+        type,
         isSystem: true,
-        purpose: "EXCHANGE_GAIN_LOSS",
+        purpose,
       },
     });
     return created.code;

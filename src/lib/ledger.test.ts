@@ -99,10 +99,28 @@ describe("posting builders match the spec's exact examples (section 6)", () => {
   });
 
   it("Supplier bill: DR Expense, DR Input Tax, CR Accounts Payable", () => {
-    const lines = buildBillPosting({ subtotal: 500, taxTotal: 25, total: 525 });
+    const lines = buildBillPosting({ expenseLines: [{ accountCode: "5000", amount: 500 }], taxTotal: 25, total: 525 });
     validateBalanced(lines);
     expect(lines).toEqual([
       { accountCode: "5000", debit: 500, description: "Expense" },
+      { accountCode: "1200", debit: 25, description: "Input Tax Receivable" },
+      { accountCode: "2000", credit: 525, description: "Accounts Payable" },
+    ]);
+  });
+
+  it("Supplier bill splits expenseLines across multiple debit accounts", () => {
+    const lines = buildBillPosting({
+      expenseLines: [
+        { accountCode: "5000", amount: 300 },
+        { accountCode: "1400", amount: 200 },
+      ],
+      taxTotal: 25,
+      total: 525,
+    });
+    validateBalanced(lines);
+    expect(lines).toEqual([
+      { accountCode: "5000", debit: 300, description: "Expense" },
+      { accountCode: "1400", debit: 200, description: "Expense" },
       { accountCode: "1200", debit: 25, description: "Input Tax Receivable" },
       { accountCode: "2000", credit: 525, description: "Accounts Payable" },
     ]);

@@ -5,10 +5,10 @@ import { requirePermission } from "@/lib/rbac";
 import { recordAuditEvent } from "@/lib/audit";
 import { receiveStock } from "@/lib/inventory";
 import { postJournalEntry, buildBillPosting, buildSupplierPaymentPosting, InvalidLineError, assertBaseCurrency, normalizeCurrencyCode } from "@/lib/ledger";
-import { roundMoney, sum } from "@/lib/currency";
+import { roundMoney, sum, money } from "@/lib/currency";
 import { nextDocumentNumber } from "@/lib/numbering";
 import { computeTaxedLines } from "@/lib/taxCalc";
-import { getBankAccountCode, getInputTaxReceivableCode, getAccountsPayableCode } from "@/lib/accounts";
+import { getBankAccountCode, getInputTaxReceivableCode, getAccountsPayableCode, getOrCreateInventoryAssetCode } from "@/lib/accounts";
 import { foreignReferenceProblem } from "@/lib/tenantRefs";
 
 export interface BillLineInput {
@@ -224,6 +224,20 @@ export async function approveAndPostBill(params: {
     getAccountsPayableCode(params.companyId),
   ]);
 
+  // Group each line by the account its cost lands on: a tracked-inventory
+  // line is capitalized to the Inventory Asset account (it isn't an expense
+  // yet — it becomes COGS only when later sold, see postInvoiceToLedger in
+  // src/lib/sales.ts), everything else expenses immediately to its own
+  // product's expenseAccountCode, or the bill-level default, or "5000".
+  const hasTrackedLine = bill.lines.some((l: any) => l.product?.trackInventory);
+  const inventoryAssetCode = hasTrackedLine ? await getOrCreateInventoryAssetCode(params.companyId) : undefined;
+  const expenseGroups = new Map<string, Decimal>();
+  for (const line of bill.lines as any[]) {
+    const code = line.product?.trackInventory ? inventoryAssetCode! : (line.product?.expenseAccountCode ?? params.expenseAccountCode ?? "5000");
+    expenseGroups.set(code, (expenseGroups.get(code) ?? money(0)).plus(line.lineTotal));
+  }
+  const expenseLines = [...expenseGroups.entries()].map(([accountCode, amount]) => ({ accountCode, amount }));
+
   const entry = await postJournalEntry({
     companyId: params.companyId,
     membershipId: params.membershipId,
@@ -234,10 +248,9 @@ export async function approveAndPostBill(params: {
     memo: `Bill ${bill.billNumber}`,
     currency: bill.currency,
     lines: buildBillPosting({
-      subtotal: bill.subtotal,
+      expenseLines,
       taxTotal: bill.taxTotal,
       total: bill.total,
-      expenseAccountCode: params.expenseAccountCode,
       inputTaxCode,
       accountsPayableCode,
     }),

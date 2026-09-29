@@ -3,13 +3,13 @@ import { prisma } from "@/lib/db";
 import { NotFoundError } from "@/lib/errors";
 import { requirePermission } from "@/lib/rbac";
 import { recordAuditEvent } from "@/lib/audit";
-import { shipStock } from "@/lib/inventory";
+import { shipStock, previewFifoCost } from "@/lib/inventory";
 import { postJournalEntry, buildInvoicePosting, buildInvoicePaymentPosting, InvalidLineError, resolveDocumentCurrency } from "@/lib/ledger";
 import { roundMoney, sum, money } from "@/lib/currency";
 import { nextDocumentNumber } from "@/lib/numbering";
 import { computeTaxedLines } from "@/lib/taxCalc";
 import { foreignReferenceProblem } from "@/lib/tenantRefs";
-import { getBankAccountCode, getAccountsReceivableCode, getOutputTaxPayableCode, getOrCreateExchangeGainLossCode } from "@/lib/accounts";
+import { getBankAccountCode, getAccountsReceivableCode, getOutputTaxPayableCode, getOrCreateExchangeGainLossCode, getOrCreateCogsExpenseCode, getOrCreateInventoryAssetCode } from "@/lib/accounts";
 
 export interface InvoiceLineInput {
   description: string;
@@ -238,7 +238,7 @@ export async function postInvoiceToLedger(params: {
     where: { id: params.invoiceId, companyId: params.companyId },
     include: {
       lines: {
-        include: { product: { select: { id: true, trackInventory: true } } },
+        include: { product: { select: { id: true, name: true, trackInventory: true, quantityOnHand: true, expenseAccountCode: true } } },
       },
     },
   });
@@ -264,6 +264,40 @@ export async function postInvoiceToLedger(params: {
   const baseTaxTotal = roundMoney(money(invoice.taxTotal).times(invoice.exchangeRate));
   const baseSubtotal = baseTotal.minus(baseTaxTotal);
 
+  // Every tracked-inventory line relieves the Inventory Asset account to
+  // COGS at its FIFO cost, in the SAME journal entry as the revenue — see
+  // buildInvoicePosting. previewFifoCost() only reads (it doesn't consume
+  // anything yet); the actual physical consumption happens in the shipStock
+  // loop below, once this entry has posted. Fails fast, before anything is
+  // written, if there isn't enough physical stock — recognizing revenue and
+  // cost of goods you don't have would misstate both the P&L and the
+  // balance sheet; this is a deliberate behavior change from the previous
+  // "ship best-effort, log and ignore a shortfall" approach.
+  const trackedLines = (invoice.lines as any[]).filter((l) => l.product?.trackInventory && Number(l.quantity) > 0);
+  let cogsLines: { accountCode: string; amount: Decimal }[] = [];
+  let inventoryAssetCode: string | undefined;
+  if (trackedLines.length > 0) {
+    const [defaultCogsCode, resolvedInventoryAssetCode] = await Promise.all([
+      getOrCreateCogsExpenseCode(params.companyId),
+      getOrCreateInventoryAssetCode(params.companyId),
+    ]);
+    inventoryAssetCode = resolvedInventoryAssetCode;
+    const cogsGroups = new Map<string, Decimal>();
+    for (const line of trackedLines) {
+      const available = Number(line.product.quantityOnHand);
+      const qty = Number(line.quantity);
+      if (available < qty) {
+        throw new InvalidLineError(
+          `Not enough stock of "${line.product.name}" to post this invoice — available ${available}, need ${qty}. Adjust the stock level or the invoice quantity first.`
+        );
+      }
+      const { totalCost } = await previewFifoCost(params.companyId, line.product.id, qty);
+      const code = line.product.expenseAccountCode ?? defaultCogsCode;
+      cogsGroups.set(code, (cogsGroups.get(code) ?? money(0)).plus(totalCost));
+    }
+    cogsLines = [...cogsGroups.entries()].map(([accountCode, amount]) => ({ accountCode, amount }));
+  }
+
   const entry = await postJournalEntry({
     companyId: params.companyId,
     membershipId: params.membershipId,
@@ -274,7 +308,7 @@ export async function postInvoiceToLedger(params: {
     memo: `Invoice ${invoice.invoiceNumber}`,
     currency: invoice.currency,
     exchangeRate: invoice.exchangeRate,
-    lines: buildInvoicePosting({ subtotal: baseSubtotal, taxTotal: baseTaxTotal, total: baseTotal, accountsReceivableCode, outputTaxCode }),
+    lines: buildInvoicePosting({ subtotal: baseSubtotal, taxTotal: baseTaxTotal, total: baseTotal, accountsReceivableCode, outputTaxCode, cogsLines, inventoryAssetCode }),
     post: true,
   });
 
@@ -283,31 +317,29 @@ export async function postInvoiceToLedger(params: {
     data: { status: "SENT", journalEntryId: entry.id },
   });
 
-  // Deduct inventory for any line that references a tracked product.
-  // Failures are logged but never abort the invoice posting — the ledger
-  // entry is already committed and immutable; a manual stock adjustment can
-  // correct the inventory side later. This follows the same "best effort"
-  // approach used by Zoho Books when stock is below zero.
-  for (const line of (invoice as any).lines) {
-    if (line.product?.trackInventory && line.quantity) {
-      try {
-        await shipStock(
-          params.companyId,
-          params.userId,
-          line.product.id,
-          Number(line.quantity),
-          {
-            notes: `Invoice ${invoice.invoiceNumber}`,
-            referenceType: "Invoice",
-            referenceId: invoice.id,
-            date: invoice.issueDate,
-          }
-        );
-      } catch (err: any) {
-        // Log but do not rethrow — stock adjustments are correctable,
-        // un-posting a journal entry is not.
-        console.error(`[inventory] shipStock failed for invoice ${invoice.id} product ${line.product.id}: ${err?.message}`);
-      }
+  // Physically consume the stock the journal entry above already costed.
+  // Failures are logged but never abort — the ledger entry is already
+  // committed and immutable; a manual stock adjustment can correct the
+  // physical side later. Under normal operation this always succeeds (the
+  // availability check above just ran); the residual risk is a concurrent
+  // shipment of the same product landing between the check and this call,
+  // an accepted pre-existing limitation (no per-product locking here).
+  for (const line of trackedLines) {
+    try {
+      await shipStock(
+        params.companyId,
+        params.userId,
+        line.product.id,
+        Number(line.quantity),
+        {
+          notes: `Invoice ${invoice.invoiceNumber}`,
+          referenceType: "Invoice",
+          referenceId: invoice.id,
+          date: invoice.issueDate,
+        }
+      );
+    } catch (err: any) {
+      console.error(`[inventory] shipStock failed for invoice ${invoice.id} product ${line.product.id}: ${err?.message}`);
     }
   }
 

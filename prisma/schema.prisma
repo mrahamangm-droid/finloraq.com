@@ -363,6 +363,8 @@ enum SystemAccountPurpose {
   ACCOUNTS_PAYABLE
   OUTPUT_TAX_PAYABLE
   EXCHANGE_GAIN_LOSS
+  INVENTORY_ASSET
+  COGS_EXPENSE
 }
 
 model Account {
@@ -873,6 +875,12 @@ model StockMovement {
   quantity      Decimal           @db.Decimal(18, 4) // positive = IN, negative = OUT
   balanceAfter  Decimal           @db.Decimal(18, 4) // snapshot of quantityOnHand after this movement
   unitCost      Decimal?          @db.Decimal(18, 4) // cost per unit at time of movement
+  /// FIFO cost-layer bookkeeping: for an inbound movement (RECEIPT, OPENING,
+  /// RETURN_IN) this is how much of that layer's quantity hasn't yet been
+  /// consumed by a later outbound movement — set to `quantity` at creation
+  /// and decremented as shipStock() consumes the oldest layers first. NULL
+  /// (and unused) for an outbound movement (SHIPMENT, ADJUSTMENT, RETURN_OUT).
+  costLayerRemaining Decimal?     @db.Decimal(18, 4)
   notes         String?
   referenceType String?           // "InvoiceLine" | "BillLine" | "StockAdjustment" | etc.
   referenceId   String?
