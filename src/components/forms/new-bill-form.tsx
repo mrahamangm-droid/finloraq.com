@@ -5,13 +5,14 @@ import { useRouter } from "next/navigation";
 import { Plus, Trash2 } from "lucide-react";
 import { MathInput } from "@/components/forms/math-input";
 
-type Line = { description: string; quantity: string; unitPrice: string; taxCodeId: string };
-const emptyLine = (): Line => ({ description: "", quantity: "1", unitPrice: "", taxCodeId: "" });
+type Line = { description: string; quantity: string; unitPrice: string; taxCodeId: string; productId: string };
+const emptyLine = (): Line => ({ description: "", quantity: "1", unitPrice: "", taxCodeId: "", productId: "" });
 
 export function NewBillForm({
   currency,
   suppliers,
   taxCodes,
+  products = [],
   billId,
   initial,
 }: {
@@ -21,6 +22,13 @@ export function NewBillForm({
   currency: string;
   suppliers: { id: string; name: string }[];
   taxCodes: { id: string; name: string; rate: number }[];
+  /** Optional catalog items a line can link to — picking one fills in the
+   *  description and price and, for a trackInventory item, is what makes
+   *  this line capitalize to Inventory Asset (instead of expensing
+   *  immediately) when the bill is approved — see approveAndPostBill in
+   *  src/lib/purchases.ts. A line left as "Custom line" behaves exactly as
+   *  before: free-text, expensed directly, no inventory effect. */
+  products?: { id: string; name: string; unitPrice: number; trackInventory: boolean; quantityOnHand: number }[];
   /** Present only when editing an existing DRAFT bill — switches the form
    *  from POST /api/bills to PATCH /api/bills/:id. */
   billId?: string;
@@ -42,6 +50,19 @@ export function NewBillForm({
 
   function updateLine(i: number, patch: Partial<Line>) {
     setLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
+  }
+
+  function selectProduct(i: number, productId: string) {
+    const product = products.find((p) => p.id === productId);
+    if (!product) {
+      updateLine(i, { productId: "" });
+      return;
+    }
+    updateLine(i, {
+      productId,
+      description: product.name,
+      unitPrice: String(product.unitPrice),
+    });
   }
 
   const taxRate = (id: string) => taxCodes.find((t) => t.id === id)?.rate ?? 0;
@@ -70,6 +91,7 @@ export function NewBillForm({
             quantity: parseFloat(l.quantity) || 1,
             unitPrice: parseFloat(l.unitPrice) || 0,
             taxCodeId: l.taxCodeId || undefined,
+            productId: l.productId || undefined,
           })),
       }),
     });
@@ -119,6 +141,7 @@ export function NewBillForm({
           <table className="w-full text-sm">
             <thead className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
+                <th className="w-44 px-3 py-2">Product</th>
                 <th className="px-3 py-2">Description</th>
                 <th className="w-20 px-3 py-2 text-right">Qty</th>
                 <th className="w-28 px-3 py-2 text-right">Unit price</th>
@@ -127,8 +150,19 @@ export function NewBillForm({
               </tr>
             </thead>
             <tbody>
-              {lines.map((line, i) => (
+              {lines.map((line, i) => {
+                const selected = products.find((p) => p.id === line.productId);
+                return (
                 <tr key={i} className="border-b border-border last:border-0">
+                  <td className="px-3 py-1.5">
+                    <select value={line.productId} onChange={(e) => selectProduct(i, e.target.value)} className="w-full rounded border border-border bg-background px-2 py-1 text-xs">
+                      <option value="">Custom line</option>
+                      {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                    {selected?.trackInventory && (
+                      <p className="mt-0.5 text-[10px] text-muted-foreground">{selected.quantityOnHand} in stock</p>
+                    )}
+                  </td>
                   <td className="px-3 py-1.5">
                     <input value={line.description} onChange={(e) => updateLine(i, { description: e.target.value })} className="w-full rounded border border-border bg-background px-2 py-1 text-xs" />
                   </td>
@@ -150,7 +184,8 @@ export function NewBillForm({
                     </button>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

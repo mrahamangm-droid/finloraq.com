@@ -11,13 +11,14 @@ export default async function EditBillPage(props: { params: Promise<{ id: string
   const denied = await viewGate(active.id, "bills");
   if (denied) return denied;
 
-  const [bill, suppliers, taxCodes] = await Promise.all([
+  const [bill, suppliers, taxCodes, products] = await Promise.all([
     prisma.bill.findFirst({
       where: { id: id, companyId: active.companyId },
       include: { lines: true },
     }),
     prisma.supplier.findMany({ where: { companyId: active.companyId, isActive: true }, orderBy: { name: "asc" } }),
     prisma.taxCode.findMany({ where: { companyId: active.companyId, isActive: true }, orderBy: { name: "asc" } }),
+    prisma.product.findMany({ where: { companyId: active.companyId, isActive: true }, orderBy: { name: "asc" } }),
   ]);
   if (!bill) notFound();
   if (bill.status !== "DRAFT") notFound(); // only a draft can be edited — see updateBill() in src/lib/purchases.ts
@@ -30,6 +31,7 @@ export default async function EditBillPage(props: { params: Promise<{ id: string
         currency={bill.currency}
         suppliers={suppliers.map((s) => ({ id: s.id, name: s.name }))}
         taxCodes={taxCodes.map((t) => ({ id: t.id, name: t.name, rate: t.rate.toNumber() }))}
+        products={products.map((p) => ({ id: p.id, name: p.name, unitPrice: p.unitPrice.toNumber(), trackInventory: p.trackInventory, quantityOnHand: p.quantityOnHand.toNumber() }))}
         initial={{
           supplierId: bill.supplierId,
           issueDate: bill.issueDate.toISOString().slice(0, 10),
@@ -39,6 +41,7 @@ export default async function EditBillPage(props: { params: Promise<{ id: string
             quantity: l.quantity.toString(),
             unitPrice: l.unitPrice.toString(),
             taxCodeId: l.taxCodeId ?? "",
+            productId: l.productId ?? "",
           })),
         }}
       />

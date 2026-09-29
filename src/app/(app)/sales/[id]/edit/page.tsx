@@ -11,13 +11,14 @@ export default async function EditInvoicePage(props: { params: Promise<{ id: str
   const denied = await viewGate(active.id, "invoices");
   if (denied) return denied;
 
-  const [invoice, customers, taxCodes] = await Promise.all([
+  const [invoice, customers, taxCodes, products] = await Promise.all([
     prisma.invoice.findFirst({
       where: { id: id, companyId: active.companyId },
       include: { lines: true },
     }),
     prisma.customer.findMany({ where: { companyId: active.companyId, isActive: true }, orderBy: { name: "asc" } }),
     prisma.taxCode.findMany({ where: { companyId: active.companyId, isActive: true }, orderBy: { name: "asc" } }),
+    prisma.product.findMany({ where: { companyId: active.companyId, isActive: true }, orderBy: { name: "asc" } }),
   ]);
   if (!invoice) notFound();
   if (invoice.status !== "DRAFT") notFound(); // only a draft can be edited — see updateInvoice() in src/lib/sales.ts
@@ -30,6 +31,7 @@ export default async function EditInvoicePage(props: { params: Promise<{ id: str
         currency={invoice.currency}
         customers={customers.map((c) => ({ id: c.id, name: c.name }))}
         taxCodes={taxCodes.map((t) => ({ id: t.id, name: t.name, rate: t.rate.toNumber() }))}
+        products={products.map((p) => ({ id: p.id, name: p.name, unitPrice: p.unitPrice.toNumber(), trackInventory: p.trackInventory, quantityOnHand: p.quantityOnHand.toNumber() }))}
         initial={{
           customerId: invoice.customerId,
           issueDate: invoice.issueDate.toISOString().slice(0, 10),
@@ -39,6 +41,7 @@ export default async function EditInvoicePage(props: { params: Promise<{ id: str
             quantity: l.quantity.toString(),
             unitPrice: l.unitPrice.toString(),
             taxCodeId: l.taxCodeId ?? "",
+            productId: l.productId ?? "",
           })),
         }}
       />
