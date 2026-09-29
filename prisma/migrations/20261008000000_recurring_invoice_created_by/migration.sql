@@ -9,4 +9,4 @@ ALTER TABLE "RecurringInvoice" ADD COLUMN "createdByMembershipId" TEXT;
 
 ALTER TABLE "RecurringInvoice"
     ADD CONSTRAINT "RecurringInvoice_createdByMembershipId_fkey"
-    FOREIGN KEY ("createdByMembershipId") REFERENCES "CompanyMembership"("id") ON UPDATE CASCADE;
+    FOREIGN KEY ("createdByMembershipId") REFERENCES "CompanyMembership"("id") ON DELETE SET NULL ON UPDATE CASCADE;
