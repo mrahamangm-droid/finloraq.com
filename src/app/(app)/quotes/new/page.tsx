@@ -7,7 +7,7 @@ export default async function NewQuotePage() {
   const { active } = await requireTenantContext();
   await requirePermission(active.id, "quotes", "CREATE");
 
-  const [customers, taxCodes, deals, projects] = await Promise.all([
+  const [customers, taxCodes, deals, projects, products] = await Promise.all([
     prisma.customer.findMany({
       where: { companyId: active.companyId, isActive: true },
       orderBy: { name: "asc" },
@@ -30,6 +30,7 @@ export default async function NewQuotePage() {
       select: { id: true, name: true },
       take: 100,
     }),
+    prisma.product.findMany({ where: { companyId: active.companyId, isActive: true }, orderBy: { name: "asc" } }),
   ]);
 
   return (
@@ -40,6 +41,7 @@ export default async function NewQuotePage() {
         taxCodes={taxCodes.map((t: any) => ({ id: t.id, name: t.name, rate: t.rate.toNumber() }))}
         deals={deals}
         projects={projects}
+        products={products.map((p: any) => ({ id: p.id, name: p.name, unitPrice: p.unitPrice.toNumber(), trackInventory: p.trackInventory, quantityOnHand: p.quantityOnHand.toNumber() }))}
       />
     </div>
   );

@@ -5,17 +5,22 @@ import { useRouter } from "next/navigation";
 import { Plus, Trash2 } from "lucide-react";
 import { MathInput } from "@/components/forms/math-input";
 
-type Line = { description: string; quantity: string; unitPrice: string; taxCodeId: string };
-const emptyLine = (): Line => ({ description: "", quantity: "1", unitPrice: "", taxCodeId: "" });
+type Line = { description: string; quantity: string; unitPrice: string; taxCodeId: string; productId: string };
+const emptyLine = (): Line => ({ description: "", quantity: "1", unitPrice: "", taxCodeId: "", productId: "" });
 
 interface Props {
   customers: { id: string; name: string; currency: string }[];
   taxCodes: { id: string; name: string; rate: number }[];
   deals: { id: string; name: string }[];
   projects: { id: string; name: string }[];
+  /** Picking a product fills in description and price and, for a
+   *  trackInventory item, is what lets a Sales Order converted from this
+   *  quote later deduct stock and post COGS. A line left as "Custom line"
+   *  behaves as free text, same as an ordinary invoice/bill line. */
+  products?: { id: string; name: string; unitPrice: number; trackInventory: boolean; quantityOnHand: number }[];
 }
 
-export function NewQuoteForm({ customers, taxCodes, deals, projects }: Props) {
+export function NewQuoteForm({ customers, taxCodes, deals, projects, products = [] }: Props) {
   const router = useRouter();
   const today = new Date().toISOString().slice(0, 10);
   const thirtyDays = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
@@ -33,6 +38,15 @@ export function NewQuoteForm({ customers, taxCodes, deals, projects }: Props) {
 
   function updateLine(i: number, patch: Partial<Line>) {
     setLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
+  }
+
+  function selectProduct(i: number, productId: string) {
+    const product = products.find((p) => p.id === productId);
+    if (!product) {
+      updateLine(i, { productId: "" });
+      return;
+    }
+    updateLine(i, { productId, description: product.name, unitPrice: String(product.unitPrice) });
   }
 
   const taxRate = (id: string) => taxCodes.find((t) => t.id === id)?.rate ?? 0;
@@ -64,6 +78,7 @@ export function NewQuoteForm({ customers, taxCodes, deals, projects }: Props) {
           quantity: parseFloat(l.quantity) || 1,
           unitPrice: parseFloat(l.unitPrice) || 0,
           taxCodeId: l.taxCodeId || undefined,
+          productId: l.productId || undefined,
         })),
       }),
     });
@@ -141,6 +156,7 @@ export function NewQuoteForm({ customers, taxCodes, deals, projects }: Props) {
         <table className="w-full text-sm">
           <thead className="bg-muted/40 border-b border-border">
             <tr>
+              <th className="px-3 py-2 text-left font-medium text-muted-foreground w-40">Product</th>
               <th className="px-3 py-2 text-left font-medium text-muted-foreground">Description</th>
               <th className="px-3 py-2 text-right font-medium text-muted-foreground w-20">Qty</th>
               <th className="px-3 py-2 text-right font-medium text-muted-foreground w-28">Unit Price</th>
@@ -153,8 +169,19 @@ export function NewQuoteForm({ customers, taxCodes, deals, projects }: Props) {
             {lines.map((l, i) => {
               const lineTotal = (parseFloat(l.quantity) || 0) * (parseFloat(l.unitPrice) || 0);
               const lineTax = lineTotal * taxRate(l.taxCodeId);
+              const selected = products.find((p) => p.id === l.productId);
               return (
                 <tr key={i}>
+                  <td className="px-2 py-1">
+                    <select value={l.productId} onChange={(e) => selectProduct(i, e.target.value)}
+                      className="w-full bg-transparent text-xs outline-none">
+                      <option value="">Custom line</option>
+                      {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                    {selected?.trackInventory && (
+                      <p className="text-[10px] text-muted-foreground">{selected.quantityOnHand} in stock</p>
+                    )}
+                  </td>
                   <td className="px-2 py-1">
                     <input value={l.description} onChange={(e) => updateLine(i, { description: e.target.value })}
                       placeholder="Item description"
@@ -194,7 +221,7 @@ export function NewQuoteForm({ customers, taxCodes, deals, projects }: Props) {
           </tbody>
           <tfoot className="border-t border-border bg-muted/10">
             <tr>
-              <td colSpan={6} className="px-2 py-1">
+              <td colSpan={7} className="px-2 py-1">
                 <button onClick={() => setLines((p) => [...p, emptyLine()])}
                   className="flex items-center gap-1 text-xs text-primary hover:underline">
                   <Plus className="h-3 w-3" /> Add line
@@ -202,17 +229,17 @@ export function NewQuoteForm({ customers, taxCodes, deals, projects }: Props) {
               </td>
             </tr>
             <tr>
-              <td colSpan={4} className="px-3 py-1 text-right text-muted-foreground text-sm">Subtotal</td>
+              <td colSpan={5} className="px-3 py-1 text-right text-muted-foreground text-sm">Subtotal</td>
               <td className="px-3 py-1 text-right tabular-nums text-sm">{subtotal.toFixed(2)}</td>
               <td />
             </tr>
             <tr>
-              <td colSpan={4} className="px-3 py-1 text-right text-muted-foreground text-sm">Tax</td>
+              <td colSpan={5} className="px-3 py-1 text-right text-muted-foreground text-sm">Tax</td>
               <td className="px-3 py-1 text-right tabular-nums text-sm">{taxTotal.toFixed(2)}</td>
               <td />
             </tr>
             <tr className="font-semibold">
-              <td colSpan={4} className="px-3 py-1.5 text-right">Total</td>
+              <td colSpan={5} className="px-3 py-1.5 text-right">Total</td>
               <td className="px-3 py-1.5 text-right tabular-nums">{(subtotal + taxTotal).toFixed(2)} {currency}</td>
               <td />
             </tr>
