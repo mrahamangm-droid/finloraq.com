@@ -13,6 +13,11 @@ const AREA_LABEL: Record<Module, string> = {
   banking: "banking",
   customers: "customers",
   suppliers: "suppliers",
+  crm: "the CRM",
+  quotes: "quotes",
+  purchase_orders: "purchase orders",
+  credit_notes: "credit notes",
+  recurring_invoices: "recurring invoices",
   projects: "projects",
   taxes: "taxes",
   reports: "reports",
@@ -21,6 +26,10 @@ const AREA_LABEL: Record<Module, string> = {
   settings: "company settings",
   audit: "the audit log",
   ai_copilot: "the AI Copilot",
+  products: "products",
+  inventory: "inventory",
+  workflows: "workflows",
+  approvals: "approvals",
 };
 
 /**

@@ -1,4 +1,5 @@
-import type { Prisma, JournalSourceType, CompanyRole } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
+import type { JournalSourceType, CompanyRole } from "@prisma/client";
 import Decimal from "decimal.js";
 import { prisma } from "@/lib/db";
 import { NotFoundError } from "@/lib/errors";
@@ -172,7 +173,7 @@ async function nextEntryNumber(tx: Prisma.TransactionClient, companyId: string):
     where: { companyId },
     orderBy: { entryNumber: "desc" },
     select: { entryNumber: true },
-  });
+  }) as { entryNumber: string } | null;
 
   const lastN = last ? parseInt(last.entryNumber.replace(/\D/g, ""), 10) || 0 : 0;
   return `JE-${String(lastN + 1).padStart(6, "0")}`;
@@ -199,7 +200,7 @@ export async function findOpenPeriod(tx: Prisma.TransactionClient, companyId: st
         endDate: new Date(Date.UTC(y, m + 1, 1) - 1),
       },
       update: {},
-    }).then((p) => {
+    }).then((p: any) => {
       if (p.status === "LOCKED") throw new PeriodLockedError(p.name);
       return p;
     });
@@ -249,12 +250,13 @@ export async function postJournalEntry(input: PostJournalEntryInput) {
     }
   }
 
-  const entry = await prisma.$transaction(async (tx) => {
+  const entry = await prisma.$transaction(async (tx: any) => {
     const period = await findOpenPeriod(tx, input.companyId, input.date);
 
-    const accounts = await tx.account.findMany({
+    const accounts = (await tx.account.findMany({
       where: { companyId: input.companyId, code: { in: input.lines.map((l) => l.accountCode) }, isActive: true },
-    });
+      select: { id: true, code: true },
+    })) as Array<{ id: string; code: string }>;
     const accountByCode = new Map(accounts.map((a) => [a.code, a]));
     for (const line of input.lines) {
       if (!accountByCode.has(line.accountCode)) {
@@ -346,7 +348,7 @@ export async function postDraftJournalEntry(params: {
     throw new InvalidLineError("Only a draft entry can be posted.");
   }
 
-  const posted = await prisma.$transaction(async (tx) => {
+  const posted = await prisma.$transaction(async (tx: any) => {
     await findOpenPeriod(tx, params.companyId, draft.date); // re-check: period may have locked since the draft was saved
     return tx.journalEntry.update({
       where: { id: draft.id },
@@ -435,12 +437,13 @@ export async function reverseJournalEntry(params: {
     throw new InvalidLineError("Only a posted entry can be reversed.");
   }
 
-  const accounts = await prisma.account.findMany({
-    where: { id: { in: original.lines.map((l) => l.accountId) } },
-  });
+  const accounts = (await prisma.account.findMany({
+    where: { id: { in: original.lines.map((l: any) => l.accountId) } },
+    select: { id: true, code: true },
+  })) as Array<{ id: string; code: string }>;
   const accountById = new Map(accounts.map((a) => [a.id, a]));
 
-  const reversalLines: LineInput[] = original.lines.map((l) => ({
+  const reversalLines: LineInput[] = original.lines.map((l: any) => ({
     accountCode: accountById.get(l.accountId)!.code,
     debit: l.credit, // swapped
     credit: l.debit,

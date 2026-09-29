@@ -4,7 +4,11 @@ import { prisma } from "@/lib/db";
 import { fieldDefs } from "@/lib/customization/server";
 import { NewInvoiceForm } from "@/components/forms/new-invoice-form";
 
-export default async function NewInvoicePage() {
+export default async function NewInvoicePage(props: {
+  searchParams?: Promise<{ customerId?: string }>;
+}) {
+  const searchParams = (await props.searchParams) ?? {};
+  const preselectedCustomerId = searchParams.customerId;
   const { active } = await requireTenantContext();
   const denied = await viewGate(active.id, "invoices");
   if (denied) return denied;
@@ -23,6 +27,12 @@ export default async function NewInvoicePage() {
         customers={customers.map((c) => ({ id: c.id, name: c.name }))}
         taxCodes={taxCodes.map((t) => ({ id: t.id, name: t.name, rate: t.rate.toNumber() }))}
         fields={fields}
+        initial={preselectedCustomerId ? {
+          customerId: preselectedCustomerId,
+          issueDate: new Date().toISOString().slice(0, 10),
+          dueDate:   new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
+          lines:     [],
+        } : undefined}
       />
     </div>
   );

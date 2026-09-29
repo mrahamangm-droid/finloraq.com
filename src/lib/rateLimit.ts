@@ -126,7 +126,9 @@ export function __useMemoryRateLimitsForTests() {
   buckets.clear();
 }
 
-export function clientIpFromHeaders(headers: Headers | Record<string, string | string[] | undefined> | undefined): string {
+export function clientIpFromHeaders(
+  headers: Headers | Record<string, string | string[] | undefined> | undefined
+): string {
   if (!headers) return "unknown";
   const get = (name: string): string | undefined => {
     if (headers instanceof Headers) return headers.get(name) ?? undefined;

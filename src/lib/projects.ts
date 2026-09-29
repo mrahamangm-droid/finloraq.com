@@ -145,9 +145,9 @@ export async function projectProfitability(companyId: string, projectId: string)
     }),
   ]);
 
-  const revenue = sum(invoices.map((i) => i.subtotal)).toNumber();
-  const billCost = sum(bills.map((b) => b.subtotal)).toNumber();
-  const directCost = sum(directCostLines.map((l) => l.debit)).minus(sum(directCostLines.map((l) => l.credit))).toNumber();
+  const revenue = sum(invoices.map((i: any) => i.subtotal)).toNumber();
+  const billCost = sum(bills.map((b: any) => b.subtotal)).toNumber();
+  const directCost = sum(directCostLines.map((l: any) => l.debit)).minus(sum(directCostLines.map((l: any) => l.credit))).toNumber();
   const cost = billCost + directCost;
   const margin = revenue - cost;
   const budget = project.budget?.toNumber() ?? null;
@@ -168,7 +168,7 @@ export async function projectProfitability(companyId: string, projectId: string)
 
 export async function listProjectsWithProfitability(companyId: string, isActive = true) {
   const projects = await prisma.project.findMany({ where: { companyId, isActive }, orderBy: { createdAt: "desc" } });
-  return Promise.all(projects.map((p) => projectProfitability(companyId, p.id)));
+  return Promise.all(projects.map((p: any) => projectProfitability(companyId, p.id)));
 }
 
 export async function countArchivedProjects(companyId: string) {

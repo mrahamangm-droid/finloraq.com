@@ -6,13 +6,14 @@ import { NewBillForm } from "@/components/forms/new-bill-form";
 
 export default async function EditBillPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
+  const { id } = params;
   const { active } = await requireTenantContext();
   const denied = await viewGate(active.id, "bills");
   if (denied) return denied;
 
   const [bill, suppliers, taxCodes] = await Promise.all([
     prisma.bill.findFirst({
-      where: { id: params.id, companyId: active.companyId },
+      where: { id: id, companyId: active.companyId },
       include: { lines: true },
     }),
     prisma.supplier.findMany({ where: { companyId: active.companyId, isActive: true }, orderBy: { name: "asc" } }),
@@ -33,7 +34,7 @@ export default async function EditBillPage(props: { params: Promise<{ id: string
           supplierId: bill.supplierId,
           issueDate: bill.issueDate.toISOString().slice(0, 10),
           dueDate: bill.dueDate.toISOString().slice(0, 10),
-          lines: bill.lines.map((l) => ({
+          lines: bill.lines.map((l: any) => ({
             description: l.description,
             quantity: l.quantity.toString(),
             unitPrice: l.unitPrice.toString(),

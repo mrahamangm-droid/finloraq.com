@@ -19,15 +19,16 @@ export default async function AuditPage(
   }
 ) {
   const searchParams = await props.searchParams;
+  const sp = searchParams;
   const { active } = await requireTenantContext();
   const denied = await viewGate(active.id, "audit");
   if (denied) return denied;
 
-  const page = Math.max(1, parseInt(searchParams.page ?? "1", 10) || 1);
+  const page = Math.max(1, parseInt(sp.page ?? "1", 10) || 1);
   const where = {
     companyId: active.companyId,
-    ...(searchParams.action ? { action: { contains: searchParams.action, mode: "insensitive" as const } } : {}),
-    ...(searchParams.entityType ? { entityType: searchParams.entityType } : {}),
+    ...(sp.action ? { action: { contains: sp.action, mode: "insensitive" as const } } : {}),
+    ...(sp.entityType ? { entityType: sp.entityType } : {}),
   };
 
   const [events, total, entityTypes] = await Promise.all([
@@ -51,8 +52,8 @@ export default async function AuditPage(
 
   function pageHref(p: number) {
     const params = new URLSearchParams();
-    if (searchParams.action) params.set("action", searchParams.action);
-    if (searchParams.entityType) params.set("entityType", searchParams.entityType);
+    if (sp.action) params.set("action", sp.action);
+    if (sp.entityType) params.set("entityType", sp.entityType);
     params.set("page", String(p));
     return `/audit?${params.toString()}`;
   }
@@ -72,16 +73,16 @@ export default async function AuditPage(
           <label className="text-xs font-medium text-muted-foreground">Action contains</label>
           <input
             name="action"
-            defaultValue={searchParams.action ?? ""}
+            defaultValue={sp.action ?? ""}
             placeholder="e.g. journal.post"
             className="mt-1 rounded-md border border-border bg-background px-3 py-2 text-sm"
           />
         </div>
         <div>
           <label className="text-xs font-medium text-muted-foreground">Entity type</label>
-          <select name="entityType" defaultValue={searchParams.entityType ?? ""} className="mt-1 rounded-md border border-border bg-background px-3 py-2 text-sm">
+          <select name="entityType" defaultValue={sp.entityType ?? ""} className="mt-1 rounded-md border border-border bg-background px-3 py-2 text-sm">
             <option value="">All</option>
-            {entityTypes.map((e) => (
+            {entityTypes.map((e: any) => (
               <option key={e.entityType} value={e.entityType}>{e.entityType}</option>
             ))}
           </select>
@@ -89,7 +90,7 @@ export default async function AuditPage(
         <button type="submit" className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">
           Filter
         </button>
-        {(searchParams.action || searchParams.entityType) && (
+        {(sp.action || sp.entityType) && (
           <Link href="/audit" className="text-xs text-muted-foreground hover:underline">Clear filters</Link>
         )}
       </form>
@@ -107,7 +108,7 @@ export default async function AuditPage(
               </tr>
             </thead>
             <tbody>
-              {events.map((e) => (
+              {events.map((e: any) => (
                 <tr key={e.id} className="border-b border-border last:border-0 align-top">
                   <td className="whitespace-nowrap px-4 py-2 text-xs text-muted-foreground">{e.createdAt.toISOString().replace("T", " ").slice(0, 19)}</td>
                   <td className="px-4 py-2 font-mono text-xs text-card-foreground">{e.action}</td>

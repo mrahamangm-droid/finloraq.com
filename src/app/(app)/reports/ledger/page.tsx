@@ -67,7 +67,7 @@ export default async function LedgerPage(props: { searchParams: Promise<SearchPa
           <span className="text-xs text-muted-foreground">Account</span>
           <select name="account" defaultValue={accountCode ?? ""} className="rounded-md border border-border bg-background px-2 py-1">
             <option value="">All accounts</option>
-            {accounts.map((a) => (
+            {accounts.map((a: any) => (
               <option key={a.code} value={a.code}>{a.code} · {a.name}</option>
             ))}
           </select>

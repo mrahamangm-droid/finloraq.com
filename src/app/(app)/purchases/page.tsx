@@ -13,14 +13,26 @@ function statusColor(status: string) {
   return "bg-primary/10 text-primary";
 }
 
-export default async function PurchasesPage(props: { searchParams?: Promise<PeriodParams> }) {
+type PurchasesParams = PeriodParams & { supplierId?: string };
+
+export default async function PurchasesPage(props: { searchParams?: Promise<PurchasesParams> }) {
   const searchParams = (await props.searchParams) ?? {};
+  const sp = searchParams;
   const { active, userId } = await requireTenantContext();
   const denied = await viewGate(active.id, "bills");
   if (denied) return denied;
   const fmt = await getFormatter(userId);
-  const filtered = Boolean(searchParams.period);
-  const period = resolvePeriod(searchParams);
+  const filtered = Boolean(sp.period);
+  const period = resolvePeriod(sp);
+  const supplierFilter = sp.supplierId ?? undefined;
+
+  // Resolve supplier name when filtering by supplier
+  const filterSupplier = supplierFilter
+    ? await prisma.supplier.findFirst({
+        where: { id: supplierFilter, companyId: active.companyId },
+        select: { id: true, name: true },
+      })
+    : null;
 
   // Same cap-not-paginate tradeoff as the Sales list (see its comment).
   const where = { companyId: active.companyId, ...(filtered ? { issueDate: { gte: period.from, lte: period.to } } : {}) };
@@ -39,19 +51,35 @@ export default async function PurchasesPage(props: { searchParams?: Promise<Peri
   ]);
   const totalCount = totalsByCurrency.reduce((n, g) => n + g._count._all, 0);
 
+  const newBillHref = filterSupplier
+    ? `/purchases/new?supplierId=${filterSupplier.id}`
+    : "/purchases/new";
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-foreground">Purchases — Bills</h1>
-          <p className="text-sm text-muted-foreground">{active.company.name}</p>
+          <h1 className="text-xl font-semibold text-foreground">
+            {filterSupplier ? `Bills — ${filterSupplier.name}` : "Purchases — Bills"}
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            {filterSupplier ? (
+              <>
+                <Link href="/suppliers" className="hover:underline">{active.company.name}</Link>
+                {" · "}
+                <Link href={`/suppliers/${filterSupplier.id}`} className="hover:underline">{filterSupplier.name}</Link>
+                {" · "}
+                <Link href="/purchases" className="hover:underline text-primary/70">Clear filter</Link>
+              </>
+            ) : active.company.name}
+          </p>
         </div>
-        <Link href="/purchases/new" className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground">
+        <Link href={newBillHref} className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground">
           New Bill
         </Link>
       </div>
 
-      <PeriodPicker {...pickerProps(period)} showingAll={!filtered} clearable={filtered} />
+      {!filterSupplier && <PeriodPicker {...pickerProps(period)} showingAll={!filtered} clearable={filtered} />}
 
       <div className="overflow-hidden rounded-lg border border-border bg-card">
         <div className="overflow-x-auto">
@@ -68,9 +96,11 @@ export default async function PurchasesPage(props: { searchParams?: Promise<Peri
             </thead>
             <tbody>
               {bills.length === 0 && (
-                <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">{filtered ? `No bills in ${period.label}.` : "No bills yet."}</td></tr>
+                <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
+                  {filterSupplier ? `No bills from ${filterSupplier.name}.` : filtered ? `No bills in ${period.label}.` : "No bills yet."}
+                </td></tr>
               )}
-              {bills.map((b) => (
+              {bills.map((b: any) => (
                 <tr key={b.id} className="border-b border-border last:border-0 hover:bg-muted/30">
                   <td className="px-4 py-2">
                     <Link href={`/purchases/${b.id}`} className="font-mono text-xs text-primary">{b.billNumber}</Link>

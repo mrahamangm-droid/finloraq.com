@@ -19,6 +19,7 @@ import { DashboardCustomizer } from "@/components/dashboard/dashboard-customizer
 // user's own choice (the Customize button); see src/lib/customization/widgets.ts.
 export default async function DashboardPage(props: { searchParams?: Promise<PeriodParams> }) {
   const searchParams = (await props.searchParams) ?? {};
+  const sp = searchParams;
   const { active, userId } = await requireTenantContext();
   const denied = await viewGate(active.id, "dashboard");
   if (denied) return denied;
@@ -27,7 +28,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<Peri
   const [layout, fmt] = await Promise.all([getDashboardLayout(active.id), getFormatter(userId)]);
   // The picker (Daily … Yearly, any past period) wins; with no choice in the
   // URL the user's saved default from Customize applies.
-  const period = searchParams.period ? resolvePeriod(searchParams, now) : periodFromRange(layout.range, now);
+  const period = sp.period ? resolvePeriod(sp, now) : periodFromRange(layout.range, now);
   const { from, to } = period;
   // Balances are shown as at the end of the period (or today, for the current one).
   const asOf = to < now ? to : now;
@@ -48,7 +49,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<Peri
 
   const totalAr = ar.reduce((a, r) => a + r.balance, 0);
   const totalAp = ap.reduce((a, r) => a + r.balance, 0);
-  const rangeLabel = searchParams.period ? period.label : RANGES[layout.range];
+  const rangeLabel = sp.period ? period.label : RANGES[layout.range];
   const asOfLabel = asOf === now ? undefined : `as at ${fmt.date(asOf)}`;
 
   const stat = (label: string, value: string, opts: { negative?: boolean; hint?: string; href?: string } = {}) => (

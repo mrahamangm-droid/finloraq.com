@@ -6,6 +6,7 @@ import { ForbiddenError } from "@/lib/rbac";
 
 export async function POST(_req: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
+  const { id } = params;
   const { active, userId } = await requireTenantContext();
   try {
     const count = await reconcileBankAccount({

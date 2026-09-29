@@ -6,13 +6,14 @@ import { InvalidLineError, PeriodLockedError } from "@/lib/ledger";
 
 export async function POST(_req: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
+  const { id } = params;
   const { active, userId } = await requireTenantContext();
   try {
     const entry = await approveExpense({
       companyId: active.companyId,
       membershipId: active.id,
       userId,
-      journalEntryId: params.id,
+      journalEntryId: id,
     });
     return NextResponse.json({ id: entry.id, status: entry.status });
   } catch (err) {

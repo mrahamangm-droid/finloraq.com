@@ -25,9 +25,9 @@ export default async function ChartOfAccountsPage() {
   // those lock their code/type in the edit row (see updateAccount()).
   const used = await prisma.journalLine.groupBy({
     by: ["accountId"],
-    where: { accountId: { in: accounts.map((a) => a.id) } },
+    where: { accountId: { in: accounts.map((a: any) => a.id) } },
   });
-  const lockedIds = new Set(used.map((u) => u.accountId));
+  const lockedIds = new Set(used.map((u: any) => u.accountId));
 
   const grouped = ["ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"] as const;
 
@@ -81,7 +81,7 @@ export default async function ChartOfAccountsPage() {
       {canCreate && <NewAccountForm />}
 
       {grouped.map((type) => {
-        const rows = accounts.filter((a) => a.type === type);
+        const rows = accounts.filter((a: any) => a.type === type);
         if (rows.length === 0) return null;
         return (
           <div key={type} className="rounded-lg border border-border bg-card">
@@ -91,7 +91,7 @@ export default async function ChartOfAccountsPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <tbody>
-                  {rows.map((a) => (
+                  {rows.map((a: any) => (
                     <AccountRow key={a.id} account={a} canEdit={canEdit} canDelete={canDelete} locked={lockedIds.has(a.id)} />
                   ))}
                 </tbody>

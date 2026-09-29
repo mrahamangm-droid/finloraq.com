@@ -172,7 +172,7 @@ export async function handleInvoiceCheckoutPaid(session: CheckoutSession, connec
     const payment = await prisma.onlinePayment.create({
       data: {
         companyId, invoiceId, providerPaymentId, checkoutSessionId: session.id,
-        amount: new Prisma.Decimal(amount), currency: session.currency.toUpperCase(), status, journalEntryId, note,
+        amount: amount, currency: session.currency.toUpperCase(), status, journalEntryId, note,
       },
     });
     await recordAuditEvent({
@@ -183,7 +183,7 @@ export async function handleInvoiceCheckoutPaid(session: CheckoutSession, connec
     });
   } catch (err) {
     // a concurrent delivery of the same event already recorded it
-    if (!(err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002")) throw err;
+    if (!((err as NodeJS.ErrnoException)?.code === "P2002")) throw err;
   }
 }
 

@@ -45,7 +45,7 @@ export async function createSupplierAction(formData: FormData) {
   if (defs.length > 0) {
     await prisma.supplier.update({
       where: { id: created.id },
-      data: { customFields: customFields as Prisma.InputJsonValue },
+      data: { customFields: customFields as unknown as Prisma.InputJsonValue },
     });
   }
 
@@ -74,7 +74,7 @@ export async function updateSupplierAction(supplierId: string, formData: FormDat
     if (defs.length > 0) {
       await prisma.supplier.update({
         where: { id: supplierId },
-        data: { customFields: customFields as Prisma.InputJsonValue },
+        data: { customFields: customFields as unknown as Prisma.InputJsonValue },
       });
     }
   });

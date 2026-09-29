@@ -107,14 +107,16 @@ export interface PeriodRow {
 export async function listPeriods(companyId: string, now = new Date()): Promise<PeriodRow[]> {
   const current = monthName(now);
   const first = await firstMonthOfBooks(companyId, current);
+  type PeriodRecord = { id: string; name: string; status: string; lockedAt: Date | null; lockedBy: string | null };
   const [periods, counts] = await Promise.all([
-    prisma.accountingPeriod.findMany({ where: { companyId }, select: { id: true, name: true, status: true, lockedAt: true, lockedBy: true } }),
+    prisma.accountingPeriod.findMany({ where: { companyId }, select: { id: true, name: true, status: true, lockedAt: true, lockedBy: true } }) as Promise<PeriodRecord[]>,
     prisma.journalEntry.groupBy({ by: ["periodId", "status"], where: { companyId }, _count: { _all: true } }),
   ]);
   const byName = new Map(periods.map((p) => [p.name, p]));
   const lockerIds = [...new Set(periods.map((p) => p.lockedBy).filter((x): x is string => !!x))];
-  const lockers = await prisma.user.findMany({ where: { id: { in: lockerIds } }, select: { id: true, name: true, email: true } });
-  const lockerName = new Map(lockers.map((u) => [u.id, u.name ?? u.email]));
+  type UserRecord = { id: string; name: string | null; email: string };
+  const lockers = await prisma.user.findMany({ where: { id: { in: lockerIds } }, select: { id: true, name: true, email: true } }) as UserRecord[];
+  const lockerName = new Map(lockers.map((u) => [u.id, u.name ?? u.email] as [string, string]));
   const count = (periodId: string | undefined, status: string) =>
     periodId ? counts.find((c) => c.periodId === periodId && c.status === status)?._count._all ?? 0 : 0;
 

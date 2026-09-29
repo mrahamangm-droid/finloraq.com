@@ -6,13 +6,14 @@ import { NewInvoiceForm } from "@/components/forms/new-invoice-form";
 
 export default async function EditInvoicePage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
+  const { id } = params;
   const { active } = await requireTenantContext();
   const denied = await viewGate(active.id, "invoices");
   if (denied) return denied;
 
   const [invoice, customers, taxCodes] = await Promise.all([
     prisma.invoice.findFirst({
-      where: { id: params.id, companyId: active.companyId },
+      where: { id: id, companyId: active.companyId },
       include: { lines: true },
     }),
     prisma.customer.findMany({ where: { companyId: active.companyId, isActive: true }, orderBy: { name: "asc" } }),
@@ -33,7 +34,7 @@ export default async function EditInvoicePage(props: { params: Promise<{ id: str
           customerId: invoice.customerId,
           issueDate: invoice.issueDate.toISOString().slice(0, 10),
           dueDate: invoice.dueDate.toISOString().slice(0, 10),
-          lines: invoice.lines.map((l) => ({
+          lines: invoice.lines.map((l: any) => ({
             description: l.description,
             quantity: l.quantity.toString(),
             unitPrice: l.unitPrice.toString(),

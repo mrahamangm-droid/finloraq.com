@@ -34,7 +34,7 @@ export default async function CustomersPage(props: { searchParams: Promise<{ arc
     where: { companyId: active.companyId, kind: "CUSTOMER_RECORD", status: { in: ["EXTRACTED", "MATCHED"] } },
     orderBy: { createdAt: "desc" },
   });
-  const queue: QueueDocument[] = pendingDocuments.map((d) => ({
+  const queue: QueueDocument[] = pendingDocuments.map((d: any) => ({
     id: d.id,
     fileName: d.fileName,
     createdAt: d.createdAt.toISOString(),
@@ -91,7 +91,7 @@ export default async function CustomersPage(props: { searchParams: Promise<{ arc
                   </td>
                 </tr>
               )}
-              {customers.map((c) => (
+              {customers.map((c: any) => (
                 <CustomerRow key={c.id} customer={c} defs={defs} canEdit={canEdit} canDelete={canDelete} />
               ))}
             </tbody>

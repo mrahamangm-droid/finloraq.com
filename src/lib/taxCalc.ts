@@ -49,15 +49,16 @@ export async function computeTaxedLines<T extends TaxableLineInput>(
 ): Promise<TaxedLinesResult<T>> {
   const taxCodeIds = [...new Set(lines.map((l) => l.taxCodeId).filter((id): id is string => Boolean(id)))];
   const taxCodes = taxCodeIds.length
-    ? await db.taxCode.findMany({ where: { companyId, id: { in: taxCodeIds } } })
-    : [];
+    ? await db.taxCode.findMany({ where: { companyId, id: { in: taxCodeIds } } }) as Array<{ id: string; rate: number | { toNumber(): number } }>
+    : [] as Array<{ id: string; rate: number | { toNumber(): number } }>;
   if (taxCodes.length !== taxCodeIds.length) throw new InvalidLineError("Tax code not found.");
   const taxCodeById = new Map(taxCodes.map((t) => [t.id, t]));
 
   const computed = lines.map((line) => {
     const lineTotal = roundMoney(money(line.quantity).times(line.unitPrice));
     const taxCode = line.taxCodeId ? taxCodeById.get(line.taxCodeId) : undefined;
-    const lineTax = taxCode ? roundMoney(lineTotal.times(taxCode.rate)) : roundMoney(0);
+    const rate = taxCode ? (typeof taxCode.rate === "number" ? taxCode.rate : taxCode.rate.toNumber()) : 0;
+    const lineTax = taxCode ? roundMoney(lineTotal.times(rate)) : roundMoney(0);
     return { line, lineTotal, lineTax };
   });
 

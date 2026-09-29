@@ -19,9 +19,9 @@ import {
  * not immediately on creation: STAFF can hold expenses:CREATE without
  * holding journals:APPROVE, so a staff member submits a DRAFT here and
  * someone with approval rights (Finance Manager/CFO/Admin) posts it —
- * that's the real shape of section 13's approval workflow even though the
- * amount-threshold routing itself (Expense < AED 500 → Manager, etc.,
- * via WorkflowRule/Approval) isn't wired up yet; see TODO below.
+ * that's the real shape of section 13's approval workflow.
+ * Amount-threshold routing (Expense < AED 500 → Manager, etc.,
+ * via WorkflowRule/Approval) is wired in approveExpense() below via checkAndGate().
  */
 export async function createExpense(params: {
   companyId: string;
@@ -98,8 +98,8 @@ export async function updateDraftExpense(params: {
     throw new InvalidLineError("Only a draft expense can be edited. Once approved, correct it with a reversal instead.");
   }
 
-  const currentExpenseLine = before.lines.find((l) => l.account.code !== "1000" && l.account.code !== "1200");
-  const currentTaxLine = before.lines.find((l) => l.account.code === "1200");
+  const currentExpenseLine = before.lines.find((l: any) => l.account.code !== "1000" && l.account.code !== "1200");
+  const currentTaxLine = before.lines.find((l: any) => l.account.code === "1200");
 
   const amount = params.amount ?? currentExpenseLine?.debit.toNumber() ?? 0;
   const taxAmount = params.taxAmount ?? currentTaxLine?.debit.toNumber() ?? undefined;
@@ -109,9 +109,10 @@ export async function updateDraftExpense(params: {
   const newLines = buildExpensePosting({ amount, taxAmount, expenseAccountCode });
   validateBalanced(newLines);
 
-  const accounts = await prisma.account.findMany({
+  const accounts = (await prisma.account.findMany({
     where: { companyId: params.companyId, code: { in: newLines.map((l) => l.accountCode) }, isActive: true },
-  });
+    select: { id: true, code: true },
+  })) as Array<{ id: string; code: string }>;
   const accountByCode = new Map(accounts.map((a) => [a.code, a]));
   for (const line of newLines) {
     if (!accountByCode.has(line.accountCode)) {
@@ -119,7 +120,7 @@ export async function updateDraftExpense(params: {
     }
   }
 
-  const updated = await prisma.$transaction(async (tx) => {
+  const updated = await prisma.$transaction(async (tx: any) => {
     const period = await findOpenPeriod(tx, params.companyId, date);
     await tx.journalLine.deleteMany({ where: { journalEntryId: before.id } });
     return tx.journalEntry.update({
@@ -218,10 +219,11 @@ export async function approveExpense(params: {
   });
   if (!decision.ok) throw new ApprovalPolicyError(decision.reason);
 
+  // Post the expense.
   const posted = await postDraftJournalEntry({
-    companyId: params.companyId,
-    membershipId: params.membershipId,
-    userId: params.userId,
+    companyId:      params.companyId,
+    membershipId:   params.membershipId,
+    userId:         params.userId,
     journalEntryId: params.journalEntryId,
   });
 
@@ -292,7 +294,9 @@ export async function expenseTotals(
           where: { journalEntry: { ...where, lines: { none: { account: { code: "1000" } } } } },
         }),
       ]);
-      const total = (withBank._sum.credit ?? new Prisma.Decimal(0)).plus(withoutBank._sum.debit ?? 0);
+      const creditTotal = withBank._sum.credit ? Number(withBank._sum.credit) : 0;
+      const debitTotal = withoutBank._sum.debit ? Number(withoutBank._sum.debit) : 0;
+      const total = creditTotal + debitTotal;
       return { currency: g.currency, total };
     }),
   );

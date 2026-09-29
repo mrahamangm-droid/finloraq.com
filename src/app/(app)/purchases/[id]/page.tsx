@@ -9,6 +9,7 @@ import { VoidDocument } from "@/components/forms/void-document";
 
 export default async function BillDetailPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
+  const { id } = params;
   const { active, userId } = await requireTenantContext();
   const denied = await viewGate(active.id, "bills");
   if (denied) return denied;
@@ -21,7 +22,7 @@ export default async function BillDetailPage(props: { params: Promise<{ id: stri
   ]);
 
   const bill = await prisma.bill.findFirst({
-    where: { id: params.id, companyId: active.companyId },
+    where: { id: id, companyId: active.companyId },
     include: { supplier: true, lines: { include: { taxCode: true } } },
   });
   if (!bill) notFound();
@@ -31,8 +32,8 @@ export default async function BillDetailPage(props: { params: Promise<{ id: stri
     include: { lines: { include: { account: true } } },
   });
   const paid = payments
-    .flatMap((e) => e.lines.filter((l) => l.account.code === "1000"))
-    .reduce((a, l) => a + l.credit.toNumber(), 0);
+    .flatMap((e: any) => e.lines.filter((l: any) => l.account.code === "1000"))
+    .reduce((a: any, l: any) => a + l.credit.toNumber(), 0);
   const balanceDue = bill.total.toNumber() - paid;
 
   return (
@@ -55,7 +56,7 @@ export default async function BillDetailPage(props: { params: Promise<{ id: stri
               </tr>
             </thead>
             <tbody>
-              {bill.lines.map((l) => (
+              {bill.lines.map((l: any) => (
                 <tr key={l.id} className="border-b border-border last:border-0">
                   <td className="px-3 py-2 text-card-foreground">{l.description}</td>
                   <td className="px-3 py-2 text-right text-muted-foreground">{l.quantity.toString()}</td>

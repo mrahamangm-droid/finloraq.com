@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { NotFoundError } from "@/lib/errors";
 import { requirePermission } from "@/lib/rbac";
 import { recordAuditEvent } from "@/lib/audit";
+import { shipStock } from "@/lib/inventory";
 import { postJournalEntry, buildInvoicePosting, buildInvoicePaymentPosting, InvalidLineError, assertBaseCurrency, normalizeCurrencyCode } from "@/lib/ledger";
 import { roundMoney, sum } from "@/lib/currency";
 import { nextDocumentNumber } from "@/lib/numbering";
@@ -14,6 +15,7 @@ export interface InvoiceLineInput {
   quantity: number;
   unitPrice: number;
   taxCodeId?: string;
+  productId?: string; // optional; if the product trackInventory=true, stock is deducted on posting
 }
 
 /** Draft only — no ledger impact. Revenue is recognized in postInvoiceToLedger(). */
@@ -38,9 +40,9 @@ export async function createInvoice(params: {
 
   const { lines: computedLines, subtotal, taxTotal, total } = await computeTaxedLines(prisma, params.companyId, params.lines);
 
-  const invoice = await prisma.$transaction(async (tx) => {
+  const invoice = await prisma.$transaction(async (tx: any) => {
     const invoiceNumber = await nextDocumentNumber(tx, params.companyId, "INV", () =>
-      tx.invoice.findFirst({ where: { companyId: params.companyId }, orderBy: { invoiceNumber: "desc" }, select: { invoiceNumber: true } }).then((r) => (r ? { number: r.invoiceNumber } : null))
+      tx.invoice.findFirst({ where: { companyId: params.companyId }, orderBy: { invoiceNumber: "desc" }, select: { invoiceNumber: true } }).then((r: any) => (r ? { number: r.invoiceNumber } : null))
     );
 
     return tx.invoice.create({
@@ -62,6 +64,7 @@ export async function createInvoice(params: {
             unitPrice: l.line.unitPrice,
             taxCodeId: l.line.taxCodeId,
             lineTotal: l.lineTotal,
+            ...(l.line.productId ? { productId: l.line.productId } : {}),
           })),
         },
       },
@@ -131,10 +134,10 @@ export async function updateInvoice(params: {
     subtotal = computedLines.subtotal;
     taxTotal = computedLines.taxTotal;
     total = computedLines.total;
-    lineData = computedLines.lines.map((l) => ({ description: l.line.description, quantity: l.line.quantity, unitPrice: l.line.unitPrice, taxCodeId: l.line.taxCodeId, lineTotal: l.lineTotal }));
+    lineData = computedLines.lines.map((l) => ({ description: l.line.description, quantity: l.line.quantity, unitPrice: l.line.unitPrice, taxCodeId: l.line.taxCodeId, lineTotal: l.lineTotal, ...(l.line.productId ? { productId: l.line.productId } : {}) }));
   }
 
-  const invoice = await prisma.$transaction(async (tx) => {
+  const invoice = await prisma.$transaction(async (tx: any) => {
     if (lineData) {
       await tx.invoiceLine.deleteMany({ where: { invoiceId: before.id } });
     }
@@ -214,6 +217,11 @@ export async function postInvoiceToLedger(params: {
 
   const invoice = await prisma.invoice.findFirst({
     where: { id: params.invoiceId, companyId: params.companyId },
+    include: {
+      lines: {
+        include: { product: { select: { id: true, trackInventory: true } } },
+      },
+    },
   });
   if (!invoice) throw new NotFoundError("Invoice not found.");
 
@@ -238,6 +246,34 @@ export async function postInvoiceToLedger(params: {
     where: { id: invoice.id },
     data: { status: "SENT", journalEntryId: entry.id },
   });
+
+  // Deduct inventory for any line that references a tracked product.
+  // Failures are logged but never abort the invoice posting — the ledger
+  // entry is already committed and immutable; a manual stock adjustment can
+  // correct the inventory side later. This follows the same "best effort"
+  // approach used by Zoho Books when stock is below zero.
+  for (const line of (invoice as any).lines) {
+    if (line.product?.trackInventory && line.quantity) {
+      try {
+        await shipStock(
+          params.companyId,
+          params.userId,
+          line.product.id,
+          Number(line.quantity),
+          {
+            notes: `Invoice ${invoice.invoiceNumber}`,
+            referenceType: "Invoice",
+            referenceId: invoice.id,
+            date: invoice.issueDate,
+          }
+        );
+      } catch (err: any) {
+        // Log but do not rethrow — stock adjustments are correctable,
+        // un-posting a journal entry is not.
+        console.error(`[inventory] shipStock failed for invoice ${invoice.id} product ${line.product.id}: ${err?.message}`);
+      }
+    }
+  }
 
   return updated;
 }
@@ -296,10 +332,130 @@ export async function recordInvoicePayment(params: {
 }
 
 export async function sumInvoicePayments(companyId: string, invoiceId: string) {
-  const entries = await prisma.journalEntry.findMany({
-    where: { companyId, sourceType: "PAYMENT", sourceId: { startsWith: `${invoiceId}:` }, status: "POSTED" },
-    include: { lines: { include: { account: true } } },
+  const [entries, appliedCreditNotes] = await Promise.all([
+    prisma.journalEntry.findMany({
+      where: { companyId, sourceType: "PAYMENT", sourceId: { startsWith: `${invoiceId}:` }, status: "POSTED" },
+      include: { lines: { include: { account: true } } },
+    }),
+    // Credit notes applied to this invoice also reduce the balance due
+    prisma.creditNote.findMany({
+      where: { companyId, invoiceId, status: "APPLIED" },
+      select: { total: true },
+    }),
+  ]);
+  const bankDebits = entries.flatMap((e: any) => e.lines.filter((l: any) => l.account.code === "1000"));
+  const cashPaid = sum(bankDebits.map((l: any) => l.debit));
+  const creditApplied = appliedCreditNotes.reduce((s: number, cn: any) => s + Number(cn.total), 0);
+  return roundMoney(cashPaid.plus(creditApplied));
+}
+
+/**
+ * Send an invoice to the customer by email.
+ * - Only invoices in SENT, PARTIALLY_PAID, or OVERDUE status can be emailed
+ *   (drafts should be posted first; paid invoices can use the receipt action).
+ * - When email is unconfigured, the DevEmailSender logs the content and
+ *   records an audit event (same pattern as payment-reminders.ts).
+ * - An audit event is recorded on success so the activity trail shows when
+ *   each invoice was emailed (searchable in Audit → action: invoice.emailed).
+ */
+export async function sendInvoiceByEmail(params: {
+  companyId: string;
+  membershipId: string;
+  userId: string;
+  invoiceId: string;
+  /** Override the customer email for this send (BCC-style custom recipient). */
+  toEmail?: string;
+}) {
+  await requirePermission(params.membershipId, "invoices", "EDIT");
+
+  const invoice = await prisma.invoice.findFirstOrThrow({
+    where: { id: params.invoiceId, companyId: params.companyId },
+    include: {
+      customer: true,
+      lines: { include: { taxCode: true } },
+    },
   });
-  const bankDebits = entries.flatMap((e) => e.lines.filter((l) => l.account.code === "1000"));
-  return roundMoney(sum(bankDebits.map((l) => l.debit)));
+
+  const company = await prisma.company.findFirstOrThrow({
+    where: { id: params.companyId },
+    select: { name: true, brandEmail: true, invoiceTerms: true },
+  });
+
+  if (!["SENT", "PARTIALLY_PAID", "OVERDUE"].includes(invoice.status)) {
+    throw new Error(`Invoice ${invoice.invoiceNumber} cannot be emailed in status ${invoice.status}. Post it first.`);
+  }
+
+  const recipientEmail = params.toEmail ?? invoice.customer.email;
+  if (!recipientEmail) {
+    throw new Error(`Customer "${invoice.customer.name}" has no email address on file.`);
+  }
+
+  const { sendEmail } = await import("@/lib/email");
+
+  const subject = `Invoice ${invoice.invoiceNumber} from ${company.name}`;
+  const lineRows = (invoice as any).lines
+    .map((l: any) => `<tr style="border-bottom:1px solid #eee">
+      <td style="padding:6px 8px">${l.description ?? ""}</td>
+      <td style="padding:6px 8px;text-align:right">${Number(l.quantity)}</td>
+      <td style="padding:6px 8px;text-align:right">${Number(l.unitPrice).toFixed(2)}</td>
+      <td style="padding:6px 8px;text-align:right">${Number(l.lineTotal).toFixed(2)}</td>
+    </tr>`)
+    .join("");
+
+  const html = `<!doctype html><html><body style="font-family:sans-serif;color:#1a1a1a;max-width:600px;margin:0 auto">
+<h2 style="margin-bottom:4px">${company.name}</h2>
+<p style="color:#666;margin-top:0">Invoice ${invoice.invoiceNumber}</p>
+<p>Dear ${invoice.customer.name},</p>
+<p>Please find your invoice details below.</p>
+<table style="width:100%;border-collapse:collapse;margin:16px 0">
+  <thead><tr style="background:#f5f5f5">
+    <th style="padding:6px 8px;text-align:left">Description</th>
+    <th style="padding:6px 8px;text-align:right">Qty</th>
+    <th style="padding:6px 8px;text-align:right">Unit price</th>
+    <th style="padding:6px 8px;text-align:right">Total</th>
+  </tr></thead>
+  <tbody>${lineRows}</tbody>
+</table>
+<p style="text-align:right">
+  Subtotal: ${Number(invoice.subtotal).toFixed(2)} ${invoice.currency}<br>
+  Tax: ${Number(invoice.taxTotal).toFixed(2)} ${invoice.currency}<br>
+  <strong>Total: ${Number(invoice.total).toFixed(2)} ${invoice.currency}</strong>
+</p>
+<p>Issue date: ${invoice.issueDate.toISOString().slice(0, 10)}<br>
+Due date: ${invoice.dueDate.toISOString().slice(0, 10)}</p>
+${company.invoiceTerms ? `<p style="color:#666;font-size:13px">${company.invoiceTerms}</p>` : ""}
+${company.brandEmail ? `<p style="color:#888;font-size:12px">Questions? Reply to ${company.brandEmail}</p>` : ""}
+</body></html>`;
+
+  const text = [
+    `${company.name} — Invoice ${invoice.invoiceNumber}`,
+    ``,
+    `Dear ${invoice.customer.name},`,
+    `Please see your invoice details:`,
+    ``,
+    ...(invoice as any).lines.map((l: any) =>
+      `  ${l.description ?? ""} — ${Number(l.quantity)} × ${Number(l.unitPrice).toFixed(2)} = ${Number(l.lineTotal).toFixed(2)} ${invoice.currency}`
+    ),
+    ``,
+    `Subtotal: ${Number(invoice.subtotal).toFixed(2)} ${invoice.currency}`,
+    `Tax:      ${Number(invoice.taxTotal).toFixed(2)} ${invoice.currency}`,
+    `Total:    ${Number(invoice.total).toFixed(2)} ${invoice.currency}`,
+    ``,
+    `Due: ${invoice.dueDate.toISOString().slice(0, 10)}`,
+    company.invoiceTerms ? `\n${company.invoiceTerms}` : "",
+  ].filter((s) => s !== undefined).join("\n");
+
+  const result = await sendEmail({ to: recipientEmail, subject, html, text });
+
+  await recordAuditEvent({
+    companyId: params.companyId,
+    userId: params.userId,
+    action: "invoice.emailed",
+    entityType: "Invoice",
+    entityId: invoice.id,
+    newValue: { to: recipientEmail, emailId: result.id, live: result.live },
+    source: "web",
+  });
+
+  return { emailId: result.id, live: result.live, to: recipientEmail };
 }

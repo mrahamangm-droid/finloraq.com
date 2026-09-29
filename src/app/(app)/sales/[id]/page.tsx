@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireTenantContext } from "@/lib/tenant";
 import { viewGate } from "@/lib/page-access";
@@ -13,24 +14,33 @@ import { PaymentLinkButton } from "@/components/payments/payment-link-button";
 
 export default async function InvoiceDetailPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
+  const { id } = params;
   const { active, userId } = await requireTenantContext();
   const denied = await viewGate(active.id, "invoices");
   if (denied) return denied;
   const company = active.company;
 
   const invoice = await prisma.invoice.findFirst({
-    where: { id: params.id, companyId: active.companyId },
+    where: { id: id, companyId: active.companyId },
     include: { customer: true, lines: { include: { taxCode: true } } },
   });
   if (!invoice) notFound();
 
-  const payments = await prisma.journalEntry.findMany({
-    where: { companyId: active.companyId, sourceType: "PAYMENT", sourceId: { startsWith: `${invoice.id}:` }, status: "POSTED" },
-    include: { lines: { include: { account: true } } },
-  });
-  const paid = payments
-    .flatMap((e) => e.lines.filter((l) => l.account.code === "1000"))
-    .reduce((a, l) => a + l.debit.toNumber(), 0);
+  const [payments, appliedCreditNotes] = await Promise.all([
+    prisma.journalEntry.findMany({
+      where: { companyId: active.companyId, sourceType: "PAYMENT", sourceId: { startsWith: `${invoice.id}:` }, status: "POSTED" },
+      include: { lines: { include: { account: true } } },
+    }),
+    prisma.creditNote.findMany({
+      where: { companyId: active.companyId, invoiceId: invoice.id, status: "APPLIED" },
+      select: { id: true, creditNumber: true, total: true },
+    }),
+  ]);
+  const cashPaid = payments
+    .flatMap((e: any) => e.lines.filter((l: any) => l.account.code === "1000"))
+    .reduce((a: any, l: any) => a + l.debit.toNumber(), 0);
+  const creditApplied = appliedCreditNotes.reduce((s: number, cn: any) => s + Number(cn.total), 0);
+  const paid = cashPaid + creditApplied;
   const balanceDue = invoice.total.toNumber() - paid;
   const [fmt, defs, canEdit, canDelete, canApproveJournals] = await Promise.all([
     getFormatter(userId),
@@ -89,7 +99,7 @@ export default async function InvoiceDetailPage(props: { params: Promise<{ id: s
               </tr>
             </thead>
             <tbody>
-              {invoice.lines.map((l) => (
+              {invoice.lines.map((l: any) => (
                 <tr key={l.id} className="border-b border-border last:border-0">
                   <td className="px-3 py-2 text-card-foreground">{l.description}</td>
                   <td className="px-3 py-2 text-right text-muted-foreground">{l.quantity.toString()}</td>
@@ -105,7 +115,15 @@ export default async function InvoiceDetailPage(props: { params: Promise<{ id: s
           <div className="text-muted-foreground">Subtotal {fmt.money(invoice.subtotal)}</div>
           <div className="text-muted-foreground">Tax {fmt.money(invoice.taxTotal)}</div>
           <div className="font-medium text-card-foreground">Total {fmt.money(invoice.total)} {invoice.currency}</div>
-          {paid > 0 && <div className="text-success">Paid {fmt.money(paid)}</div>}
+          {cashPaid > 0 && <div className="text-success">Payments received {fmt.money(cashPaid)}</div>}
+          {appliedCreditNotes.map((cn: any) => (
+            <div key={cn.id} className="text-success">
+              Credit note <Link href={`/credit-notes/${cn.id}`} className="font-mono text-xs hover:underline">{cn.creditNumber}</Link> applied ({fmt.money(cn.total)})
+            </div>
+          ))}
+          {paid > 0 && cashPaid > 0 && creditApplied > 0 && (
+            <div className="text-success">Total cleared {fmt.money(paid)}</div>
+          )}
           {invoice.status !== "PAID" && invoice.status !== "DRAFT" && (
             <div className="font-medium text-card-foreground">Balance due {fmt.money(balanceDue)}</div>
           )}
@@ -124,7 +142,13 @@ export default async function InvoiceDetailPage(props: { params: Promise<{ id: s
         </div>
       )}
 
-      <InvoiceActions invoiceId={invoice.id} status={invoice.status} balanceDue={balanceDue} canEdit={canEdit} canDelete={canDelete} />
+      <InvoiceActions
+        invoiceId={invoice.id}
+        status={invoice.status}
+        balanceDue={balanceDue}
+        canEdit={canEdit}
+        canDelete={canDelete}
+      />
 
       {["SENT", "OVERDUE"].includes(invoice.status) && payments.length === 0 && canEdit && canApproveJournals && (
         <VoidDocument kind="invoice" id={invoice.id} />

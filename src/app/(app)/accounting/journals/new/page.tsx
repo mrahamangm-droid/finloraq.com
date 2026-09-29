@@ -17,8 +17,8 @@ export default async function NewJournalEntryPage() {
     <div className="mx-auto max-w-3xl space-y-6">
       <h1 className="text-xl font-semibold text-foreground">New Journal Entry</h1>
       <NewJournalEntryForm
-        costCentres={costCentres.map((c) => ({ id: c.id, name: c.name, code: c.code }))}
-        projects={projects.map((p) => ({ id: p.id, name: p.name, code: p.code }))}
+        costCentres={costCentres.map((c: any) => ({ id: c.id, name: c.name, code: c.code }))}
+        projects={projects.map((p: any) => ({ id: p.id, name: p.name, code: p.code }))}
       />
     </div>
   );

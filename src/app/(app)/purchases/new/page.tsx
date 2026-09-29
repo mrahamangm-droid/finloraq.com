@@ -3,7 +3,11 @@ import { viewGate } from "@/lib/page-access";
 import { prisma } from "@/lib/db";
 import { NewBillForm } from "@/components/forms/new-bill-form";
 
-export default async function NewBillPage() {
+export default async function NewBillPage(props: {
+  searchParams?: Promise<{ supplierId?: string }>;
+}) {
+  const searchParams = (await props.searchParams) ?? {};
+  const preselectedSupplierId = searchParams.supplierId;
   const { active } = await requireTenantContext();
   const denied = await viewGate(active.id, "bills");
   if (denied) return denied;

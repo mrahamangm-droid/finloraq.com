@@ -16,6 +16,7 @@ const patchSchema = z.object({
 
 export async function PATCH(req: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
+  const { id } = params;
   const { active, userId } = await requireTenantContext();
   const parsed = patchSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
@@ -26,7 +27,7 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
       companyId: active.companyId,
       membershipId: active.id,
       userId,
-      journalEntryId: params.id,
+      journalEntryId: id,
       date: parsed.data.date ? new Date(parsed.data.date) : undefined,
       description: parsed.data.description,
       amount: parsed.data.amount,
@@ -44,13 +45,14 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
 
 export async function DELETE(_req: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
+  const { id } = params;
   const { active, userId } = await requireTenantContext();
   try {
     await deleteDraftJournalEntry({
       companyId: active.companyId,
       membershipId: active.id,
       userId,
-      journalEntryId: params.id,
+      journalEntryId: id,
     });
     return NextResponse.json({ ok: true });
   } catch (err) {

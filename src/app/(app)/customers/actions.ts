@@ -45,7 +45,7 @@ export async function createCustomerAction(formData: FormData) {
   if (defs.length > 0) {
     await prisma.customer.update({
       where: { id: created.id },
-      data: { customFields: customFields as Prisma.InputJsonValue },
+      data: { customFields: customFields as unknown as Prisma.InputJsonValue },
     });
   }
 
@@ -75,7 +75,7 @@ export async function updateCustomerAction(customerId: string, formData: FormDat
     if (defs.length > 0) {
       await prisma.customer.update({
         where: { id: customerId },
-        data: { customFields: customFields as Prisma.InputJsonValue },
+        data: { customFields: customFields as unknown as Prisma.InputJsonValue },
       });
     }
   });

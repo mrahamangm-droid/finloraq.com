@@ -21,19 +21,20 @@ type ExpensesPageParams = PeriodParams & { status?: string };
 
 export default async function ExpensesPage(props: { searchParams?: Promise<ExpensesPageParams> }) {
   const searchParams = (await props.searchParams) ?? {};
+  const sp = searchParams;
   const { active, userId } = await requireTenantContext();
   const denied = await viewGate(active.id, "expenses");
   if (denied) return denied;
   const [fmt, canEdit] = await Promise.all([getFormatter(userId), can(active.id, "expenses", "EDIT")]);
-  const filtered = Boolean(searchParams.period);
-  const period = resolvePeriod(searchParams);
+  const filtered = Boolean(sp.period);
+  const period = resolvePeriod(sp);
   // Deliberately checked against the three real JournalStatus values, not
   // STATUS_TABS (which also carries the synthetic "ALL" entry) — "ALL"
   // means "no filter" and must never reach the Prisma `where` clause below
   // as a literal status value.
   const VALID_STATUSES: ExpenseStatus[] = ["DRAFT", "POSTED", "REVERSED"];
-  const statusFilter = VALID_STATUSES.includes(searchParams.status as ExpenseStatus)
-    ? (searchParams.status as ExpenseStatus)
+  const statusFilter = VALID_STATUSES.includes(sp.status as ExpenseStatus)
+    ? (sp.status as ExpenseStatus)
     : undefined;
   const [expenses, totals] = await Promise.all([
     listRecentExpenses(active.companyId, filtered ? period : undefined, statusFilter),
@@ -46,10 +47,10 @@ export default async function ExpensesPage(props: { searchParams?: Promise<Expen
   // also filter by status, and vice versa.
   const statusHref = (value: (typeof STATUS_TABS)[number]["value"]) => {
     const params = new URLSearchParams();
-    if (searchParams.period) params.set("period", searchParams.period);
-    if (searchParams.date) params.set("date", searchParams.date);
-    if (searchParams.from) params.set("from", searchParams.from);
-    if (searchParams.to) params.set("to", searchParams.to);
+    if (sp.period) params.set("period", sp.period);
+    if (sp.date) params.set("date", sp.date);
+    if (sp.from) params.set("from", sp.from);
+    if (sp.to) params.set("to", sp.to);
     if (value !== "ALL") params.set("status", value);
     const qs = params.toString();
     return qs ? `/expenses?${qs}` : "/expenses";
@@ -106,12 +107,12 @@ export default async function ExpensesPage(props: { searchParams?: Promise<Expen
                   </td>
                 </tr>
               )}
-              {expenses.map((e) => {
+              {expenses.map((e: any) => {
                 // The Bank line's credit is the single line equal to the full
                 // amount (expense + tax); the debit side splits across 1-2 lines.
-                const bankLine = e.lines.find((l) => l.account.code === "1000");
-                const amount = bankLine ? bankLine.credit.toNumber() : e.lines.reduce((a, l) => a + l.debit.toNumber(), 0);
-                const taxLine = e.lines.find((l) => l.account.code === "1200");
+                const bankLine = e.lines.find((l: any) => l.account.code === "1000");
+                const amount = bankLine ? bankLine.credit.toNumber() : e.lines.reduce((a: any, l: any) => a + l.debit.toNumber(), 0);
+                const taxLine = e.lines.find((l: any) => l.account.code === "1200");
                 return (
                   <ExpenseRow
                     key={e.id}

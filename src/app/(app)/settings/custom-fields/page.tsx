@@ -21,7 +21,7 @@ export default async function CustomFieldsPage() {
       <SettingsTabs />
       <CustomFieldsManager
         canEdit={canEdit}
-        fields={fields.map((f) => ({ id: f.id, entity: f.entity, key: f.key, label: f.label, type: f.type, options: f.options, required: f.required, isActive: f.isActive }))}
+        fields={fields.map((f: any) => ({ id: f.id, entity: f.entity, key: f.key, label: f.label, type: f.type, options: f.options, required: f.required, isActive: f.isActive }))}
       />
     </div>
   );

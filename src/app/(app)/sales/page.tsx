@@ -13,14 +13,26 @@ function statusColor(status: string) {
   return "bg-primary/10 text-primary";
 }
 
-export default async function SalesPage(props: { searchParams?: Promise<PeriodParams> }) {
+type SalesParams = PeriodParams & { customerId?: string };
+
+export default async function SalesPage(props: { searchParams?: Promise<SalesParams> }) {
   const searchParams = (await props.searchParams) ?? {};
+  const sp = searchParams;
   const { active, userId } = await requireTenantContext();
   const denied = await viewGate(active.id, "invoices");
   if (denied) return denied;
   const fmt = await getFormatter(userId);
-  const filtered = Boolean(searchParams.period);
-  const period = resolvePeriod(searchParams);
+  const filtered = Boolean(sp.period);
+  const period = resolvePeriod(sp);
+  const customerFilter = sp.customerId ?? undefined;
+
+  // Resolve customer name for display when filtering by customer
+  const filterCustomer = customerFilter
+    ? await prisma.customer.findFirst({
+        where: { id: customerFilter, companyId: active.companyId },
+        select: { id: true, name: true },
+      })
+    : null;
 
   // Capped rather than paginated for now (Phase 9 perf pass) — a company
   // with more than 200 invoices needs a real paginated/searchable list,
@@ -42,19 +54,35 @@ export default async function SalesPage(props: { searchParams?: Promise<PeriodPa
   ]);
   const totalCount = totalsByCurrency.reduce((n, g) => n + g._count._all, 0);
 
+  const newInvoiceHref = filterCustomer
+    ? `/sales/new?customerId=${filterCustomer.id}`
+    : "/sales/new";
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-foreground">Sales — Invoices</h1>
-          <p className="text-sm text-muted-foreground">{active.company.name}</p>
+          <h1 className="text-xl font-semibold text-foreground">
+            {filterCustomer ? `Invoices — ${filterCustomer.name}` : "Sales — Invoices"}
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            {filterCustomer ? (
+              <>
+                <Link href="/customers" className="hover:underline">{active.company.name}</Link>
+                {" · "}
+                <Link href={`/customers/${filterCustomer.id}`} className="hover:underline">{filterCustomer.name}</Link>
+                {" · "}
+                <Link href="/sales" className="hover:underline text-primary/70">Clear filter</Link>
+              </>
+            ) : active.company.name}
+          </p>
         </div>
-        <Link href="/sales/new" className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground">
+        <Link href={newInvoiceHref} className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground">
           New Invoice
         </Link>
       </div>
 
-      <PeriodPicker {...pickerProps(period)} showingAll={!filtered} clearable={filtered} />
+      {!filterCustomer && <PeriodPicker {...pickerProps(period)} showingAll={!filtered} clearable={filtered} />}
 
       <div className="overflow-hidden rounded-lg border border-border bg-card">
         <div className="overflow-x-auto">
@@ -73,7 +101,7 @@ export default async function SalesPage(props: { searchParams?: Promise<PeriodPa
               {invoices.length === 0 && (
                 <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">{filtered ? `No invoices in ${period.label}.` : "No invoices yet."}</td></tr>
               )}
-              {invoices.map((inv) => (
+              {invoices.map((inv: any) => (
                 <tr key={inv.id} className="border-b border-border last:border-0 hover:bg-muted/30">
                   <td className="px-4 py-2">
                     <Link href={`/sales/${inv.id}`} className="font-mono text-xs text-primary">{inv.invoiceNumber}</Link>
