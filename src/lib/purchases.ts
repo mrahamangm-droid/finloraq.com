@@ -398,23 +398,26 @@ export async function recordSupplierPayment(params: {
     post: true,
   });
 
-  const paidSoFar = await sumBillPayments(params.companyId, bill.id);
-  const newStatus = paidSoFar.gte(bill.total) ? "PAID" : "PARTIALLY_PAID";
+  // Decided in base currency, not the bill's own currency — dividing the
+  // base-currency AP-cleared total back by the bill's rate and rounding
+  // (as sumBillPayments() does for display) can leave a fully-cleared
+  // bill a fraction short of bill.total, permanently stuck at
+  // PARTIALLY_PAID with an unpayable residual balance (the next payment
+  // for that fraction would post a zero-amount AP line, which
+  // postJournalEntry refuses).
+  const baseApClearedSoFar = await sumBillPaymentsBase(params.companyId, bill.id);
+  const baseBillTotal = roundMoney(money(bill.total).times(bill.exchangeRate));
+  const newStatus = baseApClearedSoFar.gte(baseBillTotal) ? "PAID" : "PARTIALLY_PAID";
 
   await prisma.bill.update({ where: { id: bill.id }, data: { status: newStatus } });
 
   return entry;
 }
 
-/** Returns the cumulative amount paid toward this bill, in the bill's own
- *  currency (comparable directly to bill.total). Derived from the
- *  base-currency Accounts Payable debit lines posted by
- *  recordSupplierPayment() above, divided back by the bill's own booking
- *  rate — for a base-currency bill (rate 1) this is numerically identical
- *  to summing the Bank credit directly, the pre-multi-currency behavior. */
-export async function sumBillPayments(companyId: string, billId: string) {
-  const [bill, entries, accountsPayableCode] = await Promise.all([
-    prisma.bill.findUniqueOrThrow({ where: { id: billId }, select: { exchangeRate: true } }),
+/** Base-currency Accounts Payable cleared so far for this bill (sum of
+ *  posted PAYMENT entries' AP debit lines, already base currency). */
+async function sumBillPaymentsBase(companyId: string, billId: string) {
+  const [entries, accountsPayableCode] = await Promise.all([
     prisma.journalEntry.findMany({
       where: { companyId, sourceType: "PAYMENT", sourceId: { startsWith: `${billId}:` }, status: "POSTED" },
       include: { lines: { include: { account: true } } },
@@ -422,6 +425,19 @@ export async function sumBillPayments(companyId: string, billId: string) {
     getAccountsPayableCode(companyId),
   ]);
   const apDebits = entries.flatMap((e: any) => e.lines.filter((l: any) => l.account.code === accountsPayableCode));
-  const baseApCleared = sum(apDebits.map((l: any) => l.debit));
+  return sum(apDebits.map((l: any) => l.debit));
+}
+
+/** Returns the cumulative amount paid toward this bill, in the bill's own
+ *  currency (comparable directly to bill.total) — for display only; the
+ *  PAID/PARTIALLY_PAID decision in recordSupplierPayment() above compares
+ *  in base currency instead (see sumBillPaymentsBase), since dividing
+ *  back to the bill's own currency and rounding can make a fully-cleared
+ *  bill look a fraction short. */
+export async function sumBillPayments(companyId: string, billId: string) {
+  const [bill, baseApCleared] = await Promise.all([
+    prisma.bill.findFirstOrThrow({ where: { id: billId, companyId }, select: { exchangeRate: true } }),
+    sumBillPaymentsBase(companyId, billId),
+  ]);
   return roundMoney(baseApCleared.dividedBy(bill.exchangeRate));
 }

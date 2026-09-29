@@ -436,24 +436,32 @@ export async function recordInvoicePayment(params: {
     post: true,
   });
 
-  const paidSoFar = await sumInvoicePayments(params.companyId, invoice.id);
-  const newStatus = paidSoFar.gte(invoice.total) ? "PAID" : "PARTIALLY_PAID";
+  // Decided in base currency, not the invoice's own currency — dividing
+  // the base-currency AR-cleared total back by the invoice's rate and
+  // rounding (as sumInvoicePayments() does for display) can leave a
+  // fully-cleared invoice a fraction short of invoice.total, permanently
+  // stuck at PARTIALLY_PAID with an unpayable residual balance (the next
+  // payment for that fraction would post a zero-amount AR line, which
+  // postJournalEntry refuses).
+  const baseClearedSoFar = await sumInvoiceClearedBase(params.companyId, invoice.id, invoice.exchangeRate);
+  const baseInvoiceTotal = roundMoney(money(invoice.total).times(invoice.exchangeRate));
+  const newStatus = baseClearedSoFar.gte(baseInvoiceTotal) ? "PAID" : "PARTIALLY_PAID";
 
   await prisma.invoice.update({ where: { id: invoice.id }, data: { status: newStatus } });
 
   return entry;
 }
 
-/** Returns the cumulative amount paid toward this invoice, in the
- *  invoice's own currency (comparable directly to invoice.total). Derived
- *  from the base-currency Accounts Receivable credit lines posted by
- *  recordInvoicePayment() above, divided back by the invoice's own booking
- *  rate — for a base-currency invoice (rate 1) this is numerically
- *  identical to summing the Bank debit directly, the pre-multi-currency
- *  behavior. */
-export async function sumInvoicePayments(companyId: string, invoiceId: string) {
-  const [invoice, entries, appliedCreditNotes, accountsReceivableCode] = await Promise.all([
-    prisma.invoice.findUniqueOrThrow({ where: { id: invoiceId }, select: { exchangeRate: true } }),
+/** Base-currency amount cleared against this invoice so far: cash payments
+ *  (AR credit lines, already base currency) plus credit notes applied
+ *  (converted from the invoice's own currency at `invoiceExchangeRate` —
+ *  credit notes have no multi-currency support of their own yet, so their
+ *  total is recorded directly in the invoice's currency; see
+ *  applyCreditNoteToInvoice in src/lib/credit-notes.ts). For a
+ *  base-currency invoice (rate 1) this is numerically identical to the
+ *  invoice's own currency. */
+async function sumInvoiceClearedBase(companyId: string, invoiceId: string, invoiceExchangeRate: Decimal.Value) {
+  const [entries, appliedCreditNotes, accountsReceivableCode] = await Promise.all([
     prisma.journalEntry.findMany({
       where: { companyId, sourceType: "PAYMENT", sourceId: { startsWith: `${invoiceId}:` }, status: "POSTED" },
       include: { lines: { include: { account: true } } },
@@ -467,9 +475,21 @@ export async function sumInvoicePayments(companyId: string, invoiceId: string) {
   ]);
   const arCredits = entries.flatMap((e: any) => e.lines.filter((l: any) => l.account.code === accountsReceivableCode));
   const baseArCleared = sum(arCredits.map((l: any) => l.credit));
-  const cashPaid = baseArCleared.dividedBy(invoice.exchangeRate);
-  const creditApplied = appliedCreditNotes.reduce((s: number, cn: any) => s + Number(cn.total), 0);
-  return roundMoney(cashPaid.plus(creditApplied));
+  const creditAppliedBase = roundMoney(sum(appliedCreditNotes.map((cn: any) => cn.total)).times(invoiceExchangeRate));
+  return baseArCleared.plus(creditAppliedBase);
+}
+
+/** Returns the cumulative amount paid toward this invoice, in the
+ *  invoice's own currency (comparable directly to invoice.total) — for
+ *  display only; the PAID/PARTIALLY_PAID decision in
+ *  recordInvoicePayment() above compares in base currency instead (see
+ *  sumInvoiceClearedBase), since dividing back to the invoice's own
+ *  currency and rounding can make a fully-cleared invoice look a fraction
+ *  short. */
+export async function sumInvoicePayments(companyId: string, invoiceId: string) {
+  const invoice = await prisma.invoice.findFirstOrThrow({ where: { id: invoiceId, companyId }, select: { exchangeRate: true } });
+  const baseCleared = await sumInvoiceClearedBase(companyId, invoiceId, invoice.exchangeRate);
+  return roundMoney(baseCleared.dividedBy(invoice.exchangeRate));
 }
 
 /**
