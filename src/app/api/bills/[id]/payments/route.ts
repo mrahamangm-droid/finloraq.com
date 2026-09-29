@@ -5,7 +5,7 @@ import { requireTenantContext } from "@/lib/tenant";
 import { recordSupplierPayment } from "@/lib/purchases";
 import { InvalidLineError } from "@/lib/ledger";
 
-const schema = z.object({ amount: z.number().positive(), date: z.string().optional() });
+const schema = z.object({ amount: z.number().positive(), date: z.string().optional(), exchangeRate: z.number().positive().optional() });
 
 export async function POST(req: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -24,6 +24,7 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
       billId: id,
       amount: parsed.data.amount,
       date: parsed.data.date ? new Date(parsed.data.date) : new Date(),
+      exchangeRate: parsed.data.exchangeRate,
     });
     return NextResponse.json({ id: entry.id, entryNumber: entry.entryNumber });
   } catch (err) {

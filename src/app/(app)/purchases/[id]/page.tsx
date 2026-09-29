@@ -6,7 +6,7 @@ import { prisma } from "@/lib/db";
 import { can } from "@/lib/rbac";
 import { BillActions } from "@/components/forms/bill-actions";
 import { VoidDocument } from "@/components/forms/void-document";
-import { getBankAccountCode } from "@/lib/accounts";
+import { sumBillPayments } from "@/lib/purchases";
 
 export default async function BillDetailPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -28,17 +28,18 @@ export default async function BillDetailPage(props: { params: Promise<{ id: stri
   });
   if (!bill) notFound();
 
-  const [payments, bankAccountCode] = await Promise.all([
+  const [payments, paid] = await Promise.all([
     prisma.journalEntry.findMany({
       where: { companyId: active.companyId, sourceType: "PAYMENT", sourceId: { startsWith: `${bill.id}:` }, status: "POSTED" },
       include: { lines: { include: { account: true } } },
     }),
-    getBankAccountCode(active.companyId),
+    // sumBillPayments is the single correct "amount paid" calculation — it
+    // works in the bill's own currency, unlike a raw bank-credit sum, which
+    // is in base currency and would misstate this for a foreign-currency
+    // bill. See src/lib/purchases.ts.
+    sumBillPayments(active.companyId, bill.id),
   ]);
-  const paid = payments
-    .flatMap((e: any) => e.lines.filter((l: any) => l.account.code === bankAccountCode))
-    .reduce((a: any, l: any) => a + l.credit.toNumber(), 0);
-  const balanceDue = bill.total.toNumber() - paid;
+  const balanceDue = bill.total.toNumber() - paid.toNumber();
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -76,14 +77,22 @@ export default async function BillDetailPage(props: { params: Promise<{ id: stri
           <div className="text-muted-foreground">Subtotal {fmt.money(bill.subtotal)}</div>
           <div className="text-muted-foreground">Tax {fmt.money(bill.taxTotal)}</div>
           <div className="font-medium text-card-foreground">Total {fmt.money(bill.total)} {bill.currency}</div>
-          {paid > 0 && <div className="text-success">Paid {fmt.money(paid)}</div>}
+          {paid.toNumber() > 0 && <div className="text-success">Paid {fmt.money(paid)}</div>}
           {bill.status !== "PAID" && bill.status !== "DRAFT" && (
             <div className="font-medium text-card-foreground">Balance due {fmt.money(balanceDue)}</div>
           )}
         </div>
       </div>
 
-      <BillActions billId={bill.id} status={bill.status} balanceDue={balanceDue} canEdit={canEdit} canDelete={canDelete} />
+      <BillActions
+        billId={bill.id}
+        status={bill.status}
+        balanceDue={balanceDue}
+        canEdit={canEdit}
+        canDelete={canDelete}
+        currency={bill.currency !== active.company.baseCurrency ? bill.currency : undefined}
+        bookedExchangeRate={bill.currency !== active.company.baseCurrency ? bill.exchangeRate.toNumber() : undefined}
+      />
 
       {["APPROVED", "OVERDUE"].includes(bill.status) && payments.length === 0 && canVoid && <VoidDocument kind="bill" id={bill.id} />}
     </div>

@@ -94,14 +94,14 @@ export async function assertBaseCurrency(
 
 /**
  * Validates and normalizes a document's currency + exchange rate against
- * the company's base currency, for the (currently invoice-only)
- * multi-currency path. A base-currency document's rate must be 1 (or
- * omitted); a foreign-currency document needs a real positive rate,
- * explicitly supplied by the caller — there is no live FX rate lookup.
- * Returns the normalized currency code and the rate to store on the
- * document; the caller is responsible for using that rate to convert
- * amounts to base currency before posting (see postInvoiceToLedger in
- * src/lib/sales.ts).
+ * the company's base currency, for the multi-currency path (invoices and
+ * bills). A base-currency document's rate must be 1 (or omitted); a
+ * foreign-currency document needs a real positive rate, explicitly
+ * supplied by the caller — there is no live FX rate lookup. Returns the
+ * normalized currency code and the rate to store on the document; the
+ * caller is responsible for using that rate to convert amounts to base
+ * currency before posting (see postInvoiceToLedger in src/lib/sales.ts
+ * and approveAndPostBill in src/lib/purchases.ts).
  */
 export async function resolveDocumentCurrency(
   db: Pick<Prisma.TransactionClient, "company">,
@@ -628,12 +628,44 @@ export function buildBillPosting(input: {
   return lines;
 }
 
-/** Supplier payment: DR Accounts Payable, CR Bank */
-export function buildSupplierPaymentPosting(input: { amount: Decimal.Value; bankAccountCode?: string; accountsPayableCode?: string }): LineInput[] {
-  return [
-    { accountCode: input.accountsPayableCode ?? "2000", debit: input.amount, description: "Accounts Payable" },
-    { accountCode: input.bankAccountCode ?? "1000", credit: input.amount, description: "Bank" },
+/**
+ * Supplier payment: DR Accounts Payable, CR Bank.
+ *
+ * `amount` is the base-currency cash paid (the Bank credit). `apAmount` is
+ * the base-currency Accounts Payable being cleared — it defaults to
+ * `amount` (the original, pre-multi-currency behavior: bank and AP move by
+ * exactly the same amount). Pass a different `apAmount` when a
+ * foreign-currency bill is settled at a different rate than it was booked
+ * at (see recordSupplierPayment in src/lib/purchases.ts): the difference is
+ * realized exchange gain/loss, booked to `exchangeGainLossCode` (required
+ * whenever `amount` and `apAmount` differ).
+ */
+export function buildSupplierPaymentPosting(input: {
+  amount: Decimal.Value;
+  apAmount?: Decimal.Value;
+  bankAccountCode?: string;
+  accountsPayableCode?: string;
+  exchangeGainLossCode?: string;
+}): LineInput[] {
+  const bank = money(input.amount);
+  const ap = input.apAmount !== undefined ? money(input.apAmount) : bank;
+  const lines: LineInput[] = [
+    { accountCode: input.accountsPayableCode ?? "2000", debit: ap, description: "Accounts Payable" },
   ];
+  // ap - bank: paying less than the liability is a gain, paying more is a loss.
+  const fx = ap.minus(bank);
+  if (!isZero(fx)) {
+    if (!input.exchangeGainLossCode) {
+      throw new InvalidLineError("Exchange gain/loss account required when the Accounts Payable and Bank amounts differ.");
+    }
+    if (fx.isPositive()) {
+      lines.push({ accountCode: input.exchangeGainLossCode, credit: fx, description: "Realized exchange gain" });
+    } else {
+      lines.push({ accountCode: input.exchangeGainLossCode, debit: fx.abs(), description: "Realized exchange loss" });
+    }
+  }
+  lines.push({ accountCode: input.bankAccountCode ?? "1000", credit: bank, description: "Bank" });
+  return lines;
 }
 
 /** Employee/direct expense paid from the bank immediately: DR Expense, DR

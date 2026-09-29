@@ -11,6 +11,7 @@ const schema = z.object({
   issueDate: z.string(),
   dueDate: z.string(),
   currency: z.string().length(3),
+  exchangeRate: z.number().positive().optional(),
   lines: z.array(
     z.object({
       description: z.string().min(1),
@@ -54,6 +55,7 @@ export async function POST(req: Request) {
       issueDate: new Date(body.issueDate),
       dueDate: new Date(body.dueDate),
       currency: body.currency,
+      exchangeRate: body.exchangeRate,
       lines: body.lines,
     });
     return NextResponse.json({ id: bill.id, billNumber: bill.billNumber });

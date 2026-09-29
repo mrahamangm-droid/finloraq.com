@@ -133,6 +133,31 @@ describe("posting builders match the spec's exact examples (section 6)", () => {
     expect(lines[1]!.accountCode).toBe("1000");
   });
 
+  it("Supplier payment: paying less than the AP cleared books a realized exchange gain", () => {
+    // Paid 400 cash but the AP being cleared (at the bill's booking rate) was 420.
+    const lines = buildSupplierPaymentPosting({ amount: 400, apAmount: 420, exchangeGainLossCode: "7000" });
+    validateBalanced(lines);
+    expect(lines.map((l) => ({ accountCode: l.accountCode, debit: l.debit?.toString(), credit: l.credit?.toString(), description: l.description }))).toEqual([
+      { accountCode: "2000", debit: "420", credit: undefined, description: "Accounts Payable" },
+      { accountCode: "7000", debit: undefined, credit: "20", description: "Realized exchange gain" },
+      { accountCode: "1000", debit: undefined, credit: "400", description: "Bank" },
+    ]);
+  });
+
+  it("Supplier payment: paying more than the AP cleared books a realized exchange loss", () => {
+    const lines = buildSupplierPaymentPosting({ amount: 420, apAmount: 400, exchangeGainLossCode: "7000" });
+    validateBalanced(lines);
+    expect(lines.map((l) => ({ accountCode: l.accountCode, debit: l.debit?.toString(), credit: l.credit?.toString(), description: l.description }))).toEqual([
+      { accountCode: "2000", debit: "400", credit: undefined, description: "Accounts Payable" },
+      { accountCode: "7000", debit: "20", credit: undefined, description: "Realized exchange loss" },
+      { accountCode: "1000", debit: undefined, credit: "420", description: "Bank" },
+    ]);
+  });
+
+  it("Supplier payment: differing amounts without an exchange gain/loss account is refused", () => {
+    expect(() => buildSupplierPaymentPosting({ amount: 400, apAmount: 420 })).toThrow(InvalidLineError);
+  });
+
   it("Direct expense with tax: DR Expense, DR Input Tax, CR Bank", () => {
     const lines = buildExpensePosting({ amount: 200, taxAmount: 10 });
     validateBalanced(lines);
