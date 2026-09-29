@@ -208,7 +208,10 @@ export async function approveAndPostBill(params: {
 }) {
   await requirePermission(params.membershipId, "bills", "APPROVE");
 
-  const bill = await prisma.bill.findFirst({ where: { id: params.billId, companyId: params.companyId } });
+  const bill = await prisma.bill.findFirst({
+    where: { id: params.billId, companyId: params.companyId },
+    include: { lines: { include: { product: true } } },
+  });
   if (!bill) throw new NotFoundError("Bill not found.");
 
   if (bill.status !== "DRAFT") {
@@ -241,7 +244,7 @@ export async function approveAndPostBill(params: {
   // Receive inventory for any line that references a tracked product.
   // Failures are logged but never abort the bill approval — the ledger
   // entry is already committed. A manual stock adjustment can correct later.
-  for (const line of (bill as any).lines) {
+  for (const line of bill.lines) {
     if (line.product?.trackInventory && line.quantity) {
       try {
         await receiveStock(
