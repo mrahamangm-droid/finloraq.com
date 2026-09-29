@@ -12,6 +12,7 @@ const patchSchema = z.object({
   issueDate: z.string().optional(),
   dueDate: z.string().optional(),
   currency: z.string().length(3).optional(),
+  exchangeRate: z.number().positive().optional(),
   lines: z.array(
     z.object({
       description: z.string().min(1),
@@ -58,6 +59,7 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
       issueDate: parsed.data.issueDate ? new Date(parsed.data.issueDate) : undefined,
       dueDate: parsed.data.dueDate ? new Date(parsed.data.dueDate) : undefined,
       currency: parsed.data.currency,
+      exchangeRate: parsed.data.exchangeRate,
       lines: parsed.data.lines,
     });
     return NextResponse.json({ id: invoice.id });
