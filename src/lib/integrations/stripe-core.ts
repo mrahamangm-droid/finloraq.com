@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import type { SubscriptionPlan, SubscriptionStatus } from "@prisma/client";
+import type { SubscriptionPlan, SubscriptionStatus } from "@/lib/prisma-enums";
 
 /**
  * Pure (no network, no database) Stripe helpers, split out from stripe.ts so

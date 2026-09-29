@@ -5,6 +5,7 @@ import { reverseJournalEntry, InvalidLineError, DuplicatePostingError, PeriodLoc
 
 export async function POST(_req: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
+  const { id } = params;
   const { active, userId } = await requireTenantContext();
 
   try {
@@ -12,7 +13,7 @@ export async function POST(_req: Request, props: { params: Promise<{ id: string 
       companyId: active.companyId,
       membershipId: active.id,
       userId,
-      journalEntryId: params.id,
+      journalEntryId: id,
     });
     return NextResponse.json({ id: reversal.id, entryNumber: reversal.entryNumber });
   } catch (err) {

@@ -55,16 +55,17 @@ export default async function JournalsPage() {
               {entries.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
-                    No journal entries yet. Manual entries post here; Sales/Purchases (Phase 3)
-                    will post automatically once built.
+                    No journal entries yet. Manual entries post here; automatic entries are created by Sales, Purchases, Banking and other modules.
                   </td>
                 </tr>
               )}
-              {entries.map((e) => {
-                const total = e.lines.reduce((acc, l) => acc + Number(l.debit), 0);
+              {entries.map((e: any) => {
+                const total = e.lines.reduce((acc: any, l: any) => acc + Number(l.debit), 0);
                 return (
-                  <tr key={e.id} className="border-b border-border last:border-0">
-                    <td className="px-4 py-2 font-mono text-xs text-card-foreground">{e.entryNumber}</td>
+                  <tr key={e.id} className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors">
+                    <td className="px-4 py-2 font-mono text-xs text-card-foreground">
+                      <Link href={`/accounting/journals/${e.id}`} className="hover:underline text-primary">{e.entryNumber}</Link>
+                    </td>
                     <td className="px-4 py-2 text-card-foreground">{fmt.date(e.date)}</td>
                     <td className="px-4 py-2 text-muted-foreground">{e.sourceType}</td>
                     <td className="px-4 py-2 text-card-foreground">{e.memo ?? "—"}</td>

@@ -1,5 +1,5 @@
 import { cache } from "react";
-import type { CustomFieldEntity, CustomFieldType, Prisma } from "@prisma/client";
+import type { CustomFieldEntity, CustomFieldType, InputJsonValue, CompanyUpdateInput } from "@/lib/prisma-enums";
 import { prisma } from "@/lib/db";
 import { recordAuditEvent } from "@/lib/audit";
 import { requirePermission } from "@/lib/rbac";
@@ -79,8 +79,8 @@ export async function saveDashboardLayout(membershipId: string, widgets: unknown
   const r = normalizeRange(range);
   await prisma.dashboardLayout.upsert({
     where: { membershipId },
-    create: { membershipId, widgets: clean as unknown as Prisma.InputJsonValue, range: r },
-    update: { widgets: clean as unknown as Prisma.InputJsonValue, range: r },
+    create: { membershipId, widgets: clean as unknown as InputJsonValue, range: r },
+    update: { widgets: clean as unknown as InputJsonValue, range: r },
   });
 }
 
@@ -97,7 +97,7 @@ export function readNavConfig(raw: unknown): NavConfig {
 export async function saveNavConfig(params: { companyId: string; membershipId: string; userId: string; order: unknown; hidden: unknown }) {
   await requirePermission(params.membershipId, "settings", "EDIT");
   const cfg = normalizeNavConfig({ order: params.order, hidden: params.hidden }, NAV_HREFS);
-  await prisma.company.update({ where: { id: params.companyId }, data: { navConfig: cfg as unknown as Prisma.InputJsonValue } });
+  await prisma.company.update({ where: { id: params.companyId }, data: { navConfig: cfg as unknown as InputJsonValue } });
   await recordAuditEvent({
     companyId: params.companyId, userId: params.userId, action: "settings.navigation_updated",
     entityType: "Company", entityId: params.companyId, newValue: cfg, source: "web",
@@ -124,7 +124,7 @@ export async function saveBranding(params: {
   invoiceTerms?: string | null;
 }) {
   await requirePermission(params.membershipId, "settings", "EDIT");
-  const data: Prisma.CompanyUpdateInput = {};
+  const data: CompanyUpdateInput = {};
   if (params.brandColor !== undefined) {
     if (params.brandColor && !normalizeHex(params.brandColor)) throw new BrandingError("Brand colour must be a hex colour like #4F46E5.");
     data.brandColor = params.brandColor ? normalizeHex(params.brandColor) : null;

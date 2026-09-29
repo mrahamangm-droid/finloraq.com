@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import type { SubscriptionPlan } from "@prisma/client";
+import type { SubscriptionPlan } from "@/lib/prisma-enums";
 import { recordAuditEvent } from "@/lib/audit";
 import { getPaymentAdapter } from "@/lib/integrations/payment";
 import { planDefinition, PLAN_ORDER } from "@/lib/billing/plans";

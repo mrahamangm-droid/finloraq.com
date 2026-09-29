@@ -9,11 +9,12 @@ import { PeriodPicker } from "@/components/periods/period-picker";
 
 export default async function ProfitAndLossPage(props: { searchParams?: Promise<PeriodParams> }) {
   const searchParams = (await props.searchParams) ?? {};
+  const sp = searchParams;
   const { active, userId } = await requireTenantContext();
   const denied = await viewGate(active.id, "reports");
   if (denied) return denied;
   const fmt = await getFormatter(userId);
-  const period = resolvePeriod(searchParams);
+  const period = resolvePeriod(sp);
   const { from, to } = period;
   const slices = subPeriods(period);
 
@@ -42,7 +43,7 @@ export default async function ProfitAndLossPage(props: { searchParams?: Promise<
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <tbody>
-                {report.revenue.map((r) => (
+                {report.revenue.map((r: any) => (
                   <tr key={r.accountCode}>
                     <td className="py-1 text-card-foreground">{r.accountName}</td>
                     <td className="py-1 text-right text-card-foreground">{fmt.money(r.amount)}</td>
@@ -66,7 +67,7 @@ export default async function ProfitAndLossPage(props: { searchParams?: Promise<
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <tbody>
-                {report.expense.map((r) => (
+                {report.expense.map((r: any) => (
                   <tr key={r.accountCode}>
                     <td className="py-1 text-card-foreground">{r.accountName}</td>
                     <td className="py-1 text-right text-card-foreground">{fmt.money(r.amount)}</td>

@@ -9,6 +9,7 @@ import { SupplierRow } from "@/components/suppliers/supplier-row";
 
 export default async function SuppliersPage(props: { searchParams: Promise<{ archived?: string }> }) {
   const searchParams = await props.searchParams;
+  const sp = searchParams;
   const { active } = await requireTenantContext();
   const denied = await viewGate(active.id, "suppliers");
   if (denied) return denied;
@@ -73,7 +74,7 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ arc
                   </td>
                 </tr>
               )}
-              {suppliers.map((s) => (
+              {suppliers.map((s: any) => (
                 <SupplierRow key={s.id} supplier={s} defs={defs} canEdit={canEdit} canDelete={canDelete} />
               ))}
             </tbody>

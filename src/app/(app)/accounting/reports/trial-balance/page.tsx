@@ -8,12 +8,13 @@ import { PeriodPicker } from "@/components/periods/period-picker";
 
 export default async function TrialBalancePage(props: { searchParams?: Promise<PeriodParams> }) {
   const searchParams = (await props.searchParams) ?? {};
+  const sp = searchParams;
   const { active, userId } = await requireTenantContext();
   const denied = await viewGate(active.id, "reports");
   if (denied) return denied;
   const fmt = await getFormatter(userId);
   const now = new Date();
-  const period = resolvePeriod(searchParams, now);
+  const period = resolvePeriod(sp, now);
   const asOf = period.to < now ? period.to : now;
   const rows = await trialBalance(active.companyId, asOf);
 

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireTenantContext } from "@/lib/tenant";
 import { inviteUser, revokeInvitation, changeMemberRole, deactivateMember } from "@/lib/users";
 import { uploadMemberFile, replaceMemberFileContent, renameMemberFile, deleteMemberFile } from "@/lib/memberFiles";
-import type { CompanyRole } from "@prisma/client";
+import type { CompanyRole } from "@/lib/prisma-enums";
 
 export async function inviteUserAction(formData: FormData) {
   const { active, userId } = await requireTenantContext();

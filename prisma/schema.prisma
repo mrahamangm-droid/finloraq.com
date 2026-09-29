@@ -165,6 +165,7 @@ model Company {
   bills              Bill[]
   bankAccounts       BankAccount[]
   taxCodes           TaxCode[]
+  products           Product[]
   projects           Project[]
   documents          Document[]
   auditEvents        AuditEvent[]
@@ -175,6 +176,18 @@ model Company {
   subscription       Subscription?
   invitations        Invitation[]
   memberFiles        MemberFile[]
+  // CRM back-relations
+  pipelines       Pipeline[]
+  leads           Lead[]
+  crmContacts     CrmContact[]
+  deals           Deal[]
+  crmActivities   CrmActivity[]
+  // P1 additions
+  recurringInvoices RecurringInvoice[]
+  budgets           Budget[]
+  quotes            Quote[]
+  purchaseOrders    PurchaseOrder[]
+  creditNotes       CreditNote[]
 
   @@index([countryCode])
 }
@@ -251,6 +264,12 @@ model CompanyMembership {
   overrides   PermissionOverride[]
   dashboardLayout DashboardLayout?
   files       MemberFile[]
+  // CRM back-relations
+  assignedLeads      Lead[]        @relation("LeadAssignedTo")
+  createdLeads       Lead[]        @relation("LeadCreatedBy")
+  assignedDeals      Deal[]        @relation("DealAssignedTo")
+  assignedActivities CrmActivity[] @relation("ActivityAssignedTo")
+  createdActivities  CrmActivity[] @relation("ActivityCreatedBy")
 
   @@unique([companyId, userId])
   @@index([userId])
@@ -424,8 +443,18 @@ model JournalEntry {
   reversalOf   JournalEntry?     @relation("Reversal", fields: [reversalOfId], references: [id])
   reversals    JournalEntry[]    @relation("Reversal")
   lines        JournalLine[]
+  creditNotes  CreditNote[]
 
   @@unique([companyId, entryNumber])
+  // Idempotency guard: prevents the race condition where two concurrent
+  // requests for the same source document (e.g. a webhook firing twice, or
+  // a user double-clicking "Post") both pass the app-level findFirst() check
+  // before either has written, producing two journal entries for one source.
+  // sourceId is nullable (MANUAL entries have none), so the constraint is
+  // conditional: Postgres partial-unique index semantics (sourceId IS NOT NULL).
+  // Prisma maps @@unique with a nullable field to a partial unique index in the
+  // generated migration, which behaves correctly.
+  @@unique([companyId, sourceType, sourceId])
   @@index([companyId, periodId, status])
   // The reporting engine's real hot path (trial balance, P&L, balance
   // sheet, general ledger — src/lib/reports.ts) always filters
@@ -469,10 +498,21 @@ model Customer {
   isActive    Boolean  @default(true)
   /// Values for the company's custom fields, keyed by field key.
   customFields Json?
+  /// Secure token for the self-service customer portal URL (/portal/[token]).
+  /// Minted on first portal access; rotatable by the company.
+  portalToken String?  @unique
   createdAt   DateTime @default(now())
 
   company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
   invoices Invoice[]
+  // CRM back-relations
+  crmContacts       CrmContact[]
+  convertedLeads    Lead[]
+  deals             Deal[]
+  crmActivities     CrmActivity[]
+  quotes            Quote[]
+  creditNotes       CreditNote[]
+  recurringInvoices RecurringInvoice[]
 
   @@index([companyId])
 }
@@ -491,8 +531,9 @@ model Supplier {
   customFields Json?
   createdAt   DateTime @default(now())
 
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  bills   Bill[]
+  company        Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  bills          Bill[]
+  purchaseOrders PurchaseOrder[]
 
   @@index([companyId])
 }
@@ -528,11 +569,18 @@ model Invoice {
   importRef   String?
   createdAt   DateTime      @default(now())
 
+  /// FK to the recurring template that generated this invoice (null for manual invoices).
+  recurringInvoiceId String?
+
   company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   customer Customer @relation(fields: [customerId], references: [id])
   project  Project? @relation(fields: [projectId], references: [id])
   lines    InvoiceLine[]
   onlinePayments OnlinePayment[]
+  deal        Deal?        // set when this invoice was created by closing a CRM deal
+  quote       Quote?       // set when this invoice was converted from a quote
+  creditNotes CreditNote[]
+  recurringInvoice RecurringInvoice? @relation(fields: [recurringInvoiceId], references: [id])
 
   @@unique([companyId, invoiceNumber])
   @@unique([companyId, importRef])
@@ -542,6 +590,7 @@ model Invoice {
 model InvoiceLine {
   id          String  @id @default(cuid())
   invoiceId   String
+  productId   String? // optional link to Product; enables inventory deduction on posting
   description String
   quantity    Decimal @db.Decimal(18, 4)
   unitPrice   Decimal @db.Decimal(18, 4)
@@ -550,6 +599,9 @@ model InvoiceLine {
 
   invoice Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   taxCode TaxCode? @relation(fields: [taxCodeId], references: [id])
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([productId])
 }
 
 enum BillStatus {
@@ -582,7 +634,8 @@ model Bill {
   company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   supplier Supplier @relation(fields: [supplierId], references: [id])
   project  Project? @relation(fields: [projectId], references: [id])
-  lines    BillLine[]
+  lines         BillLine[]
+  purchaseOrder PurchaseOrder? // set when bill was created from a PO
 
   @@unique([companyId, billNumber])
   @@unique([companyId, importRef])
@@ -592,6 +645,7 @@ model Bill {
 model BillLine {
   id          String  @id @default(cuid())
   billId      String
+  productId   String? // optional link to Product; enables inventory receipt on bill approval
   description String
   quantity    Decimal @db.Decimal(18, 4)
   unitPrice   Decimal @db.Decimal(18, 4)
@@ -600,6 +654,9 @@ model BillLine {
 
   bill    Bill     @relation(fields: [billId], references: [id], onDelete: Cascade)
   taxCode TaxCode? @relation(fields: [taxCodeId], references: [id])
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([productId])
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -616,8 +673,9 @@ model BankAccount {
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())
 
-  company      Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  transactions BankTransaction[]
+  company         Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  transactions    BankTransaction[]
+  reconciliations BankReconciliation[]
 
   @@index([companyId])
 }
@@ -630,19 +688,54 @@ enum BankTxStatus {
 }
 
 model BankTransaction {
-  id            String       @id @default(cuid())
-  bankAccountId String
-  date          DateTime
-  description   String
-  amount        Decimal      @db.Decimal(18, 2) // signed: +in / -out
-  status        BankTxStatus @default(UNMATCHED)
+  id                    String       @id @default(cuid())
+  bankAccountId         String
+  date                  DateTime
+  description           String
+  amount                Decimal      @db.Decimal(18, 2) // signed: +in / -out
+  status                BankTxStatus @default(UNMATCHED)
   matchedJournalEntryId String?
-  importBatchId String?
-  createdAt     DateTime     @default(now())
+  importBatchId         String?
+  reconciliationId      String?      // set when included in a COMPLETED reconciliation
+  createdAt             DateTime     @default(now())
 
-  bankAccount BankAccount @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+  bankAccount     BankAccount         @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+  reconciliation  BankReconciliation? @relation(fields: [reconciliationId], references: [id])
 
   @@index([bankAccountId, status])
+  @@index([reconciliationId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// BANK RECONCILIATION
+// A BankReconciliation captures a statement period (openingBalance →
+// closingBalance). Transactions are linked via BankTransaction.reconciliationId
+// when the user ticks them as cleared. Finalising locks the reconciliation
+// and flips the linked transactions to RECONCILED status.
+// ─────────────────────────────────────────────────────────────────────────
+
+enum ReconciliationStatus {
+  DRAFT       // in progress — can still add/remove transactions
+  COMPLETED   // locked; all linked transactions are RECONCILED
+}
+
+model BankReconciliation {
+  id              String               @id @default(cuid())
+  companyId       String
+  bankAccountId   String
+  statementDate   DateTime             @db.Date
+  openingBalance  Decimal              @db.Decimal(18, 2)
+  closingBalance  Decimal              @db.Decimal(18, 2)
+  status          ReconciliationStatus @default(DRAFT)
+  completedAt     DateTime?
+  completedById   String?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  bankAccount   BankAccount       @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+  transactions  BankTransaction[]
+
+  @@index([companyId, bankAccountId, status])
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -667,11 +760,101 @@ model TaxCode {
   isInput     Boolean // true = input/purchase tax, false = output/sales tax
   isActive    Boolean      @default(true)
 
-  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  invoiceLines InvoiceLine[]
-  billLines    BillLine[]
+  company              Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invoiceLines         InvoiceLine[]
+  billLines            BillLine[]
+  recurringLines       RecurringInvoiceLine[]
+  quoteLines           QuoteLine[]
+  purchaseOrderLines   PurchaseOrderLine[]
+  creditNoteLines      CreditNoteLine[]
+  products             Product[]
 
   @@unique([companyId, code])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// PRODUCTS / ITEMS CATALOG
+// ─────────────────────────────────────────────────────────────────────────
+
+enum ProductType {
+  PRODUCT
+  SERVICE
+}
+
+/// A reusable line-item template (product or service). Referenced by invoice
+/// lines, bill lines, quote lines, and PO lines as an optional catalogue entry.
+/// The catalog is company-scoped; no cross-tenant leakage.
+model Product {
+  id                  String      @id @default(cuid())
+  companyId           String
+  name                String
+  description         String?
+  sku                 String?     // stock keeping unit; optional, unique per company
+  type                ProductType @default(PRODUCT)
+  unitPrice           Decimal     @db.Decimal(18, 4)
+  currency            String      @default("USD")
+  unit                String?     // e.g. "each", "kg", "hour", "month"
+  /// Chart-of-accounts code for the revenue account (sales/invoices)
+  incomeAccountCode   String?
+  /// Chart-of-accounts code for the COGS/expense account (bills/purchases)
+  expenseAccountCode  String?
+  taxCodeId           String?     // default tax rate for this item
+  /// When true, quantityOnHand is maintained and checked on sales
+  trackInventory      Boolean     @default(false)
+  quantityOnHand      Decimal     @default(0) @db.Decimal(18, 4)
+  reorderPoint        Decimal?    @db.Decimal(18, 4)
+  isActive            Boolean     @default(true)
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+
+  company        Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  taxCode        TaxCode?        @relation(fields: [taxCodeId], references: [id])
+  stockMovements StockMovement[]
+  invoiceLines   InvoiceLine[]
+  billLines      BillLine[]
+
+  @@unique([companyId, sku])
+  @@index([companyId, isActive])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// INVENTORY — Stock Movement log
+// Every change to quantityOnHand is recorded here (purchase receipts,
+// sale shipments, manual adjustments, write-offs). quantityOnHand on
+// Product is the running balance; StockMovement is the immutable audit log.
+//
+// referenceType / referenceId: loosely typed foreign key to the source
+// document (e.g. "InvoiceLine", "BillLine", "StockAdjustment").
+// ─────────────────────────────────────────────────────────────────────────
+
+enum StockMovementType {
+  RECEIPT      // goods received (purchase / GRN)
+  SHIPMENT     // goods shipped (sale)
+  ADJUSTMENT   // manual stock count / write-off
+  OPENING      // opening stock balance entry
+  RETURN_IN    // customer return
+  RETURN_OUT   // supplier return
+}
+
+model StockMovement {
+  id            String            @id @default(cuid())
+  companyId     String
+  productId     String
+  type          StockMovementType
+  quantity      Decimal           @db.Decimal(18, 4) // positive = IN, negative = OUT
+  balanceAfter  Decimal           @db.Decimal(18, 4) // snapshot of quantityOnHand after this movement
+  unitCost      Decimal?          @db.Decimal(18, 4) // cost per unit at time of movement
+  notes         String?
+  referenceType String?           // "InvoiceLine" | "BillLine" | "StockAdjustment" | etc.
+  referenceId   String?
+  date          DateTime          @db.Date
+  createdAt     DateTime          @default(now())
+  createdBy     String            // userId
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, productId, date])
+  @@index([referenceType, referenceId])
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -688,11 +871,42 @@ model Project {
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
 
-  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  invoices Invoice[]
-  bills    Bill[]
+  company     Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invoices    Invoice[]
+  bills       Bill[]
+  timeEntries TimeEntry[]
 
   @@unique([companyId, code])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// TIME TRACKING
+// TimeEntry records hours worked against a project. isBillable entries can
+// be converted to invoice lines via the "Invoice time" workflow.
+// invoiceLineId is set (and isBillable is effectively locked) when the
+// entry has been included in an invoice line — re-invoicing is prevented
+// by the UI checking this field.
+// ─────────────────────────────────────────────────────────────────────────
+
+model TimeEntry {
+  id            String   @id @default(cuid())
+  companyId     String
+  projectId     String
+  userId        String   // membership who logged the time
+  date          DateTime @db.Date
+  hours         Decimal  @db.Decimal(8, 2)
+  description   String
+  hourlyRate    Decimal? @db.Decimal(18, 2) // null → unbilled or use default
+  isBillable    Boolean  @default(true)
+  invoiceLineId String?  // set once invoiced
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  company Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, projectId])
+  @@index([companyId, userId])
+  @@index([invoiceLineId])
 }
 
 // ─────────────────────────────────────────────────────────────────────────

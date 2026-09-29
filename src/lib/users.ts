@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { prisma } from "@/lib/db";
-import type { CompanyRole } from "@prisma/client";
+import type { CompanyRole } from "@/lib/prisma-enums";
 import { requirePermission, ForbiddenError } from "@/lib/rbac";
 import { recordAuditEvent } from "@/lib/audit";
 import { enforceSeatLimit } from "@/lib/billing/subscription";

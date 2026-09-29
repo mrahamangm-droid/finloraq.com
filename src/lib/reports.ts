@@ -35,9 +35,9 @@ export async function trialBalance(companyId: string, asOf: Date): Promise<Trial
   });
 
   return accounts
-    .map((account) => {
-      const debit = sum(account.journalLines.map((l) => l.debit));
-      const credit = sum(account.journalLines.map((l) => l.credit));
+    .map((account: any) => {
+      const debit = sum(account.journalLines.map((l: any) => l.debit));
+      const credit = sum(account.journalLines.map((l: any) => l.credit));
       return {
         accountCode: account.code,
         accountName: account.name,
@@ -46,7 +46,7 @@ export async function trialBalance(companyId: string, asOf: Date): Promise<Trial
         credit: roundMoney(credit),
       };
     })
-    .filter((row) => !row.debit.isZero() || !row.credit.isZero());
+    .filter((row: any) => !row.debit.isZero() || !row.credit.isZero());
 }
 
 export async function generalLedger(companyId: string, accountCode: string, from: Date, to: Date) {
@@ -64,7 +64,7 @@ export async function generalLedger(companyId: string, accountCode: string, from
   let running = roundMoney(0);
   const sign = account.type === "ASSET" || account.type === "EXPENSE" ? 1 : -1;
 
-  return lines.map((line) => {
+  return lines.map((line: any) => {
     running = running.plus(line.debit.minus(line.credit).times(sign));
     return {
       date: line.journalEntry.date,
@@ -87,24 +87,24 @@ export async function profitAndLoss(companyId: string, from: Date, to: Date) {
     },
   });
 
-  const revenue = accounts.filter((a) => a.type === "REVENUE");
-  const expense = accounts.filter((a) => a.type === "EXPENSE");
+  const revenue = accounts.filter((a: any) => a.type === "REVENUE");
+  const expense = accounts.filter((a: any) => a.type === "EXPENSE");
 
-  const revenueLines = revenue.map((a) => ({
+  const revenueLines = revenue.map((a: any) => ({
     accountCode: a.code,
     accountName: a.name,
     // Revenue accounts carry a natural credit balance.
-    amount: roundMoney(sum(a.journalLines.map((l) => l.credit)).minus(sum(a.journalLines.map((l) => l.debit)))),
+    amount: roundMoney(sum(a.journalLines.map((l: any) => l.credit)).minus(sum(a.journalLines.map((l: any) => l.debit)))),
   }));
-  const expenseLines = expense.map((a) => ({
+  const expenseLines = expense.map((a: any) => ({
     accountCode: a.code,
     accountName: a.name,
     // Expense accounts carry a natural debit balance.
-    amount: roundMoney(sum(a.journalLines.map((l) => l.debit)).minus(sum(a.journalLines.map((l) => l.credit)))),
+    amount: roundMoney(sum(a.journalLines.map((l: any) => l.debit)).minus(sum(a.journalLines.map((l: any) => l.credit)))),
   }));
 
-  const totalRevenue = roundMoney(sum(revenueLines.map((l) => l.amount)));
-  const totalExpense = roundMoney(sum(expenseLines.map((l) => l.amount)));
+  const totalRevenue = roundMoney(sum(revenueLines.map((l: any) => l.amount)));
+  const totalExpense = roundMoney(sum(expenseLines.map((l: any) => l.amount)));
 
   return {
     from, to,
@@ -185,7 +185,7 @@ export async function arAging(companyId: string, asOf: Date = new Date()): Promi
       include: { lines: { include: { account: true } } },
     });
     const paid = sum(
-      payments.flatMap((e) => e.lines.filter((l) => l.account.code === "1100")).map((l) => l.credit)
+      payments.flatMap((e: any) => e.lines.filter((l: any) => l.account.code === "1100")).map((l: any) => l.credit)
     ).toNumber();
     const balance = inv.total.toNumber() - paid;
     if (balance <= 0.005) continue;
@@ -218,7 +218,7 @@ export async function apAging(companyId: string, asOf: Date = new Date()): Promi
       include: { lines: { include: { account: true } } },
     });
     const paid = sum(
-      payments.flatMap((e) => e.lines.filter((l) => l.account.code === "2000")).map((l) => l.debit)
+      payments.flatMap((e: any) => e.lines.filter((l: any) => l.account.code === "2000")).map((l: any) => l.debit)
     ).toNumber();
     const balance = bill.total.toNumber() - paid;
     if (balance <= 0.005) continue;
@@ -254,8 +254,8 @@ export async function vatReturn(companyId: string, from: Date, to: Date) {
     },
   });
 
-  const outputTax = roundMoney(sum(lines.filter((l) => l.accountId === outputAccount?.id).map((l) => l.credit)));
-  const inputTax = roundMoney(sum(lines.filter((l) => l.accountId === inputAccount?.id).map((l) => l.debit)));
+  const outputTax = roundMoney(sum(lines.filter((l: any) => l.accountId === outputAccount?.id).map((l: any) => l.credit)));
+  const inputTax = roundMoney(sum(lines.filter((l: any) => l.accountId === inputAccount?.id).map((l: any) => l.debit)));
 
   return {
     from,
@@ -564,7 +564,7 @@ export async function ledgerReport(companyId: string, from: Date, to: Date, acco
     orderBy: { code: "asc" },
     select: { id: true, code: true, name: true, type: true },
   });
-  const accountIds = accounts.map((a) => a.id);
+  const accountIds = accounts.map((a: any) => a.id);
 
   const [openingGroups, lines] = await Promise.all([
     prisma.journalLine.groupBy({
@@ -584,14 +584,17 @@ export async function ledgerReport(companyId: string, from: Date, to: Date, acco
     }),
   ]);
 
-  const openingByAccount = new Map(
-    openingGroups.map((g) => [g.accountId, { debit: g._sum.debit ?? 0, credit: g._sum.credit ?? 0 }])
+  const openingByAccount = new Map<string, { debit: number; credit: number }>(
+    (openingGroups as { accountId: string; _sum: { debit: { toNumber(): number } | null; credit: { toNumber(): number } | null } }[]).map((g) => [
+      g.accountId,
+      { debit: g._sum.debit?.toNumber() ?? 0, credit: g._sum.credit?.toNumber() ?? 0 },
+    ])
   );
 
   return buildLedger(
     accounts,
     openingByAccount,
-    lines.map((l) => ({
+    lines.map((l: any) => ({
       accountId: l.accountId,
       date: l.journalEntry.date,
       entryNumber: l.journalEntry.entryNumber,

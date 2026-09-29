@@ -118,8 +118,8 @@ export async function runIntegrityCheck(companyId: string, asOf: Date = new Date
     nonBaseCurrencyRecords(companyId),
   ]);
 
-  const entryIds = new Set<string>(entries.map((e) => e.id));
-  const allLines = entries.flatMap((e) => e.lines);
+  const entryIds = new Set<string>(entries.map((e: any) => e.id));
+  const allLines = entries.flatMap((e: any) => e.lines);
 
   const [arControlAccount, apControlAccount] = await Promise.all([
     prisma.account.findFirst({ where: { companyId, code: "1100" } }),
@@ -134,9 +134,9 @@ export async function runIntegrityCheck(companyId: string, asOf: Date = new Date
       : Promise.resolve([]),
   ]);
 
-  const arControlBalance = roundMoney(sum(arControlLines.map((l) => l.debit)).minus(sum(arControlLines.map((l) => l.credit))));
+  const arControlBalance = roundMoney(sum(arControlLines.map((l: any) => l.debit)).minus(sum(arControlLines.map((l: any) => l.credit))));
   const arAgingTotal = roundMoney(sum(ar.map((r) => r.balance)));
-  const apControlBalance = roundMoney(sum(apControlLines.map((l) => l.credit)).minus(sum(apControlLines.map((l) => l.debit))));
+  const apControlBalance = roundMoney(sum(apControlLines.map((l: any) => l.credit)).minus(sum(apControlLines.map((l: any) => l.debit))));
   const apAgingTotal = roundMoney(sum(ap.map((r) => r.balance)));
 
   const checks: IntegrityCheckResult[] = [

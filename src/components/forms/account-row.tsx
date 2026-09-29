@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import type { Account } from "@prisma/client";
+import type { Account } from "@/lib/prisma-enums";
 
 const ACCOUNT_TYPES = ["ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"] as const;
 const input = "w-full rounded-md border border-border bg-background px-2 py-1 text-sm";

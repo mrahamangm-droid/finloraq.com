@@ -64,7 +64,7 @@ export async function POST(req: Request) {
       lines: body.lines,
     });
     if (defs.length > 0) {
-      await prisma.invoice.update({ where: { id: invoice.id }, data: { customFields: customFields as Prisma.InputJsonValue } });
+      await prisma.invoice.update({ where: { id: invoice.id }, data: { customFields: customFields as unknown } });
     }
     return NextResponse.json({ id: invoice.id, invoiceNumber: invoice.invoiceNumber });
   } catch (err) {

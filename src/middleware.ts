@@ -1,28 +1,46 @@
+/**
+ * Next.js edge middleware.
+ *
+ * Two responsibilities:
+ *   1. Authentication gate (withAuth) — unauthenticated traffic is redirected
+ *      to /login before any server component under the protected segments runs.
+ *   2. Security headers — every response gets a nonce-based Content-Security-
+ *      Policy plus the standard hardening headers (X-Frame-Options, etc.).
+ *
+ * The nonce is forwarded to the RSC pipeline via the `x-nonce` request header
+ * so Next.js can nonce its own injected hydration scripts, and so the root
+ * layout (<RootLayout>) can read it from `headers()` and pass it to any
+ * inline Script elements.
+ */
+
 import { withAuth } from "next-auth/middleware";
 import { NextResponse } from "next/server";
 import { appContentSecurityPolicy, generateNonce } from "@/lib/csp";
 
-// Route-level gate: unauthenticated users are bounced to /login before any
-// server component under (dashboard) renders. This is a defense-in-depth
-// layer, not the authorization boundary itself — every server action and
-// API route still calls requirePermission()/requireTenantContext() because
-// middleware alone can't express per-module, per-action RBAC.
 export default withAuth(
   function middleware(req) {
+    // Generate a fresh nonce for this request (via csp.ts).
+    const nonce = generateNonce();
+    const csp = appContentSecurityPolicy(nonce);
+
+    // Clone the request headers and thread the nonce in.
+    // Next.js 13.4+ reads `x-nonce` from the request headers and applies
+    // it to its own injected RSC/hydration <script> tags automatically.
+    const requestHeaders = new Headers(req.headers);
+    requestHeaders.set("x-nonce", nonce);
+    requestHeaders.set("Content-Security-Policy", csp);
+
     // API callers get a JSON 401 instead of an HTML redirect to /login.
     if (req.nextUrl.pathname.startsWith("/api/") && !req.nextauth.token) {
-      return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+      const res = NextResponse.json({ error: "Not signed in." }, { status: 401 });
+      res.headers.set("Content-Security-Policy", csp);
+      return res;
     }
     if (req.nextUrl.pathname.startsWith("/api/")) return NextResponse.next();
 
     // App pages get a per-request nonce CSP (src/lib/csp.ts). Setting it on
     // the request is what lets Next.js stamp the nonce onto its own scripts;
     // setting it on the response is what the browser enforces.
-    const nonce = generateNonce();
-    const csp = appContentSecurityPolicy(nonce);
-    const requestHeaders = new Headers(req.headers);
-    requestHeaders.set("x-nonce", nonce);
-    requestHeaders.set("Content-Security-Policy", csp);
     const res = NextResponse.next({ request: { headers: requestHeaders } });
     res.headers.set("Content-Security-Policy", csp);
     return res;

@@ -11,13 +11,14 @@ import { ProjectRow } from "@/components/forms/project-row";
 
 export default async function ProjectsPage(props: { searchParams?: Promise<{ archived?: string }> }) {
   const searchParams = (await props.searchParams) ?? {};
+  const sp = searchParams;
   const { active, userId } = await requireTenantContext();
   const denied = await viewGate(active.id, "projects");
   if (denied) return denied;
   const fmt = await getFormatter(userId);
   const now = new Date();
   const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-  const showArchived = searchParams.archived === "1";
+  const showArchived = sp.archived === "1";
 
   const [customers, projects, costCentres, spend, canDelete, canEdit, archivedCount] = await Promise.all([
     prisma.customer.findMany({ where: { companyId: active.companyId }, orderBy: { name: "asc" } }),
@@ -36,7 +37,7 @@ export default async function ProjectsPage(props: { searchParams?: Promise<{ arc
         <p className="text-sm text-muted-foreground">{active.company.name}</p>
       </div>
 
-      <NewProjectForm customers={customers.map((c) => ({ id: c.id, name: c.name }))} />
+      <NewProjectForm customers={customers.map((c: any) => ({ id: c.id, name: c.name }))} />
 
       <div className="overflow-hidden rounded-lg border border-border bg-card">
         <div className="flex items-center justify-between border-b border-border px-4 py-2">
@@ -74,7 +75,7 @@ export default async function ProjectsPage(props: { searchParams?: Promise<{ arc
                 <ProjectRow
                   key={p.project.id}
                   p={p}
-                  customers={customers.map((c) => ({ id: c.id, name: c.name }))}
+                  customers={customers.map((c: any) => ({ id: c.id, name: c.name }))}
                   revenueDisplay={fmt.money(p.revenue)}
                   costDisplay={fmt.money(p.cost)}
                   marginDisplay={fmt.money(p.margin)}
@@ -104,8 +105,8 @@ export default async function ProjectsPage(props: { searchParams?: Promise<{ arc
                 {costCentres.length === 0 && (
                   <tr><td colSpan={3} className="px-4 py-8 text-center text-muted-foreground">No cost centres yet.</td></tr>
                 )}
-                {costCentres.map((cc) => {
-                  const s = spend.find((x) => x.id === cc.id);
+                {costCentres.map((cc: any) => {
+                  const s = spend.find((x: any) => x.id === cc.id);
                   return (
                     <tr key={cc.id} className="border-b border-border last:border-0">
                       <td className="px-4 py-2 font-mono text-xs text-muted-foreground">{cc.code}</td>

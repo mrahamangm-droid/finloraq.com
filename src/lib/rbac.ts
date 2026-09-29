@@ -1,4 +1,4 @@
-import type { CompanyRole, PermissionAction } from "@prisma/client";
+import type { CompanyRole, PermissionAction } from "@/lib/prisma-enums";
 import { prisma } from "@/lib/db";
 
 /**
@@ -20,6 +20,11 @@ export type Module =
   | "banking"
   | "customers"
   | "suppliers"
+  | "crm"
+  | "quotes"
+  | "purchase_orders"
+  | "credit_notes"
+  | "recurring_invoices"
   | "projects"
   | "taxes"
   | "reports"
@@ -27,7 +32,11 @@ export type Module =
   | "users"
   | "settings"
   | "audit"
-  | "ai_copilot";
+  | "ai_copilot"
+  | "products"
+  | "inventory"
+  | "workflows"
+  | "approvals";
 
 const ALL: PermissionAction[] = ["VIEW", "CREATE", "EDIT", "APPROVE", "DELETE", "EXPORT"];
 const VIEW_ONLY: PermissionAction[] = ["VIEW"];
@@ -44,8 +53,9 @@ const DEFAULT_MATRIX: Record<CompanyRole, Partial<Record<Module, PermissionActio
   COMPANY_ADMIN: Object.fromEntries(
     ([
       "dashboard", "accounting", "journals", "sales", "invoices", "purchases", "bills",
-      "expenses", "banking", "customers", "suppliers", "projects", "taxes", "reports",
-      "documents", "users", "settings", "audit", "ai_copilot",
+      "expenses", "banking", "customers", "suppliers", "crm", "quotes", "purchase_orders",
+      "credit_notes", "recurring_invoices", "products", "inventory", "projects", "taxes", "reports",
+      "documents", "users", "settings", "audit", "ai_copilot", "workflows", "approvals",
     ] as Module[]).map((m) => [m, ALL])
   ),
   CFO: {
@@ -62,6 +72,13 @@ const DEFAULT_MATRIX: Record<CompanyRole, Partial<Record<Module, PermissionActio
     banking: ["VIEW", "APPROVE", "EXPORT"],
     customers: VIEW_EXPORT,
     suppliers: VIEW_EXPORT,
+    crm: VIEW_EXPORT, // pipeline value for revenue forecasting
+    products: VIEW_EXPORT,
+    inventory: VIEW_EXPORT,
+    quotes: VIEW_EXPORT,
+    purchase_orders: VIEW_EXPORT,
+    credit_notes: ["VIEW", "APPROVE", "EXPORT"],
+    recurring_invoices: VIEW_EXPORT,
     projects: VIEW_EXPORT,
     taxes: VIEW_EXPORT,
     reports: VIEW_EXPORT,
@@ -70,6 +87,8 @@ const DEFAULT_MATRIX: Record<CompanyRole, Partial<Record<Module, PermissionActio
     settings: VIEW_ONLY,
     audit: VIEW_ONLY,
     ai_copilot: ALL,
+    workflows: ALL,
+    approvals: ALL,
   },
   FINANCE_MANAGER: {
     dashboard: VIEW_ONLY,
@@ -83,6 +102,13 @@ const DEFAULT_MATRIX: Record<CompanyRole, Partial<Record<Module, PermissionActio
     banking: ["VIEW", "CREATE", "EDIT", "APPROVE"],
     customers: VIEW_CREATE_EDIT,
     suppliers: VIEW_CREATE_EDIT,
+    crm: VIEW_ONLY, // read pipeline for cash-flow planning
+    products: VIEW_CREATE_EDIT,
+    inventory: VIEW_CREATE_EDIT,
+    quotes: VIEW_CREATE_EDIT,
+    purchase_orders: VIEW_CREATE_EDIT,
+    credit_notes: ["VIEW", "CREATE", "EDIT", "APPROVE"],
+    recurring_invoices: VIEW_CREATE_EDIT,
     projects: VIEW_CREATE_EDIT,
     taxes: VIEW_CREATE_EDIT,
     reports: VIEW_EXPORT,
@@ -91,6 +117,8 @@ const DEFAULT_MATRIX: Record<CompanyRole, Partial<Record<Module, PermissionActio
     settings: [],
     audit: VIEW_ONLY,
     ai_copilot: VIEW_CREATE_EDIT,
+    workflows: VIEW_CREATE_EDIT,
+    approvals: ALL,
   },
   ACCOUNTANT: {
     dashboard: VIEW_ONLY,
@@ -104,6 +132,13 @@ const DEFAULT_MATRIX: Record<CompanyRole, Partial<Record<Module, PermissionActio
     banking: VIEW_CREATE_EDIT,
     customers: VIEW_CREATE_EDIT,
     suppliers: VIEW_CREATE_EDIT,
+    crm: [], // accountants deal with the resulting invoices, not the pipeline
+    products: VIEW_CREATE_EDIT, // accountants manage product/service catalog
+    inventory: VIEW_CREATE_EDIT, // accountants track stock movements
+    quotes: VIEW_ONLY, // quotes that became invoices are visible for context
+    purchase_orders: VIEW_CREATE_EDIT, // bills come from POs
+    credit_notes: VIEW_CREATE_EDIT, // can draft; posting requires APPROVE which finance managers hold
+    recurring_invoices: VIEW_CREATE_EDIT, // accountants manage the template schedule
     projects: VIEW_ONLY,
     taxes: VIEW_CREATE_EDIT,
     reports: VIEW_EXPORT,
@@ -112,21 +147,31 @@ const DEFAULT_MATRIX: Record<CompanyRole, Partial<Record<Module, PermissionActio
     settings: [],
     audit: [],
     ai_copilot: VIEW_CREATE_EDIT,
+    workflows: VIEW_ONLY,
+    approvals: VIEW_ONLY,
   },
   STAFF: {
     dashboard: VIEW_ONLY,
     expenses: ["VIEW", "CREATE"],
     invoices: VIEW_ONLY,
     customers: VIEW_ONLY,
+    crm: VIEW_CREATE_EDIT, // staff handle day-to-day CRM: leads, contacts, deals
+    products: VIEW_ONLY, // staff can browse the catalog but not modify it
+    quotes: VIEW_CREATE_EDIT, // staff can create and send quotes
+    purchase_orders: [], // purchasing is finance/management territory
+    credit_notes: [], // credit notes are a finance function
+    recurring_invoices: [], // recurring invoice templates are a finance function
     projects: VIEW_ONLY,
     documents: ["VIEW", "CREATE"],
     ai_copilot: ["VIEW", "CREATE"],
+    approvals: VIEW_ONLY,
   },
   AUDITOR: Object.fromEntries(
     ([
       "dashboard", "accounting", "journals", "sales", "invoices", "purchases", "bills",
-      "expenses", "banking", "customers", "suppliers", "projects", "taxes", "reports",
-      "documents", "audit",
+      "expenses", "banking", "customers", "suppliers", "crm", "quotes", "purchase_orders",
+      "credit_notes", "recurring_invoices", "products", "inventory", "projects", "taxes", "reports",
+      "documents", "audit", "approvals",
     ] as Module[]).map((m) => [m, VIEW_EXPORT])
   ),
 };

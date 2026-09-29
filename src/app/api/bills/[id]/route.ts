@@ -24,6 +24,7 @@ const patchSchema = z.object({
 
 export async function GET(_req: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
+  const { id } = params;
   const { active } = await requireTenantContext();
   // Reads are gated on VIEW exactly like writes are gated on CREATE/EDIT —
   // a role without bills:VIEW (e.g. STAFF) gets 403, not the data.
@@ -31,7 +32,7 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
     return NextResponse.json({ error: "Missing VIEW on bills." }, { status: 403 });
   }
   const bill = await prisma.bill.findFirst({
-    where: { id: params.id, companyId: active.companyId },
+    where: { id: id, companyId: active.companyId },
     include: { supplier: true, lines: true },
   });
   if (!bill) return NextResponse.json({ error: "Not found." }, { status: 404 });
@@ -40,6 +41,7 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
 
 export async function PATCH(req: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
+  const { id } = params;
   const { active, userId } = await requireTenantContext();
   const parsed = patchSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
@@ -50,7 +52,7 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
       companyId: active.companyId,
       membershipId: active.id,
       userId,
-      billId: params.id,
+      billId: id,
       supplierId: parsed.data.supplierId,
       issueDate: parsed.data.issueDate ? new Date(parsed.data.issueDate) : undefined,
       dueDate: parsed.data.dueDate ? new Date(parsed.data.dueDate) : undefined,
@@ -68,9 +70,10 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
 
 export async function DELETE(_req: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
+  const { id } = params;
   const { active, userId } = await requireTenantContext();
   try {
-    await deleteBill({ companyId: active.companyId, membershipId: active.id, userId, billId: params.id });
+    await deleteBill({ companyId: active.companyId, membershipId: active.id, userId, billId: id });
     return NextResponse.json({ ok: true });
   } catch (err) {
     if (err instanceof NotFoundError) return NextResponse.json({ error: err.message }, { status: 404 });

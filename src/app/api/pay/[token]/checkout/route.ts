@@ -13,19 +13,20 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(req: Request, props: { params: Promise<{ token: string }> }) {
   const params = await props.params;
+  const { token } = params;
   const ip = clientIpFromHeaders(req.headers);
   if (!(await checkRateLimit(`pay:${ip}`, 20, 10 * 60 * 1000)).allowed) {
     return NextResponse.json({ error: "Too many attempts — try again in a few minutes." }, { status: 429 });
   }
-  if (!/^[A-Za-z0-9_-]{20,64}$/.test(params.token)) {
+  if (!/^[A-Za-z0-9_-]{20,64}$/.test(token)) {
     return NextResponse.redirect(`${SITE_URL}/`, 303);
   }
   try {
-    const url = await createPayCheckout(params.token);
+    const url = await createPayCheckout(token);
     return NextResponse.redirect(url, 303);
   } catch (err) {
     // only a short code goes in the URL, so nobody can craft a link that shows arbitrary text
     const code = err instanceof PaymentLinkError ? "unavailable" : "failed";
-    return NextResponse.redirect(`${SITE_URL}/pay/${params.token}?error=${code}`, 303);
+    return NextResponse.redirect(`${SITE_URL}/pay/${token}?error=${code}`, 303);
   }
 }

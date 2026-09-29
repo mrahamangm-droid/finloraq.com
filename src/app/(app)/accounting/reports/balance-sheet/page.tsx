@@ -36,12 +36,13 @@ function Section({ title, rows, total, money }: { title: string; money: (v: impo
 
 export default async function BalanceSheetPage(props: { searchParams?: Promise<PeriodParams> }) {
   const searchParams = (await props.searchParams) ?? {};
+  const sp = searchParams;
   const { active, userId } = await requireTenantContext();
   const denied = await viewGate(active.id, "reports");
   if (denied) return denied;
   const fmt = await getFormatter(userId);
   const now = new Date();
-  const period = resolvePeriod(searchParams, now);
+  const period = resolvePeriod(sp, now);
   // As at the end of the chosen period — or now, if that's still ahead.
   const asOf = period.to < now ? period.to : now;
   const sheet = await balanceSheet(active.companyId, asOf);

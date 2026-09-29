@@ -1,4 +1,4 @@
-import type { CompanyRole } from "@prisma/client";
+import type { CompanyRole } from "@/lib/prisma-enums";
 
 /**
  * MFA requirement for privileged roles, as decided by the account owner:

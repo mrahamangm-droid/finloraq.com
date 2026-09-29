@@ -6,13 +6,14 @@ import { InvalidLineError, DuplicatePostingError, PeriodLockedError } from "@/li
 
 export async function POST(_req: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
+  const { id } = params;
   const { active, userId } = await requireTenantContext();
   try {
     const bill = await approveAndPostBill({
       companyId: active.companyId,
       membershipId: active.id,
       userId,
-      billId: params.id,
+      billId: id,
     });
     return NextResponse.json({ id: bill.id, status: bill.status });
   } catch (err) {

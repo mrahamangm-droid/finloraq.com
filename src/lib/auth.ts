@@ -7,6 +7,7 @@ import { prisma } from "@/lib/db";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { recordAuditEvent } from "@/lib/audit";
 import { verifyTotpToken, verifyBackupCode } from "@/lib/mfa";
+import { decrypt } from "@/lib/encryption";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { findUserByEmail, normalizeEmail } from "@/lib/userLookup";
 import { EMAIL_NOT_VERIFIED_ERROR, verificationRequiredFor } from "@/lib/emailVerification";
@@ -145,7 +146,12 @@ export const authOptions: NextAuthOptions = {
             throw new Error("Too many MFA attempts. Try again in a few minutes.");
           }
 
-          const totpOk = user.mfaSecret ? verifyTotpToken(user.mfaSecret, mfaToken) : false;
+          // Decrypt the stored secret before verification — decrypt() is
+          // backward-compatible and returns plaintext if the value is not
+          // encrypted yet (legacy accounts before the FIELD_ENCRYPTION_KEY
+          // was deployed).
+          const totpSecret = user.mfaSecret ? decrypt(user.mfaSecret) : null;
+          const totpOk = totpSecret ? verifyTotpToken(totpSecret, mfaToken) : false;
           const backupOk = totpOk ? false : await tryConsumeBackupCode(user.id, mfaToken);
 
           if (!totpOk && !backupOk) {

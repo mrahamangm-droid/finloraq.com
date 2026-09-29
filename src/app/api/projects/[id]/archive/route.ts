@@ -9,6 +9,7 @@ const schema = z.object({ isActive: z.boolean() });
 
 export async function POST(req: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
+  const { id } = params;
   const { active, userId } = await requireTenantContext();
   const parsed = schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
@@ -19,7 +20,7 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
       companyId: active.companyId,
       membershipId: active.id,
       userId,
-      projectId: params.id,
+      projectId: id,
       isActive: parsed.data.isActive,
     });
     return NextResponse.json({ id: project.id, isActive: project.isActive });

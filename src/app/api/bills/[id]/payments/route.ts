@@ -9,6 +9,7 @@ const schema = z.object({ amount: z.number().positive(), date: z.string().option
 
 export async function POST(req: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
+  const { id } = params;
   const { active, userId } = await requireTenantContext();
   const parsed = schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
@@ -20,7 +21,7 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
       companyId: active.companyId,
       membershipId: active.id,
       userId,
-      billId: params.id,
+      billId: id,
       amount: parsed.data.amount,
       date: parsed.data.date ? new Date(parsed.data.date) : new Date(),
     });

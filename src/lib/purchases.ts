@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { NotFoundError } from "@/lib/errors";
 import { requirePermission } from "@/lib/rbac";
 import { recordAuditEvent } from "@/lib/audit";
+import { receiveStock } from "@/lib/inventory";
 import { postJournalEntry, buildBillPosting, buildSupplierPaymentPosting, InvalidLineError, assertBaseCurrency, normalizeCurrencyCode } from "@/lib/ledger";
 import { roundMoney, sum } from "@/lib/currency";
 import { nextDocumentNumber } from "@/lib/numbering";
@@ -14,6 +15,7 @@ export interface BillLineInput {
   quantity: number;
   unitPrice: number;
   taxCodeId?: string;
+  productId?: string; // optional; if the product trackInventory=true, stock is received on approval
 }
 
 export async function createBill(params: {
@@ -37,9 +39,9 @@ export async function createBill(params: {
 
   const { lines: computedLines, subtotal, taxTotal, total } = await computeTaxedLines(prisma, params.companyId, params.lines);
 
-  const bill = await prisma.$transaction(async (tx) => {
+  const bill = await prisma.$transaction(async (tx: any) => {
     const billNumber = await nextDocumentNumber(tx, params.companyId, "BILL", () =>
-      tx.bill.findFirst({ where: { companyId: params.companyId }, orderBy: { billNumber: "desc" }, select: { billNumber: true } }).then((r) => (r ? { number: r.billNumber } : null))
+      tx.bill.findFirst({ where: { companyId: params.companyId }, orderBy: { billNumber: "desc" }, select: { billNumber: true } }).then((r: any) => (r ? { number: r.billNumber } : null))
     );
 
     return tx.bill.create({
@@ -61,6 +63,7 @@ export async function createBill(params: {
             unitPrice: l.line.unitPrice,
             taxCodeId: l.line.taxCodeId,
             lineTotal: l.lineTotal,
+            ...(l.line.productId ? { productId: l.line.productId } : {}),
           })),
         },
       },
@@ -125,10 +128,10 @@ export async function updateBill(params: {
     subtotal = computedLines.subtotal;
     taxTotal = computedLines.taxTotal;
     total = computedLines.total;
-    lineData = computedLines.lines.map((l) => ({ description: l.line.description, quantity: l.line.quantity, unitPrice: l.line.unitPrice, taxCodeId: l.line.taxCodeId, lineTotal: l.lineTotal }));
+    lineData = computedLines.lines.map((l) => ({ description: l.line.description, quantity: l.line.quantity, unitPrice: l.line.unitPrice, taxCodeId: l.line.taxCodeId, lineTotal: l.lineTotal, ...(l.line.productId ? { productId: l.line.productId } : {}) }));
   }
 
-  const bill = await prisma.$transaction(async (tx) => {
+  const bill = await prisma.$transaction(async (tx: any) => {
     if (lineData) {
       await tx.billLine.deleteMany({ where: { billId: before.id } });
     }
@@ -230,10 +233,37 @@ export async function approveAndPostBill(params: {
     post: true,
   });
 
-  return prisma.bill.update({
+  const updated = await prisma.bill.update({
     where: { id: bill.id },
     data: { status: "APPROVED", journalEntryId: entry.id },
   });
+
+  // Receive inventory for any line that references a tracked product.
+  // Failures are logged but never abort the bill approval — the ledger
+  // entry is already committed. A manual stock adjustment can correct later.
+  for (const line of (bill as any).lines) {
+    if (line.product?.trackInventory && line.quantity) {
+      try {
+        await receiveStock(
+          params.companyId,
+          params.userId,
+          line.product.id,
+          Number(line.quantity),
+          {
+            unitCost: Number(line.unitPrice),
+            notes: `Bill ${bill.billNumber}`,
+            referenceType: "Bill",
+            referenceId: bill.id,
+            date: bill.issueDate,
+          }
+        );
+      } catch (err: any) {
+        console.error(`[inventory] receiveStock failed for bill ${bill.id} product ${line.product.id}: ${err?.message}`);
+      }
+    }
+  }
+
+  return updated;
 }
 
 export async function recordSupplierPayment(params: {
@@ -282,6 +312,6 @@ async function sumBillPayments(companyId: string, billId: string) {
     where: { companyId, sourceType: "PAYMENT", sourceId: { startsWith: `${billId}:` }, status: "POSTED" },
     include: { lines: { include: { account: true } } },
   });
-  const bankCredits = entries.flatMap((e) => e.lines.filter((l) => l.account.code === "1000"));
-  return roundMoney(sum(bankCredits.map((l) => l.credit)));
+  const bankCredits = entries.flatMap((e: any) => e.lines.filter((l: any) => l.account.code === "1000"));
+  return roundMoney(sum(bankCredits.map((l: any) => l.credit)));
 }

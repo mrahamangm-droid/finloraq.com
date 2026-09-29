@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import type { SubscriptionPlan } from "@prisma/client";
+import type { SubscriptionPlan } from "@/lib/prisma-enums";
 import { PLANS } from "@/lib/billing/plans";
 import {
   BILLING_CURRENCIES,

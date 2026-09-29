@@ -46,7 +46,7 @@ export default async function BankingPage() {
         </p>
       )}
 
-      {accounts.map((account) => (
+      {accounts.map((account: any) => (
         <div key={account.id} className="space-y-3">
           <BankAccountHeader
             bankAccountId={account.id}
@@ -62,7 +62,7 @@ export default async function BankingPage() {
             suggestions={suggestions}
             canEdit={canEdit}
             canDelete={canDelete}
-            transactions={account.transactions.map((t) => ({
+            transactions={account.transactions.map((t: any) => ({
               id: t.id,
               date: t.date.toISOString().slice(0, 10),
               description: t.description,
