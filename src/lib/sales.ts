@@ -34,6 +34,12 @@ export async function createInvoice(params: {
    *  live FX rate lookup — the caller supplies the rate. */
   exchangeRate?: number;
   lines: InvoiceLineInput[];
+  /** Set only by createInvoiceFromSalesOrder() in src/lib/sales-orders.ts —
+   *  marks this invoice as billing already-shipped Sales Order quantities,
+   *  so postInvoiceToLedger() skips shipping stock and posting COGS again
+   *  (both already happened at Shipment time). Never set by a direct,
+   *  order-less invoice. */
+  salesOrderId?: string;
 }) {
   await requirePermission(params.membershipId, "invoices", "CREATE");
   const { currency, exchangeRate } = await resolveDocumentCurrency(prisma, params.companyId, params.currency, params.exchangeRate);
@@ -64,6 +70,7 @@ export async function createInvoice(params: {
         taxTotal,
         total,
         status: "DRAFT",
+        ...(params.salesOrderId ? { salesOrderId: params.salesOrderId } : {}),
         lines: {
           create: computedLines.map((l) => ({
             description: l.line.description,
@@ -273,7 +280,15 @@ export async function postInvoiceToLedger(params: {
   // cost of goods you don't have would misstate both the P&L and the
   // balance sheet; this is a deliberate behavior change from the previous
   // "ship best-effort, log and ignore a shortfall" approach.
-  const trackedLines = (invoice.lines as any[]).filter((l) => l.product?.trackInventory && Number(l.quantity) > 0);
+  //
+  // An invoice raised from a Sales Order (salesOrderId set) skips this
+  // entirely: the goods already shipped — and COGS already posted — at
+  // Shipment time (see createShipment in src/lib/sales-orders.ts). Costing
+  // it again here would both double-book COGS and try to ship stock a
+  // second time.
+  const trackedLines = invoice.salesOrderId
+    ? []
+    : (invoice.lines as any[]).filter((l) => l.product?.trackInventory && Number(l.quantity) > 0);
   let cogsLines: { accountCode: string; amount: Decimal }[] = [];
   let inventoryAssetCode: string | undefined;
   if (trackedLines.length > 0) {

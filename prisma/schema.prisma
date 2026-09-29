@@ -72,9 +72,9 @@ model User {
   sessions    Session[]
   approvals   Approval[]
   backupCodes MfaBackupCode[]
+  preference  UserPreference?
 
   @@index([email])
-  preference    UserPreference?
 }
 
 /// One-time MFA recovery codes (spec section 21's MFA requirement). Only
@@ -152,42 +152,44 @@ model Company {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  memberships        CompanyMembership[]
-  branches           Branch[]
-  departments        Department[]
-  costCentres        CostCentre[]
-  accounts           Account[]
-  accountingPeriods  AccountingPeriod[]
-  journalEntries     JournalEntry[]
-  customers          Customer[]
-  suppliers          Supplier[]
-  invoices           Invoice[]
-  bills              Bill[]
-  bankAccounts       BankAccount[]
-  taxCodes           TaxCode[]
-  products           Product[]
-  projects           Project[]
-  documents          Document[]
-  auditEvents        AuditEvent[]
-  workflowRules      WorkflowRule[]
-  paymentConnection  PaymentConnection?
-  onlinePayments     OnlinePayment[]
+  memberships            CompanyMembership[]
+  branches               Branch[]
+  departments            Department[]
+  costCentres            CostCentre[]
+  accounts               Account[]
+  accountingPeriods      AccountingPeriod[]
+  journalEntries         JournalEntry[]
+  customers              Customer[]
+  suppliers              Supplier[]
+  invoices               Invoice[]
+  bills                  Bill[]
+  bankAccounts           BankAccount[]
+  taxCodes               TaxCode[]
+  products               Product[]
+  projects               Project[]
+  documents              Document[]
+  auditEvents            AuditEvent[]
+  workflowRules          WorkflowRule[]
+  paymentConnection      PaymentConnection?
+  onlinePayments         OnlinePayment[]
   customFieldDefinitions CustomFieldDefinition[]
-  subscription       Subscription?
-  invitations        Invitation[]
-  memberFiles        MemberFile[]
+  subscription           Subscription?
+  invitations            Invitation[]
+  memberFiles            MemberFile[]
   // CRM back-relations
-  pipelines       Pipeline[]
-  leads           Lead[]
-  crmContacts     CrmContact[]
-  deals           Deal[]
-  crmActivities   CrmActivity[]
+  pipelines              Pipeline[]
+  leads                  Lead[]
+  crmContacts            CrmContact[]
+  deals                  Deal[]
+  crmActivities          CrmActivity[]
   // P1 additions
-  recurringInvoices RecurringInvoice[]
-  budgets           Budget[]
-  quotes            Quote[]
-  purchaseOrders    PurchaseOrder[]
-  creditNotes       CreditNote[]
+  recurringInvoices      RecurringInvoice[]
+  budgets                Budget[]
+  quotes                 Quote[]
+  purchaseOrders         PurchaseOrder[]
+  creditNotes            CreditNote[]
+  salesOrders            SalesOrder[]
+  shipments              Shipment[]
 
   @@index([countryCode])
 }
@@ -261,17 +263,17 @@ model CompanyMembership {
   isActive  Boolean     @default(true)
   createdAt DateTime    @default(now())
 
-  company     Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  user        User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  overrides   PermissionOverride[]
-  dashboardLayout DashboardLayout?
-  files       MemberFile[]
+  company                  Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user                     User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  overrides                PermissionOverride[]
+  dashboardLayout          DashboardLayout?
+  files                    MemberFile[]
   // CRM back-relations
-  assignedLeads      Lead[]        @relation("LeadAssignedTo")
-  createdLeads       Lead[]        @relation("LeadCreatedBy")
-  assignedDeals      Deal[]        @relation("DealAssignedTo")
-  assignedActivities CrmActivity[] @relation("ActivityAssignedTo")
-  createdActivities  CrmActivity[] @relation("ActivityCreatedBy")
+  assignedLeads            Lead[]               @relation("LeadAssignedTo")
+  createdLeads             Lead[]               @relation("LeadCreatedBy")
+  assignedDeals            Deal[]               @relation("DealAssignedTo")
+  assignedActivities       CrmActivity[]        @relation("ActivityAssignedTo")
+  createdActivities        CrmActivity[]        @relation("ActivityCreatedBy")
   createdRecurringInvoices RecurringInvoice[]
 
   @@unique([companyId, userId])
@@ -310,11 +312,11 @@ model MemberFile {
 /// matrix (e.g. an Accountant granted EXPORT on Reports). The default matrix
 /// itself is defined in code (/src/lib/rbac.ts) so it ships with tests.
 model PermissionOverride {
-  id            String            @id @default(cuid())
-  membershipId  String
-  module        String // e.g. "reports", "journals", "bills"
-  action        PermissionAction
-  granted       Boolean
+  id           String           @id @default(cuid())
+  membershipId String
+  module       String // e.g. "reports", "journals", "bills"
+  action       PermissionAction
+  granted      Boolean
 
   membership CompanyMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
 
@@ -368,28 +370,28 @@ enum SystemAccountPurpose {
 }
 
 model Account {
-  id          String      @id @default(cuid())
-  companyId   String
-  code        String
-  name        String
-  type        AccountType
-  parentId    String?
-  isSystem    Boolean     @default(false) // system accounts can't be deleted (e.g. AR, AP, VAT control)
+  id        String                @id @default(cuid())
+  companyId String
+  code      String
+  name      String
+  type      AccountType
+  parentId  String?
+  isSystem  Boolean               @default(false) // system accounts can't be deleted (e.g. AR, AP, VAT control)
   /// Which well-known role this system account fills, if any (set once at
   /// onboarding, immutable like code/type on a system account — see
   /// updateAccount in src/lib/accounts.ts). Lets the posting/reporting code
   /// resolve "this company's Bank account" via getBankAccountCode() instead
   /// of assuming the literal code "1000", which only holds for companies
   /// onboarded after this field existed.
-  purpose     SystemAccountPurpose?
-  isActive    Boolean     @default(true)
-  currency    String? // null = base currency
-  createdAt   DateTime    @default(now())
+  purpose   SystemAccountPurpose?
+  isActive  Boolean               @default(true)
+  currency  String? // null = base currency
+  createdAt DateTime              @default(now())
 
-  company        Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  parent         Account?         @relation("AccountHierarchy", fields: [parentId], references: [id])
-  children       Account[]        @relation("AccountHierarchy")
-  journalLines   JournalLine[]
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  parent       Account?      @relation("AccountHierarchy", fields: [parentId], references: [id])
+  children     Account[]     @relation("AccountHierarchy")
+  journalLines JournalLine[]
 
   @@unique([companyId, code])
   @@index([companyId, type])
@@ -430,6 +432,7 @@ enum JournalSourceType {
   ADJUSTMENT
   RECURRING
   AI_DRAFT
+  SHIPMENT
 }
 
 enum JournalStatus {
@@ -443,29 +446,29 @@ enum JournalStatus {
 /// Enforcement lives in /src/lib/ledger.ts (server-only posting service),
 /// never in the client.
 model JournalEntry {
-  id             String            @id @default(cuid())
-  companyId      String
-  periodId       String
-  entryNumber    String // sequential, per-company, gapless for POSTED entries
-  date           DateTime
-  sourceType     JournalSourceType
-  sourceId       String? // id of the Invoice/Bill/Payment/etc. that generated this
-  memo           String?
-  status         JournalStatus     @default(DRAFT)
-  reversalOfId   String?
-  currency       String
-  exchangeRate   Decimal           @default(1) @db.Decimal(18, 8)
-  postedAt       DateTime?
-  postedBy       String?
-  createdBy      String
-  createdAt      DateTime          @default(now())
+  id           String            @id @default(cuid())
+  companyId    String
+  periodId     String
+  entryNumber  String // sequential, per-company, gapless for POSTED entries
+  date         DateTime
+  sourceType   JournalSourceType
+  sourceId     String? // id of the Invoice/Bill/Payment/etc. that generated this
+  memo         String?
+  status       JournalStatus     @default(DRAFT)
+  reversalOfId String?
+  currency     String
+  exchangeRate Decimal           @default(1) @db.Decimal(18, 8)
+  postedAt     DateTime?
+  postedBy     String?
+  createdBy    String
+  createdAt    DateTime          @default(now())
 
-  company      Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  period       AccountingPeriod  @relation(fields: [periodId], references: [id])
-  reversalOf   JournalEntry?     @relation("Reversal", fields: [reversalOfId], references: [id])
-  reversals    JournalEntry[]    @relation("Reversal")
-  lines        JournalLine[]
-  creditNotes  CreditNote[]
+  company     Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  period      AccountingPeriod @relation(fields: [periodId], references: [id])
+  reversalOf  JournalEntry?    @relation("Reversal", fields: [reversalOfId], references: [id])
+  reversals   JournalEntry[]   @relation("Reversal")
+  lines       JournalLine[]
+  creditNotes CreditNote[]
 
   @@unique([companyId, entryNumber])
   // Idempotency guard: prevents the race condition where two concurrent
@@ -487,11 +490,11 @@ model JournalEntry {
 }
 
 model JournalLine {
-  id             String   @id @default(cuid())
+  id             String  @id @default(cuid())
   journalEntryId String
   accountId      String
-  debit          Decimal  @default(0) @db.Decimal(18, 2)
-  credit         Decimal  @default(0) @db.Decimal(18, 2)
+  debit          Decimal @default(0) @db.Decimal(18, 2)
+  credit         Decimal @default(0) @db.Decimal(18, 2)
   costCentreId   String?
   departmentId   String?
   projectId      String?
@@ -512,24 +515,24 @@ model JournalLine {
 // ─────────────────────────────────────────────────────────────────────────
 
 model Customer {
-  id          String   @id @default(cuid())
-  companyId   String
-  name        String
-  email       String?
-  phone       String?
-  taxRegNumber String?
-  currency    String?
-  paymentTermsDays Int @default(30)
-  isActive    Boolean  @default(true)
+  id               String   @id @default(cuid())
+  companyId        String
+  name             String
+  email            String?
+  phone            String?
+  taxRegNumber     String?
+  currency         String?
+  paymentTermsDays Int      @default(30)
+  isActive         Boolean  @default(true)
   /// Values for the company's custom fields, keyed by field key.
-  customFields Json?
+  customFields     Json?
   /// Secure token for the self-service customer portal URL (/portal/[token]).
   /// Minted on first portal access; rotatable by the company.
-  portalToken String?  @unique
-  createdAt   DateTime @default(now())
+  portalToken      String?  @unique
+  createdAt        DateTime @default(now())
 
-  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  invoices Invoice[]
+  company           Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invoices          Invoice[]
   // CRM back-relations
   crmContacts       CrmContact[]
   convertedLeads    Lead[]
@@ -538,23 +541,24 @@ model Customer {
   quotes            Quote[]
   creditNotes       CreditNote[]
   recurringInvoices RecurringInvoice[]
+  salesOrders       SalesOrder[]
 
   @@index([companyId])
 }
 
 model Supplier {
-  id          String   @id @default(cuid())
-  companyId   String
-  name        String
-  email       String?
-  phone       String?
-  taxRegNumber String?
-  currency    String?
-  paymentTermsDays Int @default(30)
-  isActive    Boolean  @default(true)
+  id               String   @id @default(cuid())
+  companyId        String
+  name             String
+  email            String?
+  phone            String?
+  taxRegNumber     String?
+  currency         String?
+  paymentTermsDays Int      @default(30)
+  isActive         Boolean  @default(true)
   /// Values for the company's custom fields, keyed by field key.
-  customFields Json?
-  createdAt   DateTime @default(now())
+  customFields     Json?
+  createdAt        DateTime @default(now())
 
   company        Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
   bills          Bill[]
@@ -573,45 +577,52 @@ enum InvoiceStatus {
 }
 
 model Invoice {
-  id          String        @id @default(cuid())
-  companyId   String
-  customerId  String
-  projectId   String?
-  invoiceNumber String
-  issueDate   DateTime
-  dueDate     DateTime
-  currency    String
+  id             String        @id @default(cuid())
+  companyId      String
+  customerId     String
+  projectId      String?
+  invoiceNumber  String
+  issueDate      DateTime
+  dueDate        DateTime
+  currency       String
   /// Rate to convert 1 unit of `currency` into the company's base currency,
   /// captured at issue time. Always 1 for a base-currency invoice. Every
   /// amount below (subtotal/taxTotal/total) is in `currency`; the ledger
   /// posting converts to base currency using this rate — see
   /// postInvoiceToLedger() in src/lib/sales.ts.
-  exchangeRate Decimal      @default(1) @db.Decimal(18, 8)
-  subtotal    Decimal       @db.Decimal(18, 2)
-  taxTotal    Decimal       @db.Decimal(18, 2)
-  total       Decimal       @db.Decimal(18, 2)
-  status      InvoiceStatus @default(DRAFT)
+  exchangeRate   Decimal       @default(1) @db.Decimal(18, 8)
+  subtotal       Decimal       @db.Decimal(18, 2)
+  taxTotal       Decimal       @db.Decimal(18, 2)
+  total          Decimal       @db.Decimal(18, 2)
+  status         InvoiceStatus @default(DRAFT)
   journalEntryId String?
   /// Unguessable token for the public /pay/<token> page (created on first "Get payment link").
-  payToken    String?       @unique
+  payToken       String?       @unique
   /// Values for the company's custom invoice fields, keyed by field key.
-  customFields Json?
+  customFields   Json?
   /// Fingerprint of the spreadsheet row this invoice was imported from (Import past data) — stops double imports.
-  importRef   String?
-  createdAt   DateTime      @default(now())
+  importRef      String?
+  createdAt      DateTime      @default(now())
 
   /// FK to the recurring template that generated this invoice (null for manual invoices).
   recurringInvoiceId String?
+  /// Set when this invoice was raised from a Sales Order's shipped-not-yet-
+  /// invoiced quantities (see createInvoiceFromSalesOrder in
+  /// src/lib/sales-orders.ts). When set, postInvoiceToLedger() in
+  /// src/lib/sales.ts posts Revenue/AR/Tax only — COGS was already posted
+  /// at Shipment time, not here, so it's never posted twice.
+  salesOrderId       String?
 
-  company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  customer Customer @relation(fields: [customerId], references: [id])
-  project  Project? @relation(fields: [projectId], references: [id])
-  lines    InvoiceLine[]
-  onlinePayments OnlinePayment[]
-  deal        Deal?        // set when this invoice was created by closing a CRM deal
-  quote       Quote?       // set when this invoice was converted from a quote
-  creditNotes CreditNote[]
+  company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer         Customer          @relation(fields: [customerId], references: [id])
+  project          Project?          @relation(fields: [projectId], references: [id])
+  lines            InvoiceLine[]
+  onlinePayments   OnlinePayment[]
+  deal             Deal? // set when this invoice was created by closing a CRM deal
+  quote            Quote? // set when this invoice was converted from a quote
+  creditNotes      CreditNote[]
   recurringInvoice RecurringInvoice? @relation(fields: [recurringInvoiceId], references: [id])
+  salesOrder       SalesOrder?       @relation(fields: [salesOrderId], references: [id])
 
   @@unique([companyId, invoiceNumber])
   @@unique([companyId, importRef])
@@ -645,26 +656,26 @@ enum BillStatus {
 }
 
 model Bill {
-  id          String     @id @default(cuid())
-  companyId   String
-  supplierId  String
-  projectId   String?
-  billNumber  String
-  issueDate   DateTime
-  dueDate     DateTime
-  currency    String
-  subtotal    Decimal    @db.Decimal(18, 2)
-  taxTotal    Decimal    @db.Decimal(18, 2)
-  total       Decimal    @db.Decimal(18, 2)
-  status      BillStatus @default(DRAFT)
+  id             String     @id @default(cuid())
+  companyId      String
+  supplierId     String
+  projectId      String?
+  billNumber     String
+  issueDate      DateTime
+  dueDate        DateTime
+  currency       String
+  subtotal       Decimal    @db.Decimal(18, 2)
+  taxTotal       Decimal    @db.Decimal(18, 2)
+  total          Decimal    @db.Decimal(18, 2)
+  status         BillStatus @default(DRAFT)
   journalEntryId String?
   /// Fingerprint of the spreadsheet row this bill was imported from — stops double imports.
-  importRef   String?
-  createdAt   DateTime   @default(now())
+  importRef      String?
+  createdAt      DateTime   @default(now())
 
-  company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  supplier Supplier @relation(fields: [supplierId], references: [id])
-  project  Project? @relation(fields: [projectId], references: [id])
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  supplier      Supplier       @relation(fields: [supplierId], references: [id])
+  project       Project?       @relation(fields: [projectId], references: [id])
   lines         BillLine[]
   purchaseOrder PurchaseOrder? // set when bill was created from a PO
 
@@ -695,14 +706,14 @@ model BillLine {
 // ─────────────────────────────────────────────────────────────────────────
 
 model BankAccount {
-  id            String   @id @default(cuid())
-  companyId     String
-  name          String
-  accountNumber String? // last 4 only should be shown in UI
-  currency      String
-  openingBalance Decimal @default(0) @db.Decimal(18, 2)
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
+  id             String   @id @default(cuid())
+  companyId      String
+  name           String
+  accountNumber  String? // last 4 only should be shown in UI
+  currency       String
+  openingBalance Decimal  @default(0) @db.Decimal(18, 2)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
 
   company         Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
   transactions    BankTransaction[]
@@ -727,11 +738,11 @@ model BankTransaction {
   status                BankTxStatus @default(UNMATCHED)
   matchedJournalEntryId String?
   importBatchId         String?
-  reconciliationId      String?      // set when included in a COMPLETED reconciliation
+  reconciliationId      String? // set when included in a COMPLETED reconciliation
   createdAt             DateTime     @default(now())
 
-  bankAccount     BankAccount         @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
-  reconciliation  BankReconciliation? @relation(fields: [reconciliationId], references: [id])
+  bankAccount    BankAccount         @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+  reconciliation BankReconciliation? @relation(fields: [reconciliationId], references: [id])
 
   @@index([bankAccountId, status])
   @@index([reconciliationId])
@@ -746,25 +757,25 @@ model BankTransaction {
 // ─────────────────────────────────────────────────────────────────────────
 
 enum ReconciliationStatus {
-  DRAFT       // in progress — can still add/remove transactions
-  COMPLETED   // locked; all linked transactions are RECONCILED
+  DRAFT // in progress — can still add/remove transactions
+  COMPLETED // locked; all linked transactions are RECONCILED
 }
 
 model BankReconciliation {
-  id              String               @id @default(cuid())
-  companyId       String
-  bankAccountId   String
-  statementDate   DateTime             @db.Date
-  openingBalance  Decimal              @db.Decimal(18, 2)
-  closingBalance  Decimal              @db.Decimal(18, 2)
-  status          ReconciliationStatus @default(DRAFT)
-  completedAt     DateTime?
-  completedById   String?
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @updatedAt
+  id             String               @id @default(cuid())
+  companyId      String
+  bankAccountId  String
+  statementDate  DateTime             @db.Date
+  openingBalance Decimal              @db.Decimal(18, 2)
+  closingBalance Decimal              @db.Decimal(18, 2)
+  status         ReconciliationStatus @default(DRAFT)
+  completedAt    DateTime?
+  completedById  String?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
 
-  bankAccount   BankAccount       @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
-  transactions  BankTransaction[]
+  bankAccount  BankAccount       @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+  transactions BankTransaction[]
 
   @@index([companyId, bankAccountId, status])
 }
@@ -791,14 +802,15 @@ model TaxCode {
   isInput     Boolean // true = input/purchase tax, false = output/sales tax
   isActive    Boolean      @default(true)
 
-  company              Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  invoiceLines         InvoiceLine[]
-  billLines            BillLine[]
-  recurringLines       RecurringInvoiceLine[]
-  quoteLines           QuoteLine[]
-  purchaseOrderLines   PurchaseOrderLine[]
-  creditNoteLines      CreditNoteLine[]
-  products             Product[]
+  company            Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invoiceLines       InvoiceLine[]
+  billLines          BillLine[]
+  recurringLines     RecurringInvoiceLine[]
+  quoteLines         QuoteLine[]
+  purchaseOrderLines PurchaseOrderLine[]
+  creditNoteLines    CreditNoteLine[]
+  products           Product[]
+  salesOrderLines    SalesOrderLine[]
 
   @@unique([companyId, code])
 }
@@ -816,33 +828,34 @@ enum ProductType {
 /// lines, bill lines, quote lines, and PO lines as an optional catalogue entry.
 /// The catalog is company-scoped; no cross-tenant leakage.
 model Product {
-  id                  String      @id @default(cuid())
-  companyId           String
-  name                String
-  description         String?
-  sku                 String?     // stock keeping unit; optional, unique per company
-  type                ProductType @default(PRODUCT)
-  unitPrice           Decimal     @db.Decimal(18, 4)
-  currency            String      @default("USD")
-  unit                String?     // e.g. "each", "kg", "hour", "month"
+  id                 String      @id @default(cuid())
+  companyId          String
+  name               String
+  description        String?
+  sku                String? // stock keeping unit; optional, unique per company
+  type               ProductType @default(PRODUCT)
+  unitPrice          Decimal     @db.Decimal(18, 4)
+  currency           String      @default("USD")
+  unit               String? // e.g. "each", "kg", "hour", "month"
   /// Chart-of-accounts code for the revenue account (sales/invoices)
-  incomeAccountCode   String?
+  incomeAccountCode  String?
   /// Chart-of-accounts code for the COGS/expense account (bills/purchases)
-  expenseAccountCode  String?
-  taxCodeId           String?     // default tax rate for this item
+  expenseAccountCode String?
+  taxCodeId          String? // default tax rate for this item
   /// When true, quantityOnHand is maintained and checked on sales
-  trackInventory      Boolean     @default(false)
-  quantityOnHand      Decimal     @default(0) @db.Decimal(18, 4)
-  reorderPoint        Decimal?    @db.Decimal(18, 4)
-  isActive            Boolean     @default(true)
-  createdAt           DateTime    @default(now())
-  updatedAt           DateTime    @updatedAt
+  trackInventory     Boolean     @default(false)
+  quantityOnHand     Decimal     @default(0) @db.Decimal(18, 4)
+  reorderPoint       Decimal?    @db.Decimal(18, 4)
+  isActive           Boolean     @default(true)
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
 
-  company        Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  taxCode        TaxCode?        @relation(fields: [taxCodeId], references: [id])
-  stockMovements StockMovement[]
-  invoiceLines   InvoiceLine[]
-  billLines      BillLine[]
+  company         Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  taxCode         TaxCode?         @relation(fields: [taxCodeId], references: [id])
+  stockMovements  StockMovement[]
+  invoiceLines    InvoiceLine[]
+  billLines       BillLine[]
+  salesOrderLines SalesOrderLine[]
 
   @@unique([companyId, sku])
   @@index([companyId, isActive])
@@ -859,34 +872,34 @@ model Product {
 // ─────────────────────────────────────────────────────────────────────────
 
 enum StockMovementType {
-  RECEIPT      // goods received (purchase / GRN)
-  SHIPMENT     // goods shipped (sale)
-  ADJUSTMENT   // manual stock count / write-off
-  OPENING      // opening stock balance entry
-  RETURN_IN    // customer return
-  RETURN_OUT   // supplier return
+  RECEIPT // goods received (purchase / GRN)
+  SHIPMENT // goods shipped (sale)
+  ADJUSTMENT // manual stock count / write-off
+  OPENING // opening stock balance entry
+  RETURN_IN // customer return
+  RETURN_OUT // supplier return
 }
 
 model StockMovement {
-  id            String            @id @default(cuid())
-  companyId     String
-  productId     String
-  type          StockMovementType
-  quantity      Decimal           @db.Decimal(18, 4) // positive = IN, negative = OUT
-  balanceAfter  Decimal           @db.Decimal(18, 4) // snapshot of quantityOnHand after this movement
-  unitCost      Decimal?          @db.Decimal(18, 4) // cost per unit at time of movement
+  id                 String            @id @default(cuid())
+  companyId          String
+  productId          String
+  type               StockMovementType
+  quantity           Decimal           @db.Decimal(18, 4) // positive = IN, negative = OUT
+  balanceAfter       Decimal           @db.Decimal(18, 4) // snapshot of quantityOnHand after this movement
+  unitCost           Decimal?          @db.Decimal(18, 4) // cost per unit at time of movement
   /// FIFO cost-layer bookkeeping: for an inbound movement (RECEIPT, OPENING,
   /// RETURN_IN) this is how much of that layer's quantity hasn't yet been
   /// consumed by a later outbound movement — set to `quantity` at creation
   /// and decremented as shipStock() consumes the oldest layers first. NULL
   /// (and unused) for an outbound movement (SHIPMENT, ADJUSTMENT, RETURN_OUT).
-  costLayerRemaining Decimal?     @db.Decimal(18, 4)
-  notes         String?
-  referenceType String?           // "InvoiceLine" | "BillLine" | "StockAdjustment" | etc.
-  referenceId   String?
-  date          DateTime          @db.Date
-  createdAt     DateTime          @default(now())
-  createdBy     String            // userId
+  costLayerRemaining Decimal?          @db.Decimal(18, 4)
+  notes              String?
+  referenceType      String? // "InvoiceLine" | "BillLine" | "StockAdjustment" | etc.
+  referenceId        String?
+  date               DateTime          @db.Date
+  createdAt          DateTime          @default(now())
+  createdBy          String // userId
 
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
@@ -899,14 +912,14 @@ model StockMovement {
 // ─────────────────────────────────────────────────────────────────────────
 
 model Project {
-  id          String   @id @default(cuid())
-  companyId   String
-  name        String
-  code        String
-  customerId  String?
-  budget      Decimal? @db.Decimal(18, 2)
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
+  id         String   @id @default(cuid())
+  companyId  String
+  name       String
+  code       String
+  customerId String?
+  budget     Decimal? @db.Decimal(18, 2)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
 
   company        Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
   invoices       Invoice[]
@@ -915,6 +928,7 @@ model Project {
   quotes         Quote[]
   purchaseOrders PurchaseOrder[]
   journalLines   JournalLine[]
+  salesOrders    SalesOrder[]
 
   @@unique([companyId, code])
 }
@@ -932,13 +946,13 @@ model TimeEntry {
   id            String   @id @default(cuid())
   companyId     String
   projectId     String
-  userId        String   // membership who logged the time
+  userId        String // membership who logged the time
   date          DateTime @db.Date
   hours         Decimal  @db.Decimal(8, 2)
   description   String
   hourlyRate    Decimal? @db.Decimal(18, 2) // null → unbilled or use default
   isBillable    Boolean  @default(true)
-  invoiceLineId String?  // set once invoiced
+  invoiceLineId String? // set once invoiced
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -1067,11 +1081,11 @@ model CrmContact {
 }
 
 model Deal {
-  id                String             @id @default(cuid())
+  id                String    @id @default(cuid())
   companyId         String
   name              String
-  value             Decimal            @db.Decimal(18, 4)
-  currency          String             @default("USD")
+  value             Decimal   @db.Decimal(18, 4)
+  currency          String    @default("USD")
   pipelineId        String
   stageId           String
   customerId        String?
@@ -1082,10 +1096,10 @@ model Deal {
   closedWon         Boolean?
   lostReason        String?
   notes             String?
-  invoiceId         String?            @unique
+  invoiceId         String?   @unique
   createdById       String?
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   company    Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
   pipeline   Pipeline           @relation(fields: [pipelineId], references: [id])
@@ -1184,12 +1198,13 @@ model Quote {
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
-  company  Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  customer Customer    @relation(fields: [customerId], references: [id])
-  deal     Deal?       @relation(fields: [dealId], references: [id])
-  project  Project?    @relation(fields: [projectId], references: [id])
-  invoice  Invoice?    @relation(fields: [invoiceId], references: [id])
-  lines    QuoteLine[]
+  company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer   Customer    @relation(fields: [customerId], references: [id])
+  deal       Deal?       @relation(fields: [dealId], references: [id])
+  project    Project?    @relation(fields: [projectId], references: [id])
+  invoice    Invoice?    @relation(fields: [invoiceId], references: [id])
+  lines      QuoteLine[]
+  salesOrder SalesOrder?
 
   @@unique([companyId, quoteNumber])
   @@index([companyId, status])
@@ -1207,6 +1222,116 @@ model QuoteLine {
 
   quote   Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
   taxCode TaxCode? @relation(fields: [taxCodeId], references: [id])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// SALES ORDERS + SHIPMENTS
+// The workflow stage between a Quote/direct order and an Invoice: a Sales
+// Order commits to selling specific quantities; a Shipment records goods
+// physically going out against it (partial shipments supported — a line's
+// shippedQuantity accumulates across multiple Shipments); an Invoice is
+// then raised against what's been shipped but not yet invoiced.
+//
+// Cost recognition happens at SHIPMENT time (see createShipment in
+// src/lib/sales-orders.ts), not at invoice time — this mirrors Zoho Books:
+// the moment goods leave the warehouse is when COGS is real, whether or
+// not the customer has been billed yet. An Invoice raised from a Sales
+// Order (Invoice.salesOrderId set) therefore posts Revenue/AR/Tax only;
+// postInvoiceToLedger's own ship+COGS step (for a direct, order-less
+// invoice) is skipped entirely for one, so cost is never posted twice.
+// ─────────────────────────────────────────────────────────────────────────
+
+enum SalesOrderStatus {
+  DRAFT
+  CONFIRMED
+  PARTIALLY_SHIPPED
+  SHIPPED
+  INVOICED
+  CANCELLED
+}
+
+model SalesOrder {
+  id          String           @id @default(cuid())
+  companyId   String
+  customerId  String
+  quoteId     String?          @unique
+  projectId   String?
+  orderNumber String
+  issueDate   DateTime
+  currency    String           @default("USD")
+  subtotal    Decimal          @db.Decimal(18, 2)
+  taxTotal    Decimal          @db.Decimal(18, 2)
+  total       Decimal          @db.Decimal(18, 2)
+  status      SalesOrderStatus @default(DRAFT)
+  notes       String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  company   Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer  Customer         @relation(fields: [customerId], references: [id])
+  quote     Quote?           @relation(fields: [quoteId], references: [id])
+  project   Project?         @relation(fields: [projectId], references: [id])
+  lines     SalesOrderLine[]
+  shipments Shipment[]
+  invoices  Invoice[]
+
+  @@unique([companyId, orderNumber])
+  @@index([companyId, status])
+  @@index([companyId, customerId])
+}
+
+model SalesOrderLine {
+  id               String  @id @default(cuid())
+  salesOrderId     String
+  productId        String?
+  description      String
+  quantity         Decimal @db.Decimal(18, 4)
+  unitPrice        Decimal @db.Decimal(18, 4)
+  taxCodeId        String?
+  lineTotal        Decimal @db.Decimal(18, 2)
+  /// Cumulative quantity shipped against this line across all Shipments —
+  /// never exceeds `quantity`. See createShipment in src/lib/sales-orders.ts.
+  shippedQuantity  Decimal @default(0) @db.Decimal(18, 4)
+  /// Cumulative quantity invoiced against this line — never exceeds
+  /// shippedQuantity (you can't invoice what hasn't shipped).
+  invoicedQuantity Decimal @default(0) @db.Decimal(18, 4)
+
+  salesOrder    SalesOrder     @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  product       Product?       @relation(fields: [productId], references: [id], onDelete: SetNull)
+  taxCode       TaxCode?       @relation(fields: [taxCodeId], references: [id])
+  shipmentLines ShipmentLine[]
+
+  @@index([productId])
+}
+
+model Shipment {
+  id             String   @id @default(cuid())
+  companyId      String
+  salesOrderId   String
+  shipmentNumber String
+  shipDate       DateTime @db.Date
+  notes          String?
+  createdAt      DateTime @default(now())
+  createdBy      String // userId
+
+  company    Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  salesOrder SalesOrder     @relation(fields: [salesOrderId], references: [id])
+  lines      ShipmentLine[]
+
+  @@unique([companyId, shipmentNumber])
+  @@index([companyId, salesOrderId])
+}
+
+model ShipmentLine {
+  id               String  @id @default(cuid())
+  shipmentId       String
+  salesOrderLineId String
+  quantity         Decimal @db.Decimal(18, 4)
+
+  shipment       Shipment       @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  salesOrderLine SalesOrderLine @relation(fields: [salesOrderLineId], references: [id])
+
+  @@index([salesOrderLineId])
 }
 
 model PurchaseOrder {
@@ -1311,17 +1436,17 @@ enum RecurringStatus {
 }
 
 model RecurringInvoice {
-  id                   String              @id @default(cuid())
-  companyId            String
-  customerId           String
-  currency             String              @default("USD")
-  frequency            RecurringFrequency
-  startDate            DateTime
-  endDate              DateTime?
-  nextRunAt            DateTime
-  lastRunAt            DateTime?
-  status               RecurringStatus     @default(ACTIVE)
-  notes                String?
+  id                    String             @id @default(cuid())
+  companyId             String
+  customerId            String
+  currency              String             @default("USD")
+  frequency             RecurringFrequency
+  startDate             DateTime
+  endDate               DateTime?
+  nextRunAt             DateTime
+  lastRunAt             DateTime?
+  status                RecurringStatus    @default(ACTIVE)
+  notes                 String?
   /// The membership that created this schedule. The cron-driven scheduler
   /// (processRecurringInvoices) runs generation through this membership's
   /// own permissions rather than skipping RBAC — see src/lib/recurring-invoices.ts.
@@ -1329,14 +1454,14 @@ model RecurringInvoice {
   /// value to backfill; the scheduler treats a null here as a pre-existing
   /// row and skips the permission check for it (logged, not fatal).
   createdByMembershipId String?
-  createdAt  DateTime            @default(now())
-  updatedAt  DateTime            @updatedAt
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
 
-  company    Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  customer   Customer               @relation(fields: [customerId], references: [id])
-  createdBy  CompanyMembership?     @relation(fields: [createdByMembershipId], references: [id])
-  lines      RecurringInvoiceLine[]
-  invoices   Invoice[]
+  company   Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer  Customer               @relation(fields: [customerId], references: [id])
+  createdBy CompanyMembership?     @relation(fields: [createdByMembershipId], references: [id])
+  lines     RecurringInvoiceLine[]
+  invoices  Invoice[]
 
   @@index([companyId])
   @@index([nextRunAt, status])
@@ -1408,19 +1533,19 @@ enum DocumentKind {
 }
 
 model Document {
-  id             String         @id @default(cuid())
-  companyId      String
-  fileName       String
-  storageKey     String // object storage path — never a public URL
-  hash           String // sha256, for duplicate detection
-  mimeType       String
-  sizeBytes      Int
-  status         DocumentStatus @default(UPLOADED)
-  kind           DocumentKind   @default(EXPENSE)
-  extractedData  Json?
-  relatedEntity  String? // e.g. "Bill:cuid..." or "Customer:cuid..."
-  uploadedBy     String
-  createdAt      DateTime       @default(now())
+  id            String         @id @default(cuid())
+  companyId     String
+  fileName      String
+  storageKey    String // object storage path — never a public URL
+  hash          String // sha256, for duplicate detection
+  mimeType      String
+  sizeBytes     Int
+  status        DocumentStatus @default(UPLOADED)
+  kind          DocumentKind   @default(EXPENSE)
+  extractedData Json?
+  relatedEntity String? // e.g. "Bill:cuid..." or "Customer:cuid..."
+  uploadedBy    String
+  createdAt     DateTime       @default(now())
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
@@ -1434,14 +1559,14 @@ model Document {
 // ─────────────────────────────────────────────────────────────────────────
 
 model WorkflowRule {
-  id           String   @id @default(cuid())
+  id           String      @id @default(cuid())
   companyId    String
   name         String
   entityType   String // "Expense" | "Bill" | "JournalEntry" ...
-  minAmount    Decimal? @db.Decimal(18, 2)
-  maxAmount    Decimal? @db.Decimal(18, 2)
+  minAmount    Decimal?    @db.Decimal(18, 2)
+  maxAmount    Decimal?    @db.Decimal(18, 2)
   requiredRole CompanyRole
-  isActive     Boolean  @default(true)
+  isActive     Boolean     @default(true)
 
   company   Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
   approvals Approval[]
@@ -1479,18 +1604,18 @@ model Approval {
 /// Append-only. No update/delete path exists anywhere in the app for this
 /// model — /src/lib/audit.ts only ever calls create().
 model AuditEvent {
-  id           String   @id @default(cuid())
-  companyId    String?
-  userId       String?
-  action       String // e.g. "journal.post", "invoice.void", "user.login"
-  entityType   String
-  entityId     String
+  id            String   @id @default(cuid())
+  companyId     String?
+  userId        String?
+  action        String // e.g. "journal.post", "invoice.void", "user.login"
+  entityType    String
+  entityId      String
   previousValue Json?
-  newValue     Json?
-  source       String   @default("web") // web | api | ai | system
-  ipAddress    String?
-  userAgent    String?
-  createdAt    DateTime @default(now())
+  newValue      Json?
+  source        String   @default("web") // web | api | ai | system
+  ipAddress     String?
+  userAgent     String?
+  createdAt     DateTime @default(now())
 
   company Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
   user    User?    @relation(fields: [userId], references: [id])
@@ -1524,18 +1649,18 @@ enum SubscriptionStatus {
 }
 
 model Subscription {
-  id                String             @id @default(cuid())
-  companyId         String             @unique
-  plan              SubscriptionPlan   @default(STARTER)
-  status            SubscriptionStatus @default(TRIALING)
-  provider          String? // "stripe" | null while unconfigured
+  id                 String             @id @default(cuid())
+  companyId          String             @unique
+  plan               SubscriptionPlan   @default(STARTER)
+  status             SubscriptionStatus @default(TRIALING)
+  provider           String? // "stripe" | null while unconfigured
   providerCustomerId String?
-  currentPeriodEnd  DateTime?
-  seats             Int                @default(1)
-  createdAt         DateTime           @default(now())
+  currentPeriodEnd   DateTime?
+  seats              Int                @default(1)
+  createdAt          DateTime           @default(now())
 
-  company  Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  aiUsage  AiUsageEvent[]
+  company Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  aiUsage AiUsageEvent[]
 }
 
 model AiUsageEvent {
