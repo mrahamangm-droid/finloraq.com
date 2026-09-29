@@ -20,6 +20,7 @@ const schema = z.object({
       quantity: z.number().positive(),
       unitPrice: z.number().nonnegative(),
       taxCodeId: z.string().optional(),
+      productId: z.string().optional(),
     })
   ).min(1),
   customFields: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])).optional(),

@@ -18,6 +18,7 @@ const patchSchema = z.object({
       quantity: z.number().positive(),
       unitPrice: z.number().nonnegative(),
       taxCodeId: z.string().optional(),
+      productId: z.string().optional(),
     })
   ).min(1).optional(),
 });

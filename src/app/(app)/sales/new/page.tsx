@@ -13,9 +13,10 @@ export default async function NewInvoicePage(props: {
   const denied = await viewGate(active.id, "invoices");
   if (denied) return denied;
 
-  const [customers, taxCodes, fields] = await Promise.all([
+  const [customers, taxCodes, products, fields] = await Promise.all([
     prisma.customer.findMany({ where: { companyId: active.companyId, isActive: true }, orderBy: { name: "asc" } }),
     prisma.taxCode.findMany({ where: { companyId: active.companyId, isActive: true }, orderBy: { name: "asc" } }),
+    prisma.product.findMany({ where: { companyId: active.companyId, isActive: true }, orderBy: { name: "asc" } }),
     fieldDefs(active.companyId, "INVOICE"),
   ]);
 
@@ -26,6 +27,7 @@ export default async function NewInvoicePage(props: {
         currency={active.company.baseCurrency}
         customers={customers.map((c) => ({ id: c.id, name: c.name }))}
         taxCodes={taxCodes.map((t) => ({ id: t.id, name: t.name, rate: t.rate.toNumber() }))}
+        products={products.map((p) => ({ id: p.id, name: p.name, unitPrice: p.unitPrice.toNumber(), trackInventory: p.trackInventory, quantityOnHand: p.quantityOnHand.toNumber() }))}
         fields={fields}
         initial={preselectedCustomerId ? {
           customerId: preselectedCustomerId,
