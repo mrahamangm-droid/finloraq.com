@@ -18,7 +18,7 @@ import { InvoiceStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/rbac";
 import { SITE_URL } from "@/lib/site";
-import { getBankAccountCode } from "@/lib/accounts";
+import { getAccountsReceivableCode } from "@/lib/accounts";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -80,6 +80,7 @@ export async function loadPortalPage(token: string): Promise<PortalPageData | nu
           status: true,
           total: true,
           currency: true,
+          exchangeRate: true,
           payToken: true,
         },
         orderBy: { dueDate: "asc" },
@@ -91,7 +92,7 @@ export async function loadPortalPage(token: string): Promise<PortalPageData | nu
 
   const currency = customer.company.baseCurrency ?? "USD";
   const companyId = customer.company.id;
-  const bankAccountCode = await getBankAccountCode(companyId);
+  const accountsReceivableCode = await getAccountsReceivableCode(companyId);
 
   // Compute balance due for each invoice from cash payments + applied credit notes
   const invoiceIds = customer.invoices.map((i: { id: string }) => i.id);
@@ -117,17 +118,22 @@ export async function loadPortalPage(token: string): Promise<PortalPageData | nu
       })
     : [];
 
-  // Build lookup maps: invoiceId → amounts
-  const cashPaidByInvoice = new Map<string, number>();
+  // Build lookup maps: invoiceId → amounts. Summed from the AR-credit lines
+  // (in base currency) rather than the Bank-debit lines, then divided by
+  // each invoice's own exchangeRate below — matching sumInvoicePayments in
+  // src/lib/sales.ts, the single correct "amount paid" calculation. A raw
+  // Bank-debit sum is in base currency and would misstate this for a
+  // foreign-currency invoice.
+  const arClearedByInvoice = new Map<string, number>();
   for (const entry of paymentEntries) {
     const sourceInvoiceId = entry.sourceId?.split(":")?.[0];
     if (!sourceInvoiceId) continue;
-    const bankDebit = entry.lines
-      .filter((l: any) => l.account?.code === bankAccountCode)
-      .reduce((s: number, l: any) => s + Number(l.debit), 0);
-    cashPaidByInvoice.set(
+    const arCredit = entry.lines
+      .filter((l: any) => l.account?.code === accountsReceivableCode)
+      .reduce((s: number, l: any) => s + Number(l.credit), 0);
+    arClearedByInvoice.set(
       sourceInvoiceId,
-      (cashPaidByInvoice.get(sourceInvoiceId) ?? 0) + bankDebit
+      (arClearedByInvoice.get(sourceInvoiceId) ?? 0) + arCredit
     );
   }
 
@@ -148,12 +154,12 @@ export async function loadPortalPage(token: string): Promise<PortalPageData | nu
     status: string;
     total: unknown;
     currency: string | null;
+    exchangeRate: unknown;
     payToken: string | null;
   }): PortalInvoice => {
     const total = Number(inv.total);
-    const amountPaid =
-      (cashPaidByInvoice.get(inv.id) ?? 0) +
-      (creditAppliedByInvoice.get(inv.id) ?? 0);
+    const cashPaid = (arClearedByInvoice.get(inv.id) ?? 0) / Number(inv.exchangeRate ?? 1);
+    const amountPaid = cashPaid + (creditAppliedByInvoice.get(inv.id) ?? 0);
     const balanceDue = Math.max(0, total - amountPaid);
     return {
       id: inv.id,
