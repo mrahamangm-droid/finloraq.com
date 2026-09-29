@@ -13,7 +13,7 @@
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/rbac";
 import { sum, roundMoney } from "@/lib/currency";
-import { getBankAccountCode, getAccountsPayableCode } from "@/lib/accounts";
+import { getAccountsReceivableCode, getAccountsPayableCode } from "@/lib/accounts";
 import Decimal from "decimal.js";
 
 export type StatementEntryType = "INVOICE" | "PAYMENT" | "CREDIT_NOTE" | "BILL" | "BILL_PAYMENT";
@@ -83,7 +83,7 @@ export async function customerStatement(
 
   const beforePeriodInvoices = invoices.filter((inv: any) => inv.issueDate < from);
   for (const inv of beforePeriodInvoices) {
-    const paid = await sumInvoicePaymentsBefore(companyId, inv.id, from);
+    const paid = await sumInvoicePaymentsBefore(companyId, inv.id, inv.exchangeRate, from);
     const balance = new Decimal(inv.total).minus(paid);
     if (balance.gt(0.005)) {
       openingBalance = openingBalance.plus(balance);
@@ -96,8 +96,8 @@ export async function customerStatement(
   );
 
   // Payments on ANY of this customer's invoices that were received in the period
-  const allInvoiceIds = invoices.map((i: any) => i.id);
-  const periodPayments = await periodPaymentsForInvoices(companyId, allInvoiceIds, from, to);
+  const exchangeRateByInvoiceId = new Map(invoices.map((i: any) => [i.id, i.exchangeRate]));
+  const periodPayments = await periodPaymentsForInvoices(companyId, exchangeRateByInvoiceId, from, to);
 
   // Credit notes issued in the period for this customer
   const creditNotes = await prisma.creditNote.findMany({
@@ -278,13 +278,20 @@ export async function supplierStatement(
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Sum of all payments on an invoice posted BEFORE a given date. */
+/**
+ * Sum of all payments on an invoice posted BEFORE a given date, in the
+ * invoice's own currency. Summed from the AR-credit lines (base currency)
+ * and divided by `exchangeRate`, matching sumInvoicePayments in
+ * src/lib/sales.ts — a raw Bank-debit sum is in base currency and would
+ * misstate this for a foreign-currency invoice.
+ */
 async function sumInvoicePaymentsBefore(
   companyId: string,
   invoiceId: string,
+  exchangeRate: Decimal.Value,
   before: Date
 ): Promise<Decimal> {
-  const [entries, bankAccountCode] = await Promise.all([
+  const [entries, accountsReceivableCode] = await Promise.all([
     prisma.journalEntry.findMany({
       where: {
         companyId,
@@ -295,25 +302,27 @@ async function sumInvoicePaymentsBefore(
       },
       include: { lines: { include: { account: true } } },
     }),
-    getBankAccountCode(companyId),
+    getAccountsReceivableCode(companyId),
   ]);
-  const bankDebits = entries.flatMap((e: any) => e.lines.filter((l: any) => l.account.code === bankAccountCode));
-  return roundMoney(sum(bankDebits.map((l: any) => l.debit)));
+  const arCredits = entries.flatMap((e: any) => e.lines.filter((l: any) => l.account.code === accountsReceivableCode));
+  return roundMoney(sum(arCredits.map((l: any) => l.credit)).dividedBy(exchangeRate));
 }
 
-/** Payments on a list of invoices that fall within a date range. */
+/** Payments on a list of invoices that fall within a date range, each
+ *  converted to its own invoice's currency (see sumInvoicePaymentsBefore
+ *  above for why AR-credit ÷ exchangeRate rather than a raw Bank-debit sum). */
 async function periodPaymentsForInvoices(
   companyId: string,
-  invoiceIds: string[],
+  exchangeRateByInvoiceId: Map<string, Decimal.Value>,
   from: Date,
   to: Date
 ): Promise<Array<{ date: Date; entryNumber: string; memo: string | null; amount: number }>> {
-  if (invoiceIds.length === 0) return [];
+  if (exchangeRateByInvoiceId.size === 0) return [];
 
   // PAYMENT sourceId = "${invoiceId}:${paymentRef}". We need to find entries
   // where sourceId starts with any of our invoice IDs. Prisma doesn't support
   // OR startsWith in a single query; use raw startsWith on each and deduplicate.
-  const [entries, bankAccountCode] = await Promise.all([
+  const [entries, accountsReceivableCode] = await Promise.all([
     prisma.journalEntry.findMany({
       where: {
         companyId,
@@ -323,17 +332,18 @@ async function periodPaymentsForInvoices(
       },
       include: { lines: { include: { account: true } } },
     }),
-    getBankAccountCode(companyId),
+    getAccountsReceivableCode(companyId),
   ]);
 
   const result = [];
   for (const entry of entries) {
     if (!entry.sourceId) continue;
-    const isForOneOfOurInvoices = invoiceIds.some((id) => entry.sourceId!.startsWith(`${id}:`));
-    if (!isForOneOfOurInvoices) continue;
+    const sourceInvoiceId = entry.sourceId.split(":")[0]!;
+    const exchangeRate = exchangeRateByInvoiceId.get(sourceInvoiceId);
+    if (exchangeRate === undefined) continue;
 
-    const bankDebits = entry.lines.filter((l: any) => l.account.code === bankAccountCode);
-    const amount = roundMoney(sum(bankDebits.map((l: any) => l.debit))).toNumber();
+    const arCredits = entry.lines.filter((l: any) => l.account.code === accountsReceivableCode);
+    const amount = roundMoney(sum(arCredits.map((l: any) => l.credit)).dividedBy(exchangeRate)).toNumber();
     if (amount > 0.005) {
       result.push({
         date: entry.date,

@@ -11,7 +11,7 @@ import { fieldDefs, getFormatter } from "@/lib/customization/server";
 import { displayFieldValue } from "@/lib/customization/customFields";
 import { fieldValues } from "@/components/custom-fields/custom-field-inputs";
 import { PaymentLinkButton } from "@/components/payments/payment-link-button";
-import { getBankAccountCode } from "@/lib/accounts";
+import { sumInvoicePayments } from "@/lib/sales";
 
 export default async function InvoiceDetailPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -27,7 +27,7 @@ export default async function InvoiceDetailPage(props: { params: Promise<{ id: s
   });
   if (!invoice) notFound();
 
-  const [payments, appliedCreditNotes, bankAccountCode] = await Promise.all([
+  const [payments, appliedCreditNotes, paid] = await Promise.all([
     prisma.journalEntry.findMany({
       where: { companyId: active.companyId, sourceType: "PAYMENT", sourceId: { startsWith: `${invoice.id}:` }, status: "POSTED" },
       include: { lines: { include: { account: true } } },
@@ -36,14 +36,19 @@ export default async function InvoiceDetailPage(props: { params: Promise<{ id: s
       where: { companyId: active.companyId, invoiceId: invoice.id, status: "APPLIED" },
       select: { id: true, creditNumber: true, total: true },
     }),
-    getBankAccountCode(active.companyId),
+    // sumInvoicePayments is the single correct "amount paid" calculation —
+    // it works in the invoice's own currency, unlike a raw bank-debit sum,
+    // which is in base currency and would misstate this for a
+    // foreign-currency invoice. See src/lib/sales.ts.
+    sumInvoicePayments(active.companyId, invoice.id),
   ]);
-  const cashPaid = payments
-    .flatMap((e: any) => e.lines.filter((l: any) => l.account.code === bankAccountCode))
-    .reduce((a: any, l: any) => a + l.debit.toNumber(), 0);
+  // Credit notes are already recorded in the invoice's own currency (see
+  // applyCreditNoteToInvoice in src/lib/credit-notes.ts), so this sum needs
+  // no conversion; the cash-only portion is then just what sumInvoicePayments
+  // (which includes both) leaves after subtracting it.
   const creditApplied = appliedCreditNotes.reduce((s: number, cn: any) => s + Number(cn.total), 0);
-  const paid = cashPaid + creditApplied;
-  const balanceDue = invoice.total.toNumber() - paid;
+  const cashPaid = paid.toNumber() - creditApplied;
+  const balanceDue = invoice.total.toNumber() - paid.toNumber();
   const [fmt, defs, canEdit, canDelete, canApproveJournals] = await Promise.all([
     getFormatter(userId),
     fieldDefs(active.companyId, "INVOICE"),
@@ -123,7 +128,7 @@ export default async function InvoiceDetailPage(props: { params: Promise<{ id: s
               Credit note <Link href={`/credit-notes/${cn.id}`} className="font-mono text-xs hover:underline">{cn.creditNumber}</Link> applied ({fmt.money(cn.total)})
             </div>
           ))}
-          {paid > 0 && cashPaid > 0 && creditApplied > 0 && (
+          {cashPaid > 0 && creditApplied > 0 && (
             <div className="text-success">Total cleared {fmt.money(paid)}</div>
           )}
           {invoice.status !== "PAID" && invoice.status !== "DRAFT" && (

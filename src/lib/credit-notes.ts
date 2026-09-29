@@ -25,7 +25,8 @@ import {
   validateBalanced,
   type LineInput,
 } from "@/lib/ledger";
-import { getBankAccountCode, getAccountsReceivableCode, getOutputTaxPayableCode } from "@/lib/accounts";
+import { getAccountsReceivableCode, getOutputTaxPayableCode } from "@/lib/accounts";
+import { sumInvoicePayments } from "@/lib/sales";
 
 export interface CreditNoteLineInput {
   description: string;
@@ -272,24 +273,16 @@ export async function applyCreditNoteToInvoice(params: {
     data: { invoiceId: params.invoiceId, status: "APPLIED" },
   });
 
-  // Recompute invoice status — cash payments already recorded + this credit note
-  const [cashPayments, bankAccountCode] = await Promise.all([
-    prisma.journalEntry.findMany({
-      where: {
-        companyId: params.companyId,
-        sourceType: "PAYMENT",
-        sourceId: { startsWith: `${params.invoiceId}:` },
-        status: "POSTED",
-      },
-      include: { lines: { include: { account: true } } },
-    }),
-    getBankAccountCode(params.companyId),
-  ]);
-  const cashPaid = cashPayments
-    .flatMap((e: any) => e.lines.filter((l: any) => l.account.code === bankAccountCode))
-    .reduce((sum: number, l: any) => sum + Number(l.debit), 0);
-
-  const totalCleared = cashPaid + Number(cn.total);
+  // Recompute invoice status — cash payments already recorded plus this
+  // credit note (already APPLIED as of the update above, so
+  // sumInvoicePayments' own credit-note query already includes it).
+  // sumInvoicePayments is the single correct implementation of "how much
+  // of this invoice has been cleared" — it works in the invoice's own
+  // currency (dividing the base-currency AR-credit lines by the invoice's
+  // exchangeRate), unlike a raw bank-debit sum, which is in base currency
+  // and would silently misstate this comparison for a foreign-currency
+  // invoice. See src/lib/sales.ts.
+  const totalCleared = (await sumInvoicePayments(params.companyId, params.invoiceId)).toNumber();
   const newStatus = totalCleared >= Number(invoice.total) ? "PAID" : "PARTIALLY_PAID";
 
   await prisma.invoice.update({
