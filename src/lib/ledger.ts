@@ -92,6 +92,38 @@ export async function assertBaseCurrency(
   }
 }
 
+/**
+ * Validates and normalizes a document's currency + exchange rate against
+ * the company's base currency, for the (currently invoice-only)
+ * multi-currency path. A base-currency document's rate must be 1 (or
+ * omitted); a foreign-currency document needs a real positive rate,
+ * explicitly supplied by the caller — there is no live FX rate lookup.
+ * Returns the normalized currency code and the rate to store on the
+ * document; the caller is responsible for using that rate to convert
+ * amounts to base currency before posting (see postInvoiceToLedger in
+ * src/lib/sales.ts).
+ */
+export async function resolveDocumentCurrency(
+  db: Pick<Prisma.TransactionClient, "company">,
+  companyId: string,
+  currency: string,
+  exchangeRate?: Decimal.Value
+): Promise<{ currency: string; exchangeRate: Decimal }> {
+  const company = await db.company.findUniqueOrThrow({ where: { id: companyId }, select: { baseCurrency: true } });
+  const normalizedCurrency = normalizeCurrencyCode(currency);
+  const normalizedBase = normalizeCurrencyCode(company.baseCurrency);
+  if (normalizedCurrency === normalizedBase) {
+    if (exchangeRate !== undefined && !money(exchangeRate).equals(1)) {
+      throw new InvalidLineError(`A ${normalizedBase} document's exchange rate must be 1.`);
+    }
+    return { currency: normalizedCurrency, exchangeRate: money(1) };
+  }
+  if (exchangeRate === undefined || !money(exchangeRate).isPositive()) {
+    throw new InvalidLineError(`A ${normalizedCurrency} document needs a positive exchange rate to ${normalizedBase}.`);
+  }
+  return { currency: normalizedCurrency, exchangeRate: money(exchangeRate) };
+}
+
 export interface LineInput {
   accountCode: string;
   debit?: Decimal.Value;
@@ -222,11 +254,25 @@ export async function postJournalEntry(input: PostJournalEntryInput) {
   // Every path into the ledger (invoices, bills, payments, expenses, imports,
   // manual journals) comes through here, so this is the backstop that keeps
   // unconverted foreign-currency amounts out of the books.
+  //
+  // `currency`/`exchangeRate` here describe the SOURCE DOCUMENT's own
+  // currency and rate for audit/display on the JournalEntry row — they are
+  // NOT applied to `input.lines` by this function. `input.lines` must
+  // already be in the company's base currency (the caller converts before
+  // calling postJournalEntry; see buildInvoicePosting's callers in
+  // sales.ts for the multi-currency invoice path). A base-currency entry's
+  // rate must be 1 (or omitted); a foreign-currency entry needs a real
+  // positive rate, purely as a record of what it was booked at.
   if (!input.inheritsPostedCurrency) {
-    await assertBaseCurrency(prisma, input.companyId, input.currency);
-  }
-  if (!input.inheritsPostedCurrency && input.exchangeRate !== undefined && !money(input.exchangeRate).equals(1)) {
-    throw new InvalidLineError("Exchange rates aren't supported yet: entries are recorded in the company's base currency at a rate of 1.");
+    const company = await prisma.company.findUniqueOrThrow({ where: { id: input.companyId }, select: { baseCurrency: true } });
+    const isBaseCurrency = normalizeCurrencyCode(input.currency) === normalizeCurrencyCode(company.baseCurrency);
+    if (isBaseCurrency) {
+      if (input.exchangeRate !== undefined && !money(input.exchangeRate).equals(1)) {
+        throw new InvalidLineError("A base-currency entry's exchange rate must be 1.");
+      }
+    } else if (input.exchangeRate === undefined || !money(input.exchangeRate).isPositive()) {
+      throw new InvalidLineError("A non-base-currency entry needs a positive exchange rate.");
+    }
   }
 
   if (input.post) {
@@ -495,11 +541,41 @@ export function buildInvoicePosting(input: {
 }
 
 /** Customer payment: DR Bank, CR Accounts Receivable */
-export function buildInvoicePaymentPosting(input: { amount: Decimal.Value; bankAccountCode?: string; accountsReceivableCode?: string }): LineInput[] {
-  return [
-    { accountCode: input.bankAccountCode ?? "1000", debit: input.amount, description: "Bank" },
-    { accountCode: input.accountsReceivableCode ?? "1100", credit: input.amount, description: "Accounts Receivable" },
+/**
+ * `amount` is the base-currency cash received (the Bank debit). `arAmount`
+ * is the base-currency Accounts Receivable being cleared — it defaults to
+ * `amount` (the original, pre-multi-currency behavior: bank and AR move by
+ * exactly the same amount). Pass a different `arAmount` when a
+ * foreign-currency invoice is settled at a different rate than it was
+ * booked at (see recordInvoicePayment in src/lib/sales.ts): the difference
+ * is realized exchange gain/loss, booked to `exchangeGainLossCode` (required
+ * whenever `amount` and `arAmount` differ).
+ */
+export function buildInvoicePaymentPosting(input: {
+  amount: Decimal.Value;
+  arAmount?: Decimal.Value;
+  bankAccountCode?: string;
+  accountsReceivableCode?: string;
+  exchangeGainLossCode?: string;
+}): LineInput[] {
+  const bank = money(input.amount);
+  const ar = input.arAmount !== undefined ? money(input.arAmount) : bank;
+  const lines: LineInput[] = [
+    { accountCode: input.bankAccountCode ?? "1000", debit: bank, description: "Bank" },
   ];
+  const fx = bank.minus(ar);
+  if (!isZero(fx)) {
+    if (!input.exchangeGainLossCode) {
+      throw new InvalidLineError("Exchange gain/loss account required when the Bank and Accounts Receivable amounts differ.");
+    }
+    if (fx.isPositive()) {
+      lines.push({ accountCode: input.exchangeGainLossCode, credit: fx, description: "Realized exchange gain" });
+    } else {
+      lines.push({ accountCode: input.exchangeGainLossCode, debit: fx.abs(), description: "Realized exchange loss" });
+    }
+  }
+  lines.push({ accountCode: input.accountsReceivableCode ?? "1100", credit: ar, description: "Accounts Receivable" });
+  return lines;
 }
 
 /** Supplier bill: DR Expense, DR Input Tax, CR Accounts Payable */

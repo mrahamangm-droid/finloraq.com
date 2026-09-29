@@ -4,12 +4,12 @@ import { NotFoundError } from "@/lib/errors";
 import { requirePermission } from "@/lib/rbac";
 import { recordAuditEvent } from "@/lib/audit";
 import { shipStock } from "@/lib/inventory";
-import { postJournalEntry, buildInvoicePosting, buildInvoicePaymentPosting, InvalidLineError, assertBaseCurrency, normalizeCurrencyCode } from "@/lib/ledger";
-import { roundMoney, sum } from "@/lib/currency";
+import { postJournalEntry, buildInvoicePosting, buildInvoicePaymentPosting, InvalidLineError, resolveDocumentCurrency } from "@/lib/ledger";
+import { roundMoney, sum, money } from "@/lib/currency";
 import { nextDocumentNumber } from "@/lib/numbering";
 import { computeTaxedLines } from "@/lib/taxCalc";
 import { foreignReferenceProblem } from "@/lib/tenantRefs";
-import { getBankAccountCode, getAccountsReceivableCode, getOutputTaxPayableCode } from "@/lib/accounts";
+import { getBankAccountCode, getAccountsReceivableCode, getOutputTaxPayableCode, getOrCreateExchangeGainLossCode } from "@/lib/accounts";
 
 export interface InvoiceLineInput {
   description: string;
@@ -28,10 +28,15 @@ export async function createInvoice(params: {
   issueDate: Date;
   dueDate: Date;
   currency: string;
+  /** Rate to convert 1 unit of `currency` into the company's base currency.
+   *  Required (and must be a positive number) when `currency` isn't the
+   *  company's base currency; must be 1 or omitted otherwise. There is no
+   *  live FX rate lookup — the caller supplies the rate. */
+  exchangeRate?: number;
   lines: InvoiceLineInput[];
 }) {
   await requirePermission(params.membershipId, "invoices", "CREATE");
-  await assertBaseCurrency(prisma, params.companyId, params.currency);
+  const { currency, exchangeRate } = await resolveDocumentCurrency(prisma, params.companyId, params.currency, params.exchangeRate);
 
   if (params.lines.length === 0) {
     throw new InvalidLineError("An invoice needs at least one line.");
@@ -53,7 +58,8 @@ export async function createInvoice(params: {
         invoiceNumber,
         issueDate: params.issueDate,
         dueDate: params.dueDate,
-        currency: normalizeCurrencyCode(params.currency),
+        currency,
+        exchangeRate,
         subtotal,
         taxTotal,
         total,
@@ -106,6 +112,7 @@ export async function updateInvoice(params: {
   issueDate?: Date;
   dueDate?: Date;
   currency?: string;
+  exchangeRate?: number;
   lines?: InvoiceLineInput[];
 }) {
   await requirePermission(params.membershipId, "invoices", "EDIT");
@@ -115,11 +122,21 @@ export async function updateInvoice(params: {
   if (before.status !== "DRAFT") {
     throw new InvalidLineError("Only a draft invoice can be edited. Once sent, correct it with a credit note or a new invoice.");
   }
-  // Editing may keep the draft's current currency (so an edit never silently
-  // re-labels it) or move it to the base currency, but never to another
-  // foreign currency. Posting re-checks via postJournalEntry().
-  if (params.currency !== undefined && normalizeCurrencyCode(params.currency) !== normalizeCurrencyCode(before.currency)) {
-    await assertBaseCurrency(prisma, params.companyId, params.currency);
+  // Editing may change currency freely (including into or out of a foreign
+  // currency) since nothing has posted yet — resolveDocumentCurrency
+  // re-validates the rate every time, same as createInvoice(). Keeps the
+  // existing currency+rate when neither is supplied.
+  let currency = before.currency;
+  let exchangeRate = before.exchangeRate;
+  if (params.currency !== undefined || params.exchangeRate !== undefined) {
+    const resolved = await resolveDocumentCurrency(
+      prisma,
+      params.companyId,
+      params.currency ?? before.currency,
+      params.exchangeRate ?? (params.currency !== undefined ? undefined : before.exchangeRate)
+    );
+    currency = resolved.currency;
+    exchangeRate = resolved.exchangeRate;
   }
   const customerProblem = await foreignReferenceProblem(prisma, params.companyId, "customer", [params.customerId]);
   if (customerProblem) throw new InvalidLineError(customerProblem);
@@ -148,7 +165,8 @@ export async function updateInvoice(params: {
         customerId: params.customerId,
         issueDate: params.issueDate,
         dueDate: params.dueDate,
-        currency: params.currency === undefined ? undefined : normalizeCurrencyCode(params.currency),
+        currency: params.currency === undefined && params.exchangeRate === undefined ? undefined : currency,
+        exchangeRate: params.currency === undefined && params.exchangeRate === undefined ? undefined : exchangeRate,
         subtotal,
         taxTotal,
         total,
@@ -235,6 +253,17 @@ export async function postInvoiceToLedger(params: {
     getOutputTaxPayableCode(params.companyId),
   ]);
 
+  // The ledger always posts in base currency. For a foreign-currency
+  // invoice, convert using the rate captured at issue time (invoice.exchangeRate).
+  // baseTotal and baseTaxTotal are each rounded independently, then
+  // baseSubtotal is derived as the difference (not rounded independently)
+  // so the three always sum exactly — independent rounding of all three
+  // could otherwise leave the entry off by a cent and fail the ledger's
+  // debit=credit check.
+  const baseTotal = roundMoney(money(invoice.total).times(invoice.exchangeRate));
+  const baseTaxTotal = roundMoney(money(invoice.taxTotal).times(invoice.exchangeRate));
+  const baseSubtotal = baseTotal.minus(baseTaxTotal);
+
   const entry = await postJournalEntry({
     companyId: params.companyId,
     membershipId: params.membershipId,
@@ -244,7 +273,8 @@ export async function postInvoiceToLedger(params: {
     sourceId: invoice.id,
     memo: `Invoice ${invoice.invoiceNumber}`,
     currency: invoice.currency,
-    lines: buildInvoicePosting({ subtotal: invoice.subtotal, taxTotal: invoice.taxTotal, total: invoice.total, accountsReceivableCode, outputTaxCode }),
+    exchangeRate: invoice.exchangeRate,
+    lines: buildInvoicePosting({ subtotal: baseSubtotal, taxTotal: baseTaxTotal, total: baseTotal, accountsReceivableCode, outputTaxCode }),
     post: true,
   });
 
@@ -294,8 +324,16 @@ export async function recordInvoicePayment(params: {
   membershipId: string;
   userId: string;
   invoiceId: string;
+  /** In the invoice's own currency (what the customer actually paid). */
   amount: number;
   date: Date;
+  /** Rate to convert `amount` (invoice currency) to base currency, as of
+   *  the payment date. Defaults to the invoice's own booking rate (assumes
+   *  no FX movement since issue) when omitted — pass an explicit rate to
+   *  book realized exchange gain/loss on a foreign-currency invoice
+   *  settled at a different rate than it was raised at. Ignored (must be 1
+   *  if given) for a base-currency invoice. */
+  exchangeRate?: number;
   /** Stable reference for payments that arrive from a provider (e.g. "stripe:pi_123").
    *  Makes the posting idempotent: the ledger refuses a second entry with the same source. */
   sourceRef?: string;
@@ -312,12 +350,30 @@ export async function recordInvoicePayment(params: {
     throw new InvalidLineError("Only a sent invoice can receive a payment.");
   }
 
+  const paymentExchangeRate = params.exchangeRate !== undefined ? money(params.exchangeRate) : money(invoice.exchangeRate);
+  if (!paymentExchangeRate.isPositive()) {
+    throw new InvalidLineError("Payment exchange rate must be positive.");
+  }
+  if (money(invoice.exchangeRate).equals(1) && !paymentExchangeRate.equals(1)) {
+    throw new InvalidLineError("A base-currency invoice's payment exchange rate must be 1.");
+  }
+
   // unique per payment so multiple partial payments can each post
   const paymentId = `${invoice.id}:${params.sourceRef ?? Date.now()}`;
   const [bankAccountCode, accountsReceivableCode] = await Promise.all([
     getBankAccountCode(params.companyId),
     getAccountsReceivableCode(params.companyId),
   ]);
+
+  // Both amounts are base currency: what actually hit the bank (at the
+  // payment-date rate) vs. how much of the base-currency AR balance this
+  // settles (at the invoice's own booking rate). Any difference is
+  // realized exchange gain/loss — see buildInvoicePaymentPosting.
+  const baseCashReceived = roundMoney(money(params.amount).times(paymentExchangeRate));
+  const baseArCleared = roundMoney(money(params.amount).times(invoice.exchangeRate));
+  const exchangeGainLossCode = baseCashReceived.equals(baseArCleared)
+    ? undefined
+    : await getOrCreateExchangeGainLossCode(params.companyId);
 
   const entry = await postJournalEntry({
     companyId: params.companyId,
@@ -329,7 +385,7 @@ export async function recordInvoicePayment(params: {
     memo: params.memo ?? `Payment received — Invoice ${invoice.invoiceNumber}`,
     currency: invoice.currency,
     inheritsPostedCurrency: true, // settles an invoice that is already posted
-    lines: buildInvoicePaymentPosting({ amount: params.amount, bankAccountCode, accountsReceivableCode }),
+    lines: buildInvoicePaymentPosting({ amount: baseCashReceived, arAmount: baseArCleared, bankAccountCode, accountsReceivableCode, exchangeGainLossCode }),
     post: true,
   });
 
@@ -341,8 +397,16 @@ export async function recordInvoicePayment(params: {
   return entry;
 }
 
+/** Returns the cumulative amount paid toward this invoice, in the
+ *  invoice's own currency (comparable directly to invoice.total). Derived
+ *  from the base-currency Accounts Receivable credit lines posted by
+ *  recordInvoicePayment() above, divided back by the invoice's own booking
+ *  rate — for a base-currency invoice (rate 1) this is numerically
+ *  identical to summing the Bank debit directly, the pre-multi-currency
+ *  behavior. */
 export async function sumInvoicePayments(companyId: string, invoiceId: string) {
-  const [entries, appliedCreditNotes, bankAccountCode] = await Promise.all([
+  const [invoice, entries, appliedCreditNotes, accountsReceivableCode] = await Promise.all([
+    prisma.invoice.findUniqueOrThrow({ where: { id: invoiceId }, select: { exchangeRate: true } }),
     prisma.journalEntry.findMany({
       where: { companyId, sourceType: "PAYMENT", sourceId: { startsWith: `${invoiceId}:` }, status: "POSTED" },
       include: { lines: { include: { account: true } } },
@@ -352,10 +416,11 @@ export async function sumInvoicePayments(companyId: string, invoiceId: string) {
       where: { companyId, invoiceId, status: "APPLIED" },
       select: { total: true },
     }),
-    getBankAccountCode(companyId),
+    getAccountsReceivableCode(companyId),
   ]);
-  const bankDebits = entries.flatMap((e: any) => e.lines.filter((l: any) => l.account.code === bankAccountCode));
-  const cashPaid = sum(bankDebits.map((l: any) => l.debit));
+  const arCredits = entries.flatMap((e: any) => e.lines.filter((l: any) => l.account.code === accountsReceivableCode));
+  const baseArCleared = sum(arCredits.map((l: any) => l.credit));
+  const cashPaid = baseArCleared.dividedBy(invoice.exchangeRate);
   const creditApplied = appliedCreditNotes.reduce((s: number, cn: any) => s + Number(cn.total), 0);
   return roundMoney(cashPaid.plus(creditApplied));
 }

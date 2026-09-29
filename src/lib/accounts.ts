@@ -226,6 +226,7 @@ const SYSTEM_ACCOUNT_LABEL: Record<SystemAccountPurpose, string> = {
   INPUT_TAX_RECEIVABLE: "Input Tax Receivable",
   ACCOUNTS_PAYABLE: "Accounts Payable",
   OUTPUT_TAX_PAYABLE: "Output Tax Payable",
+  EXCHANGE_GAIN_LOSS: "Exchange Gain/Loss",
 };
 
 export const getBankAccountCode = (companyId: string) => getSystemAccountCode(companyId, "BANK");
@@ -233,3 +234,44 @@ export const getAccountsReceivableCode = (companyId: string) => getSystemAccount
 export const getInputTaxReceivableCode = (companyId: string) => getSystemAccountCode(companyId, "INPUT_TAX_RECEIVABLE");
 export const getAccountsPayableCode = (companyId: string) => getSystemAccountCode(companyId, "ACCOUNTS_PAYABLE");
 export const getOutputTaxPayableCode = (companyId: string) => getSystemAccountCode(companyId, "OUTPUT_TAX_PAYABLE");
+
+/**
+ * Resolves this company's Exchange Gain/Loss account, creating it on first
+ * use. Unlike the five accounts above, this one is NOT seeded at
+ * onboarding — most companies never transact in a foreign currency, so
+ * creating it unconditionally for every company would clutter the chart of
+ * accounts of everyone who doesn't need it. isSystem: true from creation
+ * (same immutability guarantee as the other system accounts: code/type can
+ * never change, it can never be deleted — see updateAccount/deleteAccount).
+ */
+export async function getOrCreateExchangeGainLossCode(companyId: string): Promise<string> {
+  const existing = await prisma.account.findFirst({ where: { companyId, purpose: "EXCHANGE_GAIN_LOSS" } });
+  if (existing) return existing.code;
+
+  return prisma.$transaction(async (tx) => {
+    // Re-check inside the transaction: two concurrent foreign-currency
+    // payments on a company's first-ever one could otherwise both find
+    // nothing and both try to create it.
+    const raced = await tx.account.findFirst({ where: { companyId, purpose: "EXCHANGE_GAIN_LOSS" } });
+    if (raced) return raced.code;
+
+    let code = "7000";
+    for (let n = 7000; n <= 7999; n++) {
+      const candidate = String(n);
+      const clash = await tx.account.findUnique({ where: { companyId_code: { companyId, code: candidate } } });
+      if (!clash) { code = candidate; break; }
+    }
+
+    const created = await tx.account.create({
+      data: {
+        companyId,
+        code,
+        name: "Exchange Gain/Loss",
+        type: "EXPENSE",
+        isSystem: true,
+        purpose: "EXCHANGE_GAIN_LOSS",
+      },
+    });
+    return created.code;
+  });
+}

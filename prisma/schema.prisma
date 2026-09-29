@@ -362,6 +362,7 @@ enum SystemAccountPurpose {
   INPUT_TAX_RECEIVABLE
   ACCOUNTS_PAYABLE
   OUTPUT_TAX_PAYABLE
+  EXCHANGE_GAIN_LOSS
 }
 
 model Account {
@@ -578,6 +579,12 @@ model Invoice {
   issueDate   DateTime
   dueDate     DateTime
   currency    String
+  /// Rate to convert 1 unit of `currency` into the company's base currency,
+  /// captured at issue time. Always 1 for a base-currency invoice. Every
+  /// amount below (subtotal/taxTotal/total) is in `currency`; the ledger
+  /// posting converts to base currency using this rate — see
+  /// postInvoiceToLedger() in src/lib/sales.ts.
+  exchangeRate Decimal      @default(1) @db.Decimal(18, 8)
   subtotal    Decimal       @db.Decimal(18, 2)
   taxTotal    Decimal       @db.Decimal(18, 2)
   total       Decimal       @db.Decimal(18, 2)
