@@ -11,6 +11,7 @@ import { fieldDefs, getFormatter } from "@/lib/customization/server";
 import { displayFieldValue } from "@/lib/customization/customFields";
 import { fieldValues } from "@/components/custom-fields/custom-field-inputs";
 import { PaymentLinkButton } from "@/components/payments/payment-link-button";
+import { getBankAccountCode } from "@/lib/accounts";
 
 export default async function InvoiceDetailPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -26,7 +27,7 @@ export default async function InvoiceDetailPage(props: { params: Promise<{ id: s
   });
   if (!invoice) notFound();
 
-  const [payments, appliedCreditNotes] = await Promise.all([
+  const [payments, appliedCreditNotes, bankAccountCode] = await Promise.all([
     prisma.journalEntry.findMany({
       where: { companyId: active.companyId, sourceType: "PAYMENT", sourceId: { startsWith: `${invoice.id}:` }, status: "POSTED" },
       include: { lines: { include: { account: true } } },
@@ -35,9 +36,10 @@ export default async function InvoiceDetailPage(props: { params: Promise<{ id: s
       where: { companyId: active.companyId, invoiceId: invoice.id, status: "APPLIED" },
       select: { id: true, creditNumber: true, total: true },
     }),
+    getBankAccountCode(active.companyId),
   ]);
   const cashPaid = payments
-    .flatMap((e: any) => e.lines.filter((l: any) => l.account.code === "1000"))
+    .flatMap((e: any) => e.lines.filter((l: any) => l.account.code === bankAccountCode))
     .reduce((a: any, l: any) => a + l.debit.toNumber(), 0);
   const creditApplied = appliedCreditNotes.reduce((s: number, cn: any) => s + Number(cn.total), 0);
   const paid = cashPaid + creditApplied;

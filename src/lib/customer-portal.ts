@@ -18,6 +18,7 @@ import { InvoiceStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/rbac";
 import { SITE_URL } from "@/lib/site";
+import { getBankAccountCode } from "@/lib/accounts";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -90,6 +91,7 @@ export async function loadPortalPage(token: string): Promise<PortalPageData | nu
 
   const currency = customer.company.baseCurrency ?? "USD";
   const companyId = customer.company.id;
+  const bankAccountCode = await getBankAccountCode(companyId);
 
   // Compute balance due for each invoice from cash payments + applied credit notes
   const invoiceIds = customer.invoices.map((i: { id: string }) => i.id);
@@ -121,7 +123,7 @@ export async function loadPortalPage(token: string): Promise<PortalPageData | nu
     const sourceInvoiceId = entry.sourceId?.split(":")?.[0];
     if (!sourceInvoiceId) continue;
     const bankDebit = entry.lines
-      .filter((l: any) => l.account?.code === "1000")
+      .filter((l: any) => l.account?.code === bankAccountCode)
       .reduce((s: number, l: any) => s + Number(l.debit), 0);
     cashPaidByInvoice.set(
       sourceInvoiceId,

@@ -2,8 +2,8 @@ import Link from "next/link";
 import { requireTenantContext } from "@/lib/tenant";
 import { viewGate } from "@/lib/page-access";
 import { prisma } from "@/lib/db";
-import { profitAndLoss, arAging, apAging, trialBalance, type AgingRow } from "@/lib/reports";
-import { roundMoney } from "@/lib/currency";
+import { profitAndLoss, arAging, apAging, type AgingRow } from "@/lib/reports";
+import { currentCashPosition } from "@/lib/cashflow";
 import { getDashboardLayout, getFormatter } from "@/lib/customization/server";
 import { RANGES, WIDGETS, type WidgetId } from "@/lib/customization/widgets";
 import { periodFromRange, pickerProps, resolvePeriod, type PeriodParams } from "@/lib/periods";
@@ -38,10 +38,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<Peri
     prisma.supplier.count({ where: { companyId } }),
     prisma.invoice.count({ where: { companyId, status: { in: ["SENT", "PARTIALLY_PAID", "OVERDUE"] } } }),
     prisma.journalEntry.count({ where: { companyId, status: "DRAFT" } }),
-    trialBalance(companyId, asOf).then((rows) => {
-      const bank = rows.find((r) => r.accountCode === "1000");
-      return bank ? roundMoney(bank.debit.minus(bank.credit)).toNumber() : 0;
-    }),
+    currentCashPosition(companyId, asOf),
     profitAndLoss(companyId, from, to),
     arAging(companyId, asOf),
     apAging(companyId, asOf),

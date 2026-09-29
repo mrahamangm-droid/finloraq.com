@@ -25,6 +25,7 @@ import {
   validateBalanced,
   type LineInput,
 } from "@/lib/ledger";
+import { getBankAccountCode } from "@/lib/accounts";
 
 export interface CreditNoteLineInput {
   description: string;
@@ -263,17 +264,20 @@ export async function applyCreditNoteToInvoice(params: {
   });
 
   // Recompute invoice status — cash payments already recorded + this credit note
-  const cashPayments = await prisma.journalEntry.findMany({
-    where: {
-      companyId: params.companyId,
-      sourceType: "PAYMENT",
-      sourceId: { startsWith: `${params.invoiceId}:` },
-      status: "POSTED",
-    },
-    include: { lines: { include: { account: true } } },
-  });
+  const [cashPayments, bankAccountCode] = await Promise.all([
+    prisma.journalEntry.findMany({
+      where: {
+        companyId: params.companyId,
+        sourceType: "PAYMENT",
+        sourceId: { startsWith: `${params.invoiceId}:` },
+        status: "POSTED",
+      },
+      include: { lines: { include: { account: true } } },
+    }),
+    getBankAccountCode(params.companyId),
+  ]);
   const cashPaid = cashPayments
-    .flatMap((e: any) => e.lines.filter((l: any) => l.account.code === "1000"))
+    .flatMap((e: any) => e.lines.filter((l: any) => l.account.code === bankAccountCode))
     .reduce((sum: number, l: any) => sum + Number(l.debit), 0);
 
   const totalCleared = cashPaid + Number(cn.total);

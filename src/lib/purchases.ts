@@ -8,6 +8,7 @@ import { postJournalEntry, buildBillPosting, buildSupplierPaymentPosting, Invali
 import { roundMoney, sum } from "@/lib/currency";
 import { nextDocumentNumber } from "@/lib/numbering";
 import { computeTaxedLines } from "@/lib/taxCalc";
+import { getBankAccountCode } from "@/lib/accounts";
 import { foreignReferenceProblem } from "@/lib/tenantRefs";
 
 export interface BillLineInput {
@@ -287,6 +288,7 @@ export async function recordSupplierPayment(params: {
   }
 
   const paymentId = `${bill.id}:${Date.now()}`;
+  const bankAccountCode = await getBankAccountCode(params.companyId);
 
   const entry = await postJournalEntry({
     companyId: params.companyId,
@@ -298,7 +300,7 @@ export async function recordSupplierPayment(params: {
     memo: `Payment sent — Bill ${bill.billNumber}`,
     currency: bill.currency,
     inheritsPostedCurrency: true, // settles a bill that is already posted
-    lines: buildSupplierPaymentPosting({ amount: params.amount }),
+    lines: buildSupplierPaymentPosting({ amount: params.amount, bankAccountCode }),
     post: true,
   });
 
@@ -311,10 +313,13 @@ export async function recordSupplierPayment(params: {
 }
 
 async function sumBillPayments(companyId: string, billId: string) {
-  const entries = await prisma.journalEntry.findMany({
-    where: { companyId, sourceType: "PAYMENT", sourceId: { startsWith: `${billId}:` }, status: "POSTED" },
-    include: { lines: { include: { account: true } } },
-  });
-  const bankCredits = entries.flatMap((e: any) => e.lines.filter((l: any) => l.account.code === "1000"));
+  const [entries, bankAccountCode] = await Promise.all([
+    prisma.journalEntry.findMany({
+      where: { companyId, sourceType: "PAYMENT", sourceId: { startsWith: `${billId}:` }, status: "POSTED" },
+      include: { lines: { include: { account: true } } },
+    }),
+    getBankAccountCode(companyId),
+  ]);
+  const bankCredits = entries.flatMap((e: any) => e.lines.filter((l: any) => l.account.code === bankAccountCode));
   return roundMoney(sum(bankCredits.map((l: any) => l.credit)));
 }

@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { can } from "@/lib/rbac";
 import { BillActions } from "@/components/forms/bill-actions";
 import { VoidDocument } from "@/components/forms/void-document";
+import { getBankAccountCode } from "@/lib/accounts";
 
 export default async function BillDetailPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -27,12 +28,15 @@ export default async function BillDetailPage(props: { params: Promise<{ id: stri
   });
   if (!bill) notFound();
 
-  const payments = await prisma.journalEntry.findMany({
-    where: { companyId: active.companyId, sourceType: "PAYMENT", sourceId: { startsWith: `${bill.id}:` }, status: "POSTED" },
-    include: { lines: { include: { account: true } } },
-  });
+  const [payments, bankAccountCode] = await Promise.all([
+    prisma.journalEntry.findMany({
+      where: { companyId: active.companyId, sourceType: "PAYMENT", sourceId: { startsWith: `${bill.id}:` }, status: "POSTED" },
+      include: { lines: { include: { account: true } } },
+    }),
+    getBankAccountCode(active.companyId),
+  ]);
   const paid = payments
-    .flatMap((e: any) => e.lines.filter((l: any) => l.account.code === "1000"))
+    .flatMap((e: any) => e.lines.filter((l: any) => l.account.code === bankAccountCode))
     .reduce((a: any, l: any) => a + l.credit.toNumber(), 0);
   const balanceDue = bill.total.toNumber() - paid;
 

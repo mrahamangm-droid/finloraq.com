@@ -1,3 +1,4 @@
+import type { SystemAccountPurpose } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { recordAuditEvent } from "@/lib/audit";
 
@@ -13,12 +14,12 @@ const UAE_TAX_CODES = [
 /** Minimal starter chart of accounts — enough for Phase 2's posting engine
  *  to have real accounts to hit (AR, AP, Bank, Revenue, Output/Input Tax).
  *  Full country-specific COA templates are a Phase 2+ enhancement. */
-const STARTER_ACCOUNTS: { code: string; name: string; type: "ASSET" | "LIABILITY" | "EQUITY" | "REVENUE" | "EXPENSE"; isSystem?: boolean }[] = [
-  { code: "1000", name: "Bank", type: "ASSET", isSystem: true },
-  { code: "1100", name: "Accounts Receivable", type: "ASSET", isSystem: true },
-  { code: "1200", name: "Input Tax Receivable", type: "ASSET", isSystem: true },
-  { code: "2000", name: "Accounts Payable", type: "LIABILITY", isSystem: true },
-  { code: "2100", name: "Output Tax Payable", type: "LIABILITY", isSystem: true },
+const STARTER_ACCOUNTS: { code: string; name: string; type: "ASSET" | "LIABILITY" | "EQUITY" | "REVENUE" | "EXPENSE"; isSystem?: boolean; purpose?: SystemAccountPurpose }[] = [
+  { code: "1000", name: "Bank", type: "ASSET", isSystem: true, purpose: "BANK" },
+  { code: "1100", name: "Accounts Receivable", type: "ASSET", isSystem: true, purpose: "ACCOUNTS_RECEIVABLE" },
+  { code: "1200", name: "Input Tax Receivable", type: "ASSET", isSystem: true, purpose: "INPUT_TAX_RECEIVABLE" },
+  { code: "2000", name: "Accounts Payable", type: "LIABILITY", isSystem: true, purpose: "ACCOUNTS_PAYABLE" },
+  { code: "2100", name: "Output Tax Payable", type: "LIABILITY", isSystem: true, purpose: "OUTPUT_TAX_PAYABLE" },
   { code: "3000", name: "Owner's Equity", type: "EQUITY" },
   { code: "4000", name: "Sales Revenue", type: "REVENUE" },
   { code: "5000", name: "General Expenses", type: "EXPENSE" },

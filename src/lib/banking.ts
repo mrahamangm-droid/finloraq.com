@@ -4,13 +4,16 @@ import { requirePermission } from "@/lib/rbac";
 import { recordAuditEvent } from "@/lib/audit";
 import { InvalidLineError } from "@/lib/ledger";
 import { rankCandidates, splitNewLines, type MatchCandidate, type StatementLine, SUGGESTION_WINDOW_DAYS } from "@/lib/bankStatement";
+import { getBankAccountCode } from "@/lib/accounts";
 
-/** The ledger's Bank account. Every bank account currently posts through it (see matchBankTransaction). */
-const BANK_ACCOUNT_CODE = "1000";
-
-/** Signed amount of an entry's Bank line: + money in (debit), − money out (credit). Null when it has none. */
-export function bankLineAmount(lines: { debit: { gt(n: number): boolean; toNumber(): number }; credit: { toNumber(): number }; account: { code: string } }[]): number | null {
-  const bankLine = lines.find((l) => l.account.code === BANK_ACCOUNT_CODE);
+/** Signed amount of an entry's Bank line: + money in (debit), − money out (credit). Null when it has none.
+ *  bankAccountCode should come from getBankAccountCode(companyId) — it defaults to the seeded "1000" only
+ *  as a fallback for pure-function callers (e.g. tests) that don't have a company to resolve it against. */
+export function bankLineAmount(
+  lines: { debit: { gt(n: number): boolean; toNumber(): number }; credit: { toNumber(): number }; account: { code: string } }[],
+  bankAccountCode = "1000"
+): number | null {
+  const bankLine = lines.find((l) => l.account.code === bankAccountCode);
   if (!bankLine) return null;
   return bankLine.debit.gt(0) ? bankLine.debit.toNumber() : -bankLine.credit.toNumber();
 }
@@ -266,8 +269,8 @@ export async function recordBankTransaction(params: {
   return tx;
 }
 
-/** Matches a bank transaction to a posted journal entry that hit the Bank
- *  account (code "1000") for the same amount and sign. Amount tolerance is
+/** Matches a bank transaction to a posted journal entry that hit this
+ *  company's Bank account for the same amount and sign. Amount tolerance is
  *  zero — money either matches exactly or it doesn't; a partial match is a
  *  human decision, not something to fuzz silently. */
 export async function matchBankTransaction(params: {
@@ -279,7 +282,7 @@ export async function matchBankTransaction(params: {
 }) {
   await requirePermission(params.membershipId, "banking", "EDIT");
 
-  const [txn, entry] = await Promise.all([
+  const [txn, entry, bankAccountCode] = await Promise.all([
     prisma.bankTransaction.findFirstOrThrow({
       where: { id: params.bankTransactionId },
       include: { bankAccount: true },
@@ -288,6 +291,7 @@ export async function matchBankTransaction(params: {
       where: { id: params.journalEntryId, companyId: params.companyId, status: "POSTED" },
       include: { lines: { include: { account: true } } },
     }),
+    getBankAccountCode(params.companyId),
   ]);
 
   if (txn.bankAccount.companyId !== params.companyId) {
@@ -297,7 +301,7 @@ export async function matchBankTransaction(params: {
     throw new InvalidLineError("Only an unmatched transaction can be matched.");
   }
 
-  const entryAmount = bankLineAmount(entry.lines);
+  const entryAmount = bankLineAmount(entry.lines, bankAccountCode);
   if (entryAmount === null) {
     throw new InvalidLineError("That journal entry has no Bank line to match against.");
   }
@@ -501,13 +505,14 @@ export async function suggestBankMatches(
 
   const times = unmatched.map((t) => t.date.getTime());
   const pad = SUGGESTION_WINDOW_DAYS * 86_400_000;
+  const bankAccountCode = await getBankAccountCode(companyId);
   const [entries, taken] = await Promise.all([
     prisma.journalEntry.findMany({
       where: {
         companyId,
         status: "POSTED",
         date: { gte: new Date(Math.min(...times) - pad), lte: new Date(Math.max(...times) + pad) },
-        lines: { some: { account: { code: BANK_ACCOUNT_CODE } } },
+        lines: { some: { account: { code: bankAccountCode } } },
       },
       select: { id: true, entryNumber: true, date: true, memo: true, lines: { select: { debit: true, credit: true, account: { select: { code: true } } } } },
       take: 2000,
@@ -522,7 +527,7 @@ export async function suggestBankMatches(
   const candidates: MatchCandidate[] = [];
   for (const e of entries) {
     if (takenIds.has(e.id)) continue;
-    const bankAmount = bankLineAmount(e.lines);
+    const bankAmount = bankLineAmount(e.lines, bankAccountCode);
     if (bankAmount === null) continue;
     candidates.push({ journalEntryId: e.id, entryNumber: e.entryNumber, date: e.date.toISOString().slice(0, 10), memo: e.memo, bankAmount });
   }
