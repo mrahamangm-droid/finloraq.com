@@ -59,7 +59,7 @@ function RegisterForm() {
 
   if (sentTo) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-muted px-4">
+      <main className="flex min-h-screen items-center justify-center bg-muted px-4">
         <div className="w-full max-w-sm rounded-lg border border-border bg-card p-8 shadow-sm">
           <h1 className="mb-2 text-xl font-semibold text-card-foreground">Check your email</h1>
           <p className="mb-4 text-sm text-muted-foreground">
@@ -70,12 +70,12 @@ function RegisterForm() {
             Back to sign in
           </Link>
         </div>
-      </div>
+      </main>
     );
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted px-4">
+    <main className="flex min-h-screen items-center justify-center bg-muted px-4">
       <div className="w-full max-w-sm rounded-lg border border-border bg-card p-8 shadow-sm">
         <h1 className="mb-1 text-xl font-semibold text-card-foreground">Create your account</h1>
         <p className="mb-6 text-sm text-muted-foreground">
@@ -84,8 +84,10 @@ function RegisterForm() {
 
         <form onSubmit={onSubmit} className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-medium text-card-foreground">Full name</label>
+            <label htmlFor="register-full-name" className="mb-1 block text-sm font-medium text-card-foreground">Full name</label>
             <input
+              id="register-full-name"
+              autoComplete="name"
               required
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -93,8 +95,10 @@ function RegisterForm() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-card-foreground">Email</label>
+            <label htmlFor="register-email" className="mb-1 block text-sm font-medium text-card-foreground">Email</label>
             <input
+              id="register-email"
+              autoComplete="email"
               type="email"
               required
               value={form.email}
@@ -103,8 +107,10 @@ function RegisterForm() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-card-foreground">Password</label>
+            <label htmlFor="register-password" className="mb-1 block text-sm font-medium text-card-foreground">Password</label>
             <input
+              id="register-password"
+              autoComplete="new-password"
               type="password"
               required
               minLength={12}
@@ -141,6 +147,6 @@ function RegisterForm() {
         </form>
         <GoogleButton callbackUrl={callbackUrl ?? "/start"} label="Sign up with Google" />
       </div>
-    </div>
+    </main>
   );
 }

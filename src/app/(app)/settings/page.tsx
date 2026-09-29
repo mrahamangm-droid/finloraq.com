@@ -70,8 +70,9 @@ export default async function SettingsPage(props: { searchParams?: Promise<{ pay
         </div>
         <form action={updateCompanySettingsAction} className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2">
           <div>
-            <label className="text-xs font-medium text-muted-foreground">Company name</label>
+            <label htmlFor="company-company-name" className="text-xs font-medium text-muted-foreground">Company name</label>
             <input
+              id="company-company-name"
               name="name"
               defaultValue={company.name}
               disabled={!canEdit}
@@ -80,8 +81,9 @@ export default async function SettingsPage(props: { searchParams?: Promise<{ pay
             />
           </div>
           <div>
-            <label className="text-xs font-medium text-muted-foreground">Legal name</label>
+            <label htmlFor="company-legal-name" className="text-xs font-medium text-muted-foreground">Legal name</label>
             <input
+              id="company-legal-name"
               name="legalName"
               defaultValue={company.legalName ?? ""}
               disabled={!canEdit}
@@ -89,8 +91,9 @@ export default async function SettingsPage(props: { searchParams?: Promise<{ pay
             />
           </div>
           <div>
-            <label className="text-xs font-medium text-muted-foreground">Country</label>
+            <label htmlFor="company-country" className="text-xs font-medium text-muted-foreground">Country</label>
             <input
+              id="company-country"
               value={company.countryCode}
               disabled
               className="mt-1 w-full rounded-md border border-border bg-muted px-3 py-2 text-sm text-muted-foreground"
@@ -98,8 +101,9 @@ export default async function SettingsPage(props: { searchParams?: Promise<{ pay
             <p className="mt-1 text-xs text-muted-foreground">Fixed after setup — drives the seeded tax pack.</p>
           </div>
           <div>
-            <label className="text-xs font-medium text-muted-foreground">Base currency</label>
+            <label htmlFor="company-base-currency" className="text-xs font-medium text-muted-foreground">Base currency</label>
             <input
+              id="company-base-currency"
               value={company.baseCurrency}
               disabled
               className="mt-1 w-full rounded-md border border-border bg-muted px-3 py-2 text-sm text-muted-foreground"
@@ -107,8 +111,9 @@ export default async function SettingsPage(props: { searchParams?: Promise<{ pay
             <p className="mt-1 text-xs text-muted-foreground">Fixed after setup — changing it would invalidate historical reports.</p>
           </div>
           <div>
-            <label className="text-xs font-medium text-muted-foreground">Timezone</label>
+            <label htmlFor="company-timezone" className="text-xs font-medium text-muted-foreground">Timezone</label>
             <input
+              id="company-timezone"
               name="timezone"
               defaultValue={company.timezone}
               disabled={!canEdit}
@@ -116,8 +121,9 @@ export default async function SettingsPage(props: { searchParams?: Promise<{ pay
             />
           </div>
           <div>
-            <label className="text-xs font-medium text-muted-foreground">Fiscal year end (month)</label>
+            <label htmlFor="company-fiscal-year-end-month" className="text-xs font-medium text-muted-foreground">Fiscal year end (month)</label>
             <input
+              id="company-fiscal-year-end-month"
               name="fiscalYearEnd"
               type="number"
               min={1}
@@ -128,8 +134,9 @@ export default async function SettingsPage(props: { searchParams?: Promise<{ pay
             />
           </div>
           <div className="sm:col-span-2">
-            <label className="text-xs font-medium text-muted-foreground">Tax registration number (TRN)</label>
+            <label htmlFor="company-tax-registration-number-trn" className="text-xs font-medium text-muted-foreground">Tax registration number (TRN)</label>
             <input
+              id="company-tax-registration-number-trn"
               name="taxRegNumber"
               defaultValue={company.taxRegNumber ?? ""}
               disabled={!canEdit}
