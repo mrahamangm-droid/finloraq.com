@@ -9,6 +9,7 @@ import { roundMoney, sum } from "@/lib/currency";
 import { nextDocumentNumber } from "@/lib/numbering";
 import { computeTaxedLines } from "@/lib/taxCalc";
 import { foreignReferenceProblem } from "@/lib/tenantRefs";
+import { getBankAccountCode } from "@/lib/accounts";
 
 export interface InvoiceLineInput {
   description: string;
@@ -308,6 +309,7 @@ export async function recordInvoicePayment(params: {
 
   // unique per payment so multiple partial payments can each post
   const paymentId = `${invoice.id}:${params.sourceRef ?? Date.now()}`;
+  const bankAccountCode = await getBankAccountCode(params.companyId);
 
   const entry = await postJournalEntry({
     companyId: params.companyId,
@@ -319,7 +321,7 @@ export async function recordInvoicePayment(params: {
     memo: params.memo ?? `Payment received — Invoice ${invoice.invoiceNumber}`,
     currency: invoice.currency,
     inheritsPostedCurrency: true, // settles an invoice that is already posted
-    lines: buildInvoicePaymentPosting({ amount: params.amount }),
+    lines: buildInvoicePaymentPosting({ amount: params.amount, bankAccountCode }),
     post: true,
   });
 
@@ -332,7 +334,7 @@ export async function recordInvoicePayment(params: {
 }
 
 export async function sumInvoicePayments(companyId: string, invoiceId: string) {
-  const [entries, appliedCreditNotes] = await Promise.all([
+  const [entries, appliedCreditNotes, bankAccountCode] = await Promise.all([
     prisma.journalEntry.findMany({
       where: { companyId, sourceType: "PAYMENT", sourceId: { startsWith: `${invoiceId}:` }, status: "POSTED" },
       include: { lines: { include: { account: true } } },
@@ -342,8 +344,9 @@ export async function sumInvoicePayments(companyId: string, invoiceId: string) {
       where: { companyId, invoiceId, status: "APPLIED" },
       select: { total: true },
     }),
+    getBankAccountCode(companyId),
   ]);
-  const bankDebits = entries.flatMap((e: any) => e.lines.filter((l: any) => l.account.code === "1000"));
+  const bankDebits = entries.flatMap((e: any) => e.lines.filter((l: any) => l.account.code === bankAccountCode));
   const cashPaid = sum(bankDebits.map((l: any) => l.debit));
   const creditApplied = appliedCreditNotes.reduce((s: number, cn: any) => s + Number(cn.total), 0);
   return roundMoney(cashPaid.plus(creditApplied));

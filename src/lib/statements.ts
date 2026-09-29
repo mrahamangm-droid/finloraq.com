@@ -13,6 +13,7 @@
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/rbac";
 import { sum, roundMoney } from "@/lib/currency";
+import { getBankAccountCode } from "@/lib/accounts";
 import Decimal from "decimal.js";
 
 export type StatementEntryType = "INVOICE" | "PAYMENT" | "CREDIT_NOTE" | "BILL" | "BILL_PAYMENT";
@@ -283,17 +284,20 @@ async function sumInvoicePaymentsBefore(
   invoiceId: string,
   before: Date
 ): Promise<Decimal> {
-  const entries = await prisma.journalEntry.findMany({
-    where: {
-      companyId,
-      sourceType: "PAYMENT",
-      sourceId: { startsWith: `${invoiceId}:` },
-      status: "POSTED",
-      date: { lt: before },
-    },
-    include: { lines: { include: { account: true } } },
-  });
-  const bankDebits = entries.flatMap((e: any) => e.lines.filter((l: any) => l.account.code === "1000"));
+  const [entries, bankAccountCode] = await Promise.all([
+    prisma.journalEntry.findMany({
+      where: {
+        companyId,
+        sourceType: "PAYMENT",
+        sourceId: { startsWith: `${invoiceId}:` },
+        status: "POSTED",
+        date: { lt: before },
+      },
+      include: { lines: { include: { account: true } } },
+    }),
+    getBankAccountCode(companyId),
+  ]);
+  const bankDebits = entries.flatMap((e: any) => e.lines.filter((l: any) => l.account.code === bankAccountCode));
   return roundMoney(sum(bankDebits.map((l: any) => l.debit)));
 }
 
@@ -309,15 +313,18 @@ async function periodPaymentsForInvoices(
   // PAYMENT sourceId = "${invoiceId}:${paymentRef}". We need to find entries
   // where sourceId starts with any of our invoice IDs. Prisma doesn't support
   // OR startsWith in a single query; use raw startsWith on each and deduplicate.
-  const entries = await prisma.journalEntry.findMany({
-    where: {
-      companyId,
-      sourceType: "PAYMENT",
-      status: "POSTED",
-      date: { gte: from, lte: to },
-    },
-    include: { lines: { include: { account: true } } },
-  });
+  const [entries, bankAccountCode] = await Promise.all([
+    prisma.journalEntry.findMany({
+      where: {
+        companyId,
+        sourceType: "PAYMENT",
+        status: "POSTED",
+        date: { gte: from, lte: to },
+      },
+      include: { lines: { include: { account: true } } },
+    }),
+    getBankAccountCode(companyId),
+  ]);
 
   const result = [];
   for (const entry of entries) {
@@ -325,7 +332,7 @@ async function periodPaymentsForInvoices(
     const isForOneOfOurInvoices = invoiceIds.some((id) => entry.sourceId!.startsWith(`${id}:`));
     if (!isForOneOfOurInvoices) continue;
 
-    const bankDebits = entry.lines.filter((l: any) => l.account.code === "1000");
+    const bankDebits = entry.lines.filter((l: any) => l.account.code === bankAccountCode);
     const amount = roundMoney(sum(bankDebits.map((l: any) => l.debit))).toNumber();
     if (amount > 0.005) {
       result.push({

@@ -493,9 +493,9 @@ export function buildInvoicePosting(input: {
 }
 
 /** Customer payment: DR Bank, CR Accounts Receivable */
-export function buildInvoicePaymentPosting(input: { amount: Decimal.Value }): LineInput[] {
+export function buildInvoicePaymentPosting(input: { amount: Decimal.Value; bankAccountCode?: string }): LineInput[] {
   return [
-    { accountCode: "1000", debit: input.amount, description: "Bank" },
+    { accountCode: input.bankAccountCode ?? "1000", debit: input.amount, description: "Bank" },
     { accountCode: "1100", credit: input.amount, description: "Accounts Receivable" },
   ];
 }
@@ -518,10 +518,10 @@ export function buildBillPosting(input: {
 }
 
 /** Supplier payment: DR Accounts Payable, CR Bank */
-export function buildSupplierPaymentPosting(input: { amount: Decimal.Value }): LineInput[] {
+export function buildSupplierPaymentPosting(input: { amount: Decimal.Value; bankAccountCode?: string }): LineInput[] {
   return [
     { accountCode: "2000", debit: input.amount, description: "Accounts Payable" },
-    { accountCode: "1000", credit: input.amount, description: "Bank" },
+    { accountCode: input.bankAccountCode ?? "1000", credit: input.amount, description: "Bank" },
   ];
 }
 
@@ -532,6 +532,7 @@ export function buildExpensePosting(input: {
   amount: Decimal.Value;
   taxAmount?: Decimal.Value;
   expenseAccountCode?: string;
+  bankAccountCode?: string;
 }): LineInput[] {
   const lines: LineInput[] = [
     { accountCode: input.expenseAccountCode ?? "5000", debit: input.amount, description: "Expense" },
@@ -540,6 +541,6 @@ export function buildExpensePosting(input: {
     lines.push({ accountCode: "1200", debit: input.taxAmount, description: "Input Tax Receivable" });
   }
   const total = money(input.amount).plus(input.taxAmount ?? 0);
-  lines.push({ accountCode: "1000", credit: total, description: "Bank" });
+  lines.push({ accountCode: input.bankAccountCode ?? "1000", credit: total, description: "Bank" });
   return lines;
 }

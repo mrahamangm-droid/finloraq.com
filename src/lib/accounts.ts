@@ -202,3 +202,19 @@ export async function deleteAccount(params: {
     previousValue: { code: account.code, name: account.name, type: account.type },
   });
 }
+
+/**
+ * Resolves this company's Bank account code instead of assuming the literal
+ * "1000" — that code is only guaranteed for companies onboarded after
+ * Account.purpose existed (see the account_system_purpose migration's
+ * backfill). Every posting/reporting path that needs "the Bank line" should
+ * call this once and pass the result through, rather than hard-coding the
+ * code directly.
+ */
+export async function getBankAccountCode(companyId: string): Promise<string> {
+  const account = await prisma.account.findFirst({ where: { companyId, purpose: "BANK" } });
+  if (!account) {
+    throw new NotFoundError("This company has no Bank account configured.");
+  }
+  return account.code;
+}

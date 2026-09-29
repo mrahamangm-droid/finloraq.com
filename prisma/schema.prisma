@@ -355,6 +355,14 @@ enum AccountType {
   EXPENSE
 }
 
+enum SystemAccountPurpose {
+  BANK
+  ACCOUNTS_RECEIVABLE
+  INPUT_TAX_RECEIVABLE
+  ACCOUNTS_PAYABLE
+  OUTPUT_TAX_PAYABLE
+}
+
 model Account {
   id          String      @id @default(cuid())
   companyId   String
@@ -363,6 +371,13 @@ model Account {
   type        AccountType
   parentId    String?
   isSystem    Boolean     @default(false) // system accounts can't be deleted (e.g. AR, AP, VAT control)
+  /// Which well-known role this system account fills, if any (set once at
+  /// onboarding, immutable like code/type on a system account — see
+  /// updateAccount in src/lib/accounts.ts). Lets the posting/reporting code
+  /// resolve "this company's Bank account" via getBankAccountCode() instead
+  /// of assuming the literal code "1000", which only holds for companies
+  /// onboarded after this field existed.
+  purpose     SystemAccountPurpose?
   isActive    Boolean     @default(true)
   currency    String? // null = base currency
   createdAt   DateTime    @default(now())
@@ -374,6 +389,7 @@ model Account {
 
   @@unique([companyId, code])
   @@index([companyId, type])
+  @@index([companyId, purpose])
 }
 
 enum PeriodStatus {

@@ -1,16 +1,20 @@
 import { prisma } from "@/lib/db";
 import { arAging, apAging, trialBalance } from "@/lib/reports";
 import { roundMoney } from "@/lib/currency";
+import { getBankAccountCode } from "@/lib/accounts";
 
 /**
- * Current cash = the Bank account's (code "1000") balance in the trial
- * balance — i.e. derived from posted ledger entries, the same source of
- * truth as every other report, not a separately-tracked running total
- * that could drift from it.
+ * Current cash = the Bank account's balance in the trial balance — i.e.
+ * derived from posted ledger entries, the same source of truth as every
+ * other report, not a separately-tracked running total that could drift
+ * from it.
  */
-export async function currentCashPosition(companyId: string) {
-  const rows = await trialBalance(companyId, new Date());
-  const bank = rows.find((r) => r.accountCode === "1000");
+export async function currentCashPosition(companyId: string, asOf: Date = new Date()) {
+  const [rows, bankAccountCode] = await Promise.all([
+    trialBalance(companyId, asOf),
+    getBankAccountCode(companyId),
+  ]);
+  const bank = rows.find((r) => r.accountCode === bankAccountCode);
   return bank ? roundMoney(bank.debit.minus(bank.credit)).toNumber() : 0;
 }
 

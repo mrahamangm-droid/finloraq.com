@@ -8,6 +8,7 @@ import { createInvoice, postInvoiceToLedger, recordInvoicePayment } from "@/lib/
 import { createBill, approveAndPostBill, recordSupplierPayment } from "@/lib/purchases";
 import { createCustomer, createSupplier } from "@/lib/parties";
 import { parseIsoDay } from "@/lib/periods";
+import { getBankAccountCode } from "@/lib/accounts";
 import { rowKeys, type DocRow, type ImportKind, type ImportRow, type TxnRow } from "./rows";
 
 /**
@@ -64,7 +65,10 @@ export async function previewImport(ctx: Ctx, kind: ImportKind, rows: ImportRow[
     existing = new Set(found.map((f) => f.importRef ?? ""));
   }
 
-  const accounts = await prisma.account.findMany({ where: { companyId: ctx.companyId }, select: { code: true, name: true, type: true, isActive: true } });
+  const [accounts, bankAccountCode] = await Promise.all([
+    prisma.account.findMany({ where: { companyId: ctx.companyId }, select: { code: true, name: true, type: true, isActive: true } }),
+    getBankAccountCode(ctx.companyId),
+  ]);
   const cats = new Map<string, Preview["accounts"][number]>();
   for (const r of rows) {
     if (kind === "invoices") continue;
@@ -80,7 +84,7 @@ export async function previewImport(ctx: Ctx, kind: ImportKind, rows: ImportRow[
     } else if (m) {
       cats.set(k, {
         category: r.category, type, code: m.code, name: m.name, create: false,
-        problem: !m.isActive ? `Account ${m.code} is inactive` : m.code === "1000" ? "Bank can't be the category" : undefined,
+        problem: !m.isActive ? `Account ${m.code} is inactive` : m.code === bankAccountCode ? "Bank can't be the category" : undefined,
       });
     } else {
       cats.set(k, { category: r.category, type, code: null, name: r.category, create: true });
@@ -143,11 +147,14 @@ export async function resolveAccount(ctx: Ctx, category: string, type: "income" 
   const fallback = type === "income" ? "4000" : "5000";
   if (!category.trim()) { cache.set(key, fallback); return fallback; }
 
-  const accounts = await prisma.account.findMany({ where: { companyId: ctx.companyId }, select: { code: true, name: true, type: true, isActive: true } });
+  const [accounts, bankAccountCode] = await Promise.all([
+    prisma.account.findMany({ where: { companyId: ctx.companyId }, select: { code: true, name: true, type: true, isActive: true } }),
+    getBankAccountCode(ctx.companyId),
+  ]);
   const m = matchAccount(accounts, category, want);
   if (m) {
     if (!m.isActive) throw new InvalidLineError(`Account ${m.code} (${m.name}) is inactive.`);
-    if (m.code === "1000") throw new InvalidLineError("Bank can't be used as the category.");
+    if (m.code === bankAccountCode) throw new InvalidLineError("Bank can't be used as the category.");
     cache.set(key, m.code);
     return m.code;
   }
@@ -226,6 +233,7 @@ export async function commitRows(ctx: Ctx & { currency: string }, kind: ImportKi
   const partyCache = new Map<string, string>();
   const taxCache = new Map<string, string | undefined>();
   const results: RowResult[] = [];
+  const bankAccountCode = await getBankAccountCode(ctx.companyId);
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i]!;
@@ -240,14 +248,14 @@ export async function commitRows(ctx: Ctx & { currency: string }, kind: ImportKi
         const net = Math.round((r.amount - r.tax) * 100) / 100;
         const lines: LineInput[] = r.type === "income"
           ? [
-              { accountCode: "1000", debit: r.amount, description: "Bank" },
+              { accountCode: bankAccountCode, debit: r.amount, description: "Bank" },
               { accountCode: account, credit: net, description: r.description || r.category || "Income" },
               ...(r.tax ? [{ accountCode: "2100", credit: r.tax, description: "Output Tax Payable" }] : []),
             ]
           : [
               { accountCode: account, debit: net, description: r.description || r.category || "Expense" },
               ...(r.tax ? [{ accountCode: "1200", debit: r.tax, description: "Input Tax Receivable" }] : []),
-              { accountCode: "1000", credit: r.amount, description: "Bank" },
+              { accountCode: bankAccountCode, credit: r.amount, description: "Bank" },
             ];
         await postJournalEntry({
           ...ctx,

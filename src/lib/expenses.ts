@@ -12,6 +12,7 @@ import {
   findOpenPeriod,
   InvalidLineError,
 } from "@/lib/ledger";
+import { getBankAccountCode } from "@/lib/accounts";
 
 /**
  * A direct/employee expense paid immediately (not a supplier bill on
@@ -35,10 +36,13 @@ export async function createExpense(params: {
 }) {
   // Recorded in the company's own base currency — never a hardcoded one,
   // since companies can pick their base currency at onboarding.
-  const { baseCurrency } = await prisma.company.findUniqueOrThrow({
-    where: { id: params.companyId },
-    select: { baseCurrency: true },
-  });
+  const [{ baseCurrency }, bankAccountCode] = await Promise.all([
+    prisma.company.findUniqueOrThrow({
+      where: { id: params.companyId },
+      select: { baseCurrency: true },
+    }),
+    getBankAccountCode(params.companyId),
+  ]);
 
   // post:false inside postJournalEntry only requires journals:CREATE, which
   // every role from STAFF up holds — so submitting an expense never
@@ -56,6 +60,7 @@ export async function createExpense(params: {
       amount: params.amount,
       taxAmount: params.taxAmount,
       expenseAccountCode: params.expenseAccountCode,
+      bankAccountCode,
     }),
     post: false,
   });
@@ -98,7 +103,8 @@ export async function updateDraftExpense(params: {
     throw new InvalidLineError("Only a draft expense can be edited. Once approved, correct it with a reversal instead.");
   }
 
-  const currentExpenseLine = before.lines.find((l: any) => l.account.code !== "1000" && l.account.code !== "1200");
+  const bankAccountCode = await getBankAccountCode(params.companyId);
+  const currentExpenseLine = before.lines.find((l: any) => l.account.code !== bankAccountCode && l.account.code !== "1200");
   const currentTaxLine = before.lines.find((l: any) => l.account.code === "1200");
 
   const amount = params.amount ?? currentExpenseLine?.debit.toNumber() ?? 0;
@@ -106,7 +112,7 @@ export async function updateDraftExpense(params: {
   const expenseAccountCode = params.expenseAccountCode ?? currentExpenseLine?.account.code;
   const date = params.date ?? before.date;
 
-  const newLines = buildExpensePosting({ amount, taxAmount, expenseAccountCode });
+  const newLines = buildExpensePosting({ amount, taxAmount, expenseAccountCode, bankAccountCode });
   validateBalanced(newLines);
 
   const accounts = (await prisma.account.findMany({
@@ -186,7 +192,8 @@ export async function approveExpense(params: {
   if (!expense) throw new ApprovalPolicyError("Expense not found.");
 
   // Same amount rule as the Expenses list: the Bank line's credit, else the sum of debits.
-  const bankLine = expense.lines.find((l) => l.account.code === "1000");
+  const bankAccountCode = await getBankAccountCode(params.companyId);
+  const bankLine = expense.lines.find((l) => l.account.code === bankAccountCode);
   const amount = bankLine ? bankLine.credit.toNumber() : expense.lines.reduce((a, l) => a + l.debit.toNumber(), 0);
   const ruleRows = rules.map((r) => ({
     id: r.id,
@@ -259,8 +266,8 @@ export async function approveExpense(params: {
  * summing it would understate a period with more expenses than the cap.
  *
  * Mirrors the Expenses page's per-row amount rule exactly: an expense
- * with a Bank (1000) line counts that line's credit; one without counts
- * the sum of its debits. Split by the entry's currency, since amounts in
+ * with a Bank line counts that line's credit; one without counts the sum
+ * of its debits. Split by the entry's currency, since amounts in
  * different currencies don't add up to a total.
  */
 export async function expenseTotals(
@@ -274,12 +281,15 @@ export async function expenseTotals(
     ...(range ? { date: { gte: range.from, lte: range.to } } : {}),
     ...(status ? { status } : {}),
   };
-  const groups = await prisma.journalEntry.groupBy({
-    by: ["currency"],
-    where: entryWhere,
-    _count: { _all: true },
-    orderBy: { currency: "asc" },
-  });
+  const [groups, bankAccountCode] = await Promise.all([
+    prisma.journalEntry.groupBy({
+      by: ["currency"],
+      where: entryWhere,
+      _count: { _all: true },
+      orderBy: { currency: "asc" },
+    }),
+    getBankAccountCode(companyId),
+  ]);
 
   const byCurrency = await Promise.all(
     groups.map(async (g) => {
@@ -287,11 +297,11 @@ export async function expenseTotals(
       const [withBank, withoutBank] = await Promise.all([
         prisma.journalLine.aggregate({
           _sum: { credit: true },
-          where: { account: { code: "1000" }, journalEntry: where },
+          where: { account: { code: bankAccountCode }, journalEntry: where },
         }),
         prisma.journalLine.aggregate({
           _sum: { debit: true },
-          where: { journalEntry: { ...where, lines: { none: { account: { code: "1000" } } } } },
+          where: { journalEntry: { ...where, lines: { none: { account: { code: bankAccountCode } } } } },
         }),
       ]);
       const creditTotal = withBank._sum.credit ? Number(withBank._sum.credit) : 0;
