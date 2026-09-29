@@ -15,6 +15,7 @@
  * CreditNote sourceId.
  */
 
+import type Decimal from "decimal.js";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/rbac";
 import { recordAuditEvent } from "@/lib/audit";
@@ -23,10 +24,12 @@ import { computeTaxedLines } from "@/lib/taxCalc";
 import {
   postJournalEntry,
   validateBalanced,
+  resolveDocumentCurrency,
   type LineInput,
 } from "@/lib/ledger";
+import { roundMoney, money } from "@/lib/currency";
 import { getAccountsReceivableCode, getOutputTaxPayableCode } from "@/lib/accounts";
-import { sumInvoicePayments } from "@/lib/sales";
+import { sumInvoiceClearedBase } from "@/lib/sales";
 
 export interface CreditNoteLineInput {
   description: string;
@@ -36,23 +39,19 @@ export interface CreditNoteLineInput {
 }
 
 function buildCreditNotePosting(input: {
-  subtotal: number | string;
-  taxTotal: number | string;
-  total: number | string;
+  subtotal: Decimal.Value;
+  taxTotal: Decimal.Value;
+  total: Decimal.Value;
   outputTaxCode: string;
   accountsReceivableCode: string;
 }): LineInput[] {
-  const sub = Number(input.subtotal);
-  const tax = Number(input.taxTotal);
-  const tot = Number(input.total);
-
   const lines: LineInput[] = [
-    { accountCode: "4000", debit: sub, description: "Sales Revenue (Credit Note)" },
+    { accountCode: "4000", debit: input.subtotal, description: "Sales Revenue (Credit Note)" },
   ];
-  if (tax !== 0) {
-    lines.push({ accountCode: input.outputTaxCode, debit: tax, description: "Output Tax Payable (Credit Note)" });
+  if (Number(input.taxTotal) !== 0) {
+    lines.push({ accountCode: input.outputTaxCode, debit: input.taxTotal, description: "Output Tax Payable (Credit Note)" });
   }
-  lines.push({ accountCode: input.accountsReceivableCode, credit: tot, description: "Accounts Receivable (Credit Note)" });
+  lines.push({ accountCode: input.accountsReceivableCode, credit: input.total, description: "Accounts Receivable (Credit Note)" });
 
   return lines;
 }
@@ -100,10 +99,16 @@ export async function createCreditNote(params: {
   invoiceId?: string;
   issueDate: Date;
   currency: string;
+  /** Rate to convert 1 unit of `currency` into the company's base
+   *  currency. Required (and must be a positive number) when `currency`
+   *  isn't the company's base currency; must be 1 or omitted otherwise.
+   *  There is no live FX rate lookup — the caller supplies the rate. */
+  exchangeRate?: number;
   reason?: string;
   lines: CreditNoteLineInput[];
 }) {
   await requirePermission(params.membershipId, "credit_notes", "CREATE");
+  const { currency, exchangeRate } = await resolveDocumentCurrency(prisma, params.companyId, params.currency, params.exchangeRate);
 
   if (params.lines.length === 0) throw new Error("A credit note needs at least one line.");
 
@@ -128,7 +133,8 @@ export async function createCreditNote(params: {
         invoiceId: params.invoiceId,
         creditNumber,
         issueDate: params.issueDate,
-        currency: params.currency,
+        currency,
+        exchangeRate,
         subtotal,
         taxTotal,
         total,
@@ -183,10 +189,20 @@ export async function postCreditNote(
     getAccountsReceivableCode(companyId),
   ]);
 
+  // The ledger always posts in base currency. For a foreign-currency
+  // credit note, convert using the rate captured at issue time
+  // (cn.exchangeRate) — mirrors postInvoiceToLedger in src/lib/sales.ts.
+  // baseTotal and baseTaxTotal are each rounded independently, then
+  // baseSubtotal is derived as the difference (not rounded independently)
+  // so the three always sum exactly.
+  const baseTotal = roundMoney(money(cn.total).times(cn.exchangeRate));
+  const baseTaxTotal = roundMoney(money(cn.taxTotal).times(cn.exchangeRate));
+  const baseSubtotal = baseTotal.minus(baseTaxTotal);
+
   const postingLines = buildCreditNotePosting({
-    subtotal: cn.subtotal.toNumber(),
-    taxTotal: cn.taxTotal.toNumber(),
-    total: cn.total.toNumber(),
+    subtotal: baseSubtotal,
+    taxTotal: baseTaxTotal,
+    total: baseTotal,
     outputTaxCode,
     accountsReceivableCode,
   });
@@ -203,6 +219,7 @@ export async function postCreditNote(
     sourceType: "ADJUSTMENT", // credit notes adjust AR without a dedicated source type
     sourceId: cn.id,
     currency: cn.currency,
+    exchangeRate: cn.exchangeRate,
     lines: postingLines,
     post: true,
   });
@@ -266,6 +283,16 @@ export async function applyCreditNoteToInvoice(params: {
     );
   if (invoice.customerId !== cn.customerId)
     throw new Error("Credit note and invoice must belong to the same customer.");
+  // sumInvoiceClearedBase (src/lib/sales.ts) adds an applied credit note's
+  // total directly to the invoice's own AR-cleared figure and converts the
+  // combined amount to base currency using the INVOICE's exchange rate —
+  // it has no way to correct for a credit note booked in a different
+  // currency, so a mismatch here would silently misstate the invoice's
+  // balance due and PAID/PARTIALLY_PAID status.
+  if (cn.currency !== invoice.currency)
+    throw new Error(
+      `Credit note is in ${cn.currency} but invoice ${invoice.invoiceNumber} is in ${invoice.currency} — they must match to apply.`
+    );
 
   // Update credit note: link to invoice + mark applied
   await prisma.creditNote.update({
@@ -273,17 +300,17 @@ export async function applyCreditNoteToInvoice(params: {
     data: { invoiceId: params.invoiceId, status: "APPLIED" },
   });
 
-  // Recompute invoice status — cash payments already recorded plus this
-  // credit note (already APPLIED as of the update above, so
-  // sumInvoicePayments' own credit-note query already includes it).
-  // sumInvoicePayments is the single correct implementation of "how much
-  // of this invoice has been cleared" — it works in the invoice's own
-  // currency (dividing the base-currency AR-credit lines by the invoice's
-  // exchangeRate), unlike a raw bank-debit sum, which is in base currency
-  // and would silently misstate this comparison for a foreign-currency
-  // invoice. See src/lib/sales.ts.
-  const totalCleared = (await sumInvoicePayments(params.companyId, params.invoiceId)).toNumber();
-  const newStatus = totalCleared >= Number(invoice.total) ? "PAID" : "PARTIALLY_PAID";
+  // Recompute invoice status in base currency — cash payments already
+  // recorded plus this credit note (already APPLIED as of the update
+  // above, so sumInvoiceClearedBase's own credit-note query already
+  // includes it). Deciding in base currency, not the invoice's own
+  // currency, matters here for the same reason it does in
+  // recordInvoicePayment (src/lib/sales.ts): dividing a base-currency
+  // total back to the invoice's own currency and rounding can leave a
+  // fully-cleared invoice a fraction short of invoice.total.
+  const baseClearedSoFar = await sumInvoiceClearedBase(params.companyId, params.invoiceId);
+  const baseInvoiceTotal = roundMoney(money(invoice.total).times(invoice.exchangeRate));
+  const newStatus = baseClearedSoFar.gte(baseInvoiceTotal) ? "PAID" : "PARTIALLY_PAID";
 
   await prisma.invoice.update({
     where: { id: params.invoiceId },

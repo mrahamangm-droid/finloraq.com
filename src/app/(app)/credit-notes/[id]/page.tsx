@@ -32,12 +32,16 @@ export default async function CreditNoteDetailPage(
 
   const [canEdit, openInvoices] = await Promise.all([
     can(active.id, "credit_notes", "EDIT"),
-    // Fetch open invoices for this customer when the credit note is POSTED (to show in Apply action)
+    // Fetch open invoices for this customer when the credit note is POSTED
+    // (to show in Apply action) — same currency only, since
+    // applyCreditNoteToInvoice (src/lib/credit-notes.ts) refuses to apply
+    // a credit note to an invoice in a different currency.
     cn.status === "POSTED"
       ? prisma.invoice.findMany({
           where: {
             companyId: active.companyId,
             customerId: cn.customerId,
+            currency: cn.currency,
             status: { in: ["SENT", "PARTIALLY_PAID", "OVERDUE"] },
           },
           select: { id: true, invoiceNumber: true },
@@ -90,7 +94,14 @@ export default async function CreditNoteDetailPage(
         </div>
         <div>
           <p className="text-muted-foreground">Currency</p>
-          <p className="font-medium">{cn.currency}</p>
+          <p className="font-medium">
+            {cn.currency}
+            {cn.currency !== active.company.baseCurrency && (
+              <span className="ml-1 font-normal text-muted-foreground">
+                (1 {cn.currency} = {cn.exchangeRate.toString()} {active.company.baseCurrency})
+              </span>
+            )}
+          </p>
         </div>
         <div>
           <p className="text-muted-foreground">Issue Date</p>

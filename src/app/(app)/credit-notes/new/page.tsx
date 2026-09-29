@@ -29,7 +29,7 @@ export default async function NewCreditNotePage({
         status: { in: ["SENT", "PARTIALLY_PAID", "PAID", "OVERDUE"] },
       },
       orderBy: { issueDate: "desc" },
-      select: { id: true, invoiceNumber: true, customerId: true, currency: true },
+      select: { id: true, invoiceNumber: true, customerId: true, currency: true, exchangeRate: true },
       take: 100,
     }),
   ]);
@@ -38,9 +38,10 @@ export default async function NewCreditNotePage({
     <div className="mx-auto max-w-3xl space-y-6">
       <h1 className="text-xl font-semibold text-foreground">New Credit Note</h1>
       <NewCreditNoteForm
+        baseCurrency={active.company.baseCurrency}
         customers={customers.map((c: any) => ({ id: c.id, name: c.name, currency: c.currency ?? "USD" }))}
         taxCodes={taxCodes.map((t: any) => ({ id: t.id, name: t.name, rate: t.rate.toNumber() }))}
-        invoices={invoices}
+        invoices={invoices.map((i: any) => ({ ...i, exchangeRate: i.exchangeRate.toNumber() }))}
         initialInvoiceId={sp.invoiceId}
       />
     </div>

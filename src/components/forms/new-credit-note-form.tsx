@@ -13,16 +13,21 @@ interface Invoice {
   invoiceNumber: string;
   customerId: string;
   currency: string;
+  exchangeRate: number;
 }
 
 interface Props {
+  /** The company's base currency — the default for a standalone credit
+   *  note's own currency field below (see resolveDocumentCurrency in
+   *  src/lib/ledger.ts, which the API enforces server-side either way). */
+  baseCurrency: string;
   customers: { id: string; name: string; currency: string }[];
   taxCodes: { id: string; name: string; rate: number }[];
   invoices: Invoice[];
   initialInvoiceId?: string;
 }
 
-export function NewCreditNoteForm({ customers, taxCodes, invoices, initialInvoiceId }: Props) {
+export function NewCreditNoteForm({ baseCurrency, customers, taxCodes, invoices, initialInvoiceId }: Props) {
   const router = useRouter();
   const today = new Date().toISOString().slice(0, 10);
 
@@ -34,20 +39,26 @@ export function NewCreditNoteForm({ customers, taxCodes, invoices, initialInvoic
   const [invoiceId, setInvoiceId] = useState(initialInvoiceId ?? "");
   const [issueDate, setIssueDate] = useState(today);
   const [currency, setCurrency] = useState(
-    initialInvoice?.currency ?? customers[0]?.currency ?? "USD"
+    (initialInvoice?.currency ?? baseCurrency).toUpperCase()
   );
+  const [exchangeRate, setExchangeRate] = useState(String(initialInvoice?.exchangeRate ?? 1));
   const [reason, setReason] = useState("");
   const [lines, setLines] = useState<Line[]>([emptyLine()]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const isForeignCurrency = currency.trim().toUpperCase() !== baseCurrency.trim().toUpperCase();
 
-  // When a linked invoice is selected, auto-fill customer + currency
+  // When a linked invoice is selected, a credit note applied to it must
+  // share its currency exactly (applyCreditNoteToInvoice enforces this
+  // server-side) — lock currency to the invoice's and default the rate to
+  // the invoice's own booking rate, editable in case FX moved since.
   function onInvoiceChange(id: string) {
     setInvoiceId(id);
     const inv = invoices.find((i) => i.id === id);
     if (inv) {
       setCustomerId(inv.customerId);
       setCurrency(inv.currency);
+      setExchangeRate(String(inv.exchangeRate));
     }
   }
 
@@ -77,6 +88,7 @@ export function NewCreditNoteForm({ customers, taxCodes, invoices, initialInvoic
         invoiceId: invoiceId || undefined,
         issueDate,
         currency,
+        exchangeRate: isForeignCurrency ? parseFloat(exchangeRate) || undefined : undefined,
         reason: reason || undefined,
         lines: validLines.map((l) => ({
           description: l.description,
@@ -119,7 +131,7 @@ export function NewCreditNoteForm({ customers, taxCodes, invoices, initialInvoic
           <select value={customerId} onChange={(e) => {
             setCustomerId(e.target.value);
             const c = customers.find((c) => c.id === e.target.value);
-            if (c) setCurrency(c.currency);
+            if (c) setCurrency((c.currency || baseCurrency).toUpperCase());
           }}
             className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm"
             disabled={!!invoiceId} // locked when invoice is selected
@@ -142,6 +154,19 @@ export function NewCreditNoteForm({ customers, taxCodes, invoices, initialInvoic
             maxLength={3} disabled={!!invoiceId}
             className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm font-mono disabled:opacity-60" />
         </div>
+
+        {isForeignCurrency && (
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">
+              Exchange rate <span className="font-normal text-muted-foreground">(1 {currency} = ? {baseCurrency})</span>
+            </label>
+            <input type="number" step="any" min="0" value={exchangeRate} onChange={(e) => setExchangeRate(e.target.value)}
+              className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm" />
+            <p className="mt-1 text-xs text-muted-foreground">
+              There&apos;s no live rate lookup — enter today&apos;s rate. The ledger always posts in {baseCurrency}.
+            </p>
+          </div>
+        )}
 
         <div className="sm:col-span-2">
           <label className="block text-sm font-medium text-foreground mb-1">Reason for credit</label>
