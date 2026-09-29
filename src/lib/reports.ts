@@ -188,9 +188,15 @@ export async function arAging(companyId: string, asOf: Date = new Date()): Promi
       where: { companyId, sourceType: "PAYMENT", sourceId: { startsWith: `${inv.id}:` }, status: "POSTED" },
       include: { lines: { include: { account: true } } },
     });
-    const paid = sum(
+    // The AR credit lines are in base currency; divide back by the
+    // invoice's own booking rate to get "paid" in the invoice's own
+    // currency, comparable to inv.total — same conversion sumInvoicePayments
+    // does in src/lib/sales.ts. For a base-currency invoice (rate 1) this is
+    // numerically identical to the raw base-currency sum.
+    const baseArCleared = sum(
       payments.flatMap((e: any) => e.lines.filter((l: any) => l.account.code === accountsReceivableCode)).map((l: any) => l.credit)
-    ).toNumber();
+    );
+    const paid = roundMoney(baseArCleared.dividedBy(inv.exchangeRate)).toNumber();
     const balance = inv.total.toNumber() - paid;
     if (balance <= 0.005) continue;
 
@@ -224,9 +230,15 @@ export async function apAging(companyId: string, asOf: Date = new Date()): Promi
       where: { companyId, sourceType: "PAYMENT", sourceId: { startsWith: `${bill.id}:` }, status: "POSTED" },
       include: { lines: { include: { account: true } } },
     });
-    const paid = sum(
+    // The AP debit lines are in base currency; divide back by the bill's
+    // own booking rate to get "paid" in the bill's own currency, comparable
+    // to bill.total — same conversion sumBillPayments does in
+    // src/lib/purchases.ts. For a base-currency bill (rate 1) this is
+    // numerically identical to the raw base-currency sum.
+    const baseApCleared = sum(
       payments.flatMap((e: any) => e.lines.filter((l: any) => l.account.code === accountsPayableCode)).map((l: any) => l.debit)
-    ).toNumber();
+    );
+    const paid = roundMoney(baseApCleared.dividedBy(bill.exchangeRate)).toNumber();
     const balance = bill.total.toNumber() - paid;
     if (balance <= 0.005) continue;
 

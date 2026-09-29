@@ -11,18 +11,29 @@ export function BillActions({
   balanceDue,
   canEdit = true,
   canDelete = true,
+  /** Only set for a foreign-currency bill — lets a payment be recorded at a
+   *  different rate than the bill was booked at, so the resulting
+   *  gain/loss is actually recognized (see recordSupplierPayment in
+   *  src/lib/purchases.ts). Omitted entirely for a base-currency bill: the
+   *  rate there is always 1, not something to ask about. */
+  currency,
+  bookedExchangeRate,
 }: {
   billId: string;
   status: string;
   balanceDue: number;
   canEdit?: boolean;
   canDelete?: boolean;
+  currency?: string;
+  bookedExchangeRate?: number;
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [amount, setAmount] = useState(balanceDue.toFixed(2));
+  const [paymentRate, setPaymentRate] = useState(bookedExchangeRate ? String(bookedExchangeRate) : "1");
+  const isForeignCurrency = Boolean(currency);
 
   async function remove() {
     if (!window.confirm("Delete this draft bill? This can't be undone.")) return;
@@ -58,7 +69,10 @@ export function BillActions({
     const res = await fetch(`/api/bills/${billId}/payments`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ amount: parseFloat(amount) }),
+      body: JSON.stringify({
+        amount: parseFloat(amount),
+        exchangeRate: isForeignCurrency ? parseFloat(paymentRate) || undefined : undefined,
+      }),
     });
     setLoading(false);
     if (!res.ok) {
@@ -95,13 +109,25 @@ export function BillActions({
       {["APPROVED", "PARTIALLY_PAID", "OVERDUE"].includes(status) && (
         <div className="flex items-end gap-2">
           <div>
-            <label className="mb-1 block text-xs font-medium text-card-foreground">Payment amount</label>
+            <label className="mb-1 block text-xs font-medium text-card-foreground">Payment amount {currency ? `(${currency})` : ""}</label>
             <MathInput decimals={2} value={amount} onChange={setAmount} className="w-32 rounded-md border border-border bg-background px-3 py-2 text-sm" />
           </div>
+          {isForeignCurrency && (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-card-foreground">Rate today</label>
+              <input type="number" step="any" min="0" value={paymentRate} onChange={(e) => setPaymentRate(e.target.value)}
+                className="w-24 rounded-md border border-border bg-background px-3 py-2 text-sm" />
+            </div>
+          )}
           <button onClick={recordPayment} disabled={loading} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
             {loading ? "Recording…" : "Record Payment"}
           </button>
         </div>
+      )}
+      {isForeignCurrency && (
+        <p className="text-xs text-muted-foreground">
+          Booked at {bookedExchangeRate}. A different rate today books the difference as realized exchange gain/loss.
+        </p>
       )}
 
       {error && <p className="text-sm text-destructive">{error}</p>}

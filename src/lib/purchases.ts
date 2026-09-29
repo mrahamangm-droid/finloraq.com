@@ -4,11 +4,11 @@ import { NotFoundError } from "@/lib/errors";
 import { requirePermission } from "@/lib/rbac";
 import { recordAuditEvent } from "@/lib/audit";
 import { receiveStock } from "@/lib/inventory";
-import { postJournalEntry, buildBillPosting, buildSupplierPaymentPosting, InvalidLineError, assertBaseCurrency, normalizeCurrencyCode } from "@/lib/ledger";
+import { postJournalEntry, buildBillPosting, buildSupplierPaymentPosting, InvalidLineError, resolveDocumentCurrency } from "@/lib/ledger";
 import { roundMoney, sum, money } from "@/lib/currency";
 import { nextDocumentNumber } from "@/lib/numbering";
 import { computeTaxedLines } from "@/lib/taxCalc";
-import { getBankAccountCode, getInputTaxReceivableCode, getAccountsPayableCode, getOrCreateInventoryAssetCode } from "@/lib/accounts";
+import { getBankAccountCode, getInputTaxReceivableCode, getAccountsPayableCode, getOrCreateInventoryAssetCode, getOrCreateExchangeGainLossCode } from "@/lib/accounts";
 import { foreignReferenceProblem } from "@/lib/tenantRefs";
 
 export interface BillLineInput {
@@ -27,10 +27,15 @@ export async function createBill(params: {
   issueDate: Date;
   dueDate: Date;
   currency: string;
+  /** Rate to convert 1 unit of `currency` into the company's base currency.
+   *  Required (and must be a positive number) when `currency` isn't the
+   *  company's base currency; must be 1 or omitted otherwise. There is no
+   *  live FX rate lookup — the caller supplies the rate. */
+  exchangeRate?: number;
   lines: BillLineInput[];
 }) {
   await requirePermission(params.membershipId, "bills", "CREATE");
-  await assertBaseCurrency(prisma, params.companyId, params.currency);
+  const { currency, exchangeRate } = await resolveDocumentCurrency(prisma, params.companyId, params.currency, params.exchangeRate);
 
   if (params.lines.length === 0) {
     throw new InvalidLineError("A bill needs at least one line.");
@@ -52,7 +57,8 @@ export async function createBill(params: {
         billNumber,
         issueDate: params.issueDate,
         dueDate: params.dueDate,
-        currency: normalizeCurrencyCode(params.currency),
+        currency,
+        exchangeRate,
         subtotal,
         taxTotal,
         total,
@@ -100,6 +106,7 @@ export async function updateBill(params: {
   issueDate?: Date;
   dueDate?: Date;
   currency?: string;
+  exchangeRate?: number;
   lines?: BillLineInput[];
 }) {
   await requirePermission(params.membershipId, "bills", "EDIT");
@@ -109,11 +116,21 @@ export async function updateBill(params: {
   if (before.status !== "DRAFT") {
     throw new InvalidLineError("Only a draft bill can be edited. Once approved, correct it with a debit note or a new bill.");
   }
-  // Editing may keep the draft's current currency (so an edit never silently
-  // re-labels it) or move it to the base currency, but never to another
-  // foreign currency. Posting re-checks via postJournalEntry().
-  if (params.currency !== undefined && normalizeCurrencyCode(params.currency) !== normalizeCurrencyCode(before.currency)) {
-    await assertBaseCurrency(prisma, params.companyId, params.currency);
+  // Editing may change currency freely (including into or out of a foreign
+  // currency) since nothing has posted yet — resolveDocumentCurrency
+  // re-validates the rate every time, same as createBill(). Keeps the
+  // existing currency+rate when neither is supplied.
+  let currency = before.currency;
+  let exchangeRate = before.exchangeRate;
+  if (params.currency !== undefined || params.exchangeRate !== undefined) {
+    const resolved = await resolveDocumentCurrency(
+      prisma,
+      params.companyId,
+      params.currency ?? before.currency,
+      params.exchangeRate ?? (params.currency !== undefined ? undefined : before.exchangeRate)
+    );
+    currency = resolved.currency;
+    exchangeRate = resolved.exchangeRate;
   }
   const supplierProblem = await foreignReferenceProblem(prisma, params.companyId, "supplier", [params.supplierId]);
   if (supplierProblem) throw new InvalidLineError(supplierProblem);
@@ -142,7 +159,8 @@ export async function updateBill(params: {
         supplierId: params.supplierId,
         issueDate: params.issueDate,
         dueDate: params.dueDate,
-        currency: params.currency === undefined ? undefined : normalizeCurrencyCode(params.currency),
+        currency: params.currency === undefined && params.exchangeRate === undefined ? undefined : currency,
+        exchangeRate: params.currency === undefined && params.exchangeRate === undefined ? undefined : exchangeRate,
         subtotal,
         taxTotal,
         total,
@@ -238,6 +256,28 @@ export async function approveAndPostBill(params: {
   }
   const expenseLines = [...expenseGroups.entries()].map(([accountCode, amount]) => ({ accountCode, amount }));
 
+  // The ledger always posts in base currency. For a foreign-currency bill,
+  // convert using the rate captured at issue time (bill.exchangeRate) —
+  // mirrors postInvoiceToLedger in src/lib/sales.ts. baseTotal and
+  // baseTaxTotal are each rounded independently; each expense-group amount
+  // but the last is also rounded independently, and the last absorbs
+  // whatever's left so the whole set always sums exactly to
+  // baseTotal - baseTaxTotal — independent rounding of every group could
+  // otherwise leave the entry off by a cent and fail the ledger's
+  // debit=credit check.
+  const baseTotal = roundMoney(money(bill.total).times(bill.exchangeRate));
+  const baseTaxTotal = roundMoney(money(bill.taxTotal).times(bill.exchangeRate));
+  const baseSubtotal = baseTotal.minus(baseTaxTotal);
+  let convertedSoFar = money(0);
+  const baseExpenseLines = expenseLines.map((l, i) => {
+    if (i === expenseLines.length - 1) {
+      return { accountCode: l.accountCode, amount: baseSubtotal.minus(convertedSoFar) };
+    }
+    const baseAmount = roundMoney(money(l.amount).times(bill.exchangeRate));
+    convertedSoFar = convertedSoFar.plus(baseAmount);
+    return { accountCode: l.accountCode, amount: baseAmount };
+  });
+
   const entry = await postJournalEntry({
     companyId: params.companyId,
     membershipId: params.membershipId,
@@ -247,10 +287,11 @@ export async function approveAndPostBill(params: {
     sourceId: bill.id,
     memo: `Bill ${bill.billNumber}`,
     currency: bill.currency,
+    exchangeRate: bill.exchangeRate,
     lines: buildBillPosting({
-      expenseLines,
-      taxTotal: bill.taxTotal,
-      total: bill.total,
+      expenseLines: baseExpenseLines,
+      taxTotal: baseTaxTotal,
+      total: baseTotal,
       inputTaxCode,
       accountsPayableCode,
     }),
@@ -274,7 +315,11 @@ export async function approveAndPostBill(params: {
           line.product.id,
           Number(line.quantity),
           {
-            unitCost: Number(line.unitPrice),
+            // Inventory Asset is a base-currency GL account, so the cost
+            // layer this creates must be in base currency too — convert the
+            // bill's own-currency unit price the same way the journal
+            // entry above converted the line total.
+            unitCost: roundMoney(money(line.unitPrice).times(bill.exchangeRate)).toNumber(),
             notes: `Bill ${bill.billNumber}`,
             referenceType: "Bill",
             referenceId: bill.id,
@@ -295,8 +340,16 @@ export async function recordSupplierPayment(params: {
   membershipId: string;
   userId: string;
   billId: string;
+  /** In the bill's own currency (what was actually paid to the supplier). */
   amount: number;
   date: Date;
+  /** Rate to convert `amount` (bill currency) to base currency, as of the
+   *  payment date. Defaults to the bill's own booking rate (assumes no FX
+   *  movement since issue) when omitted — pass an explicit rate to book
+   *  realized exchange gain/loss on a foreign-currency bill settled at a
+   *  different rate than it was raised at. Ignored (must be 1 if given) for
+   *  a base-currency bill. */
+  exchangeRate?: number;
 }) {
   await requirePermission(params.membershipId, "bills", "EDIT");
 
@@ -307,11 +360,29 @@ export async function recordSupplierPayment(params: {
     throw new InvalidLineError("Only an approved bill can receive a payment.");
   }
 
+  const paymentExchangeRate = params.exchangeRate !== undefined ? money(params.exchangeRate) : money(bill.exchangeRate);
+  if (!paymentExchangeRate.isPositive()) {
+    throw new InvalidLineError("Payment exchange rate must be positive.");
+  }
+  if (money(bill.exchangeRate).equals(1) && !paymentExchangeRate.equals(1)) {
+    throw new InvalidLineError("A base-currency bill's payment exchange rate must be 1.");
+  }
+
   const paymentId = `${bill.id}:${Date.now()}`;
   const [bankAccountCode, accountsPayableCode] = await Promise.all([
     getBankAccountCode(params.companyId),
     getAccountsPayableCode(params.companyId),
   ]);
+
+  // Both amounts are base currency: what actually left the bank (at the
+  // payment-date rate) vs. how much of the base-currency Accounts Payable
+  // balance this settles (at the bill's own booking rate). Any difference
+  // is realized exchange gain/loss — see buildSupplierPaymentPosting.
+  const baseCashPaid = roundMoney(money(params.amount).times(paymentExchangeRate));
+  const baseApCleared = roundMoney(money(params.amount).times(bill.exchangeRate));
+  const exchangeGainLossCode = baseCashPaid.equals(baseApCleared)
+    ? undefined
+    : await getOrCreateExchangeGainLossCode(params.companyId);
 
   const entry = await postJournalEntry({
     companyId: params.companyId,
@@ -323,7 +394,7 @@ export async function recordSupplierPayment(params: {
     memo: `Payment sent — Bill ${bill.billNumber}`,
     currency: bill.currency,
     inheritsPostedCurrency: true, // settles a bill that is already posted
-    lines: buildSupplierPaymentPosting({ amount: params.amount, bankAccountCode, accountsPayableCode }),
+    lines: buildSupplierPaymentPosting({ amount: baseCashPaid, apAmount: baseApCleared, bankAccountCode, accountsPayableCode, exchangeGainLossCode }),
     post: true,
   });
 
@@ -335,14 +406,22 @@ export async function recordSupplierPayment(params: {
   return entry;
 }
 
-async function sumBillPayments(companyId: string, billId: string) {
-  const [entries, bankAccountCode] = await Promise.all([
+/** Returns the cumulative amount paid toward this bill, in the bill's own
+ *  currency (comparable directly to bill.total). Derived from the
+ *  base-currency Accounts Payable debit lines posted by
+ *  recordSupplierPayment() above, divided back by the bill's own booking
+ *  rate — for a base-currency bill (rate 1) this is numerically identical
+ *  to summing the Bank credit directly, the pre-multi-currency behavior. */
+export async function sumBillPayments(companyId: string, billId: string) {
+  const [bill, entries, accountsPayableCode] = await Promise.all([
+    prisma.bill.findUniqueOrThrow({ where: { id: billId }, select: { exchangeRate: true } }),
     prisma.journalEntry.findMany({
       where: { companyId, sourceType: "PAYMENT", sourceId: { startsWith: `${billId}:` }, status: "POSTED" },
       include: { lines: { include: { account: true } } },
     }),
-    getBankAccountCode(companyId),
+    getAccountsPayableCode(companyId),
   ]);
-  const bankCredits = entries.flatMap((e: any) => e.lines.filter((l: any) => l.account.code === bankAccountCode));
-  return roundMoney(sum(bankCredits.map((l: any) => l.credit)));
+  const apDebits = entries.flatMap((e: any) => e.lines.filter((l: any) => l.account.code === accountsPayableCode));
+  const baseApCleared = sum(apDebits.map((l: any) => l.debit));
+  return roundMoney(baseApCleared.dividedBy(bill.exchangeRate));
 }

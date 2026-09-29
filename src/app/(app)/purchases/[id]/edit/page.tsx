@@ -28,7 +28,7 @@ export default async function EditBillPage(props: { params: Promise<{ id: string
       <h1 className="text-xl font-semibold text-foreground">Edit Bill {bill.billNumber}</h1>
       <NewBillForm
         billId={bill.id}
-        currency={bill.currency}
+        currency={active.company.baseCurrency}
         suppliers={suppliers.map((s) => ({ id: s.id, name: s.name }))}
         taxCodes={taxCodes.map((t) => ({ id: t.id, name: t.name, rate: t.rate.toNumber() }))}
         products={products.map((p) => ({ id: p.id, name: p.name, unitPrice: p.unitPrice.toNumber(), trackInventory: p.trackInventory, quantityOnHand: p.quantityOnHand.toNumber() }))}
@@ -36,6 +36,8 @@ export default async function EditBillPage(props: { params: Promise<{ id: string
           supplierId: bill.supplierId,
           issueDate: bill.issueDate.toISOString().slice(0, 10),
           dueDate: bill.dueDate.toISOString().slice(0, 10),
+          currency: bill.currency,
+          exchangeRate: bill.exchangeRate.toString(),
           lines: bill.lines.map((l: any) => ({
             description: l.description,
             quantity: l.quantity.toString(),
