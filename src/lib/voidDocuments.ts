@@ -3,6 +3,7 @@ import { NotFoundError } from "@/lib/errors";
 import { requirePermission } from "@/lib/rbac";
 import { recordAuditEvent } from "@/lib/audit";
 import { reverseJournalEntry, InvalidLineError } from "@/lib/ledger";
+import { releasePOBilledQuantities } from "@/lib/po-billing";
 
 /**
  * Voiding a posted invoice or bill.
@@ -90,6 +91,10 @@ export async function voidBill(ctx: Ctx & { billId: string; reason: string }) {
 
   const reversal = await findOrCreateReversal(ctx, entry.id, `Void of bill ${bill.billNumber}: ${reason}`);
   await prisma.bill.update({ where: { id: bill.id }, data: { status: "VOID" } });
+  // A voided PO bill no longer counts as billed: its quantities go back to
+  // the purchase order (and the reversal above re-opens GRNI for any stock
+  // that was received), so the goods can be billed again correctly.
+  await releasePOBilledQuantities(ctx.companyId, bill.id);
   await recordAuditEvent({
     companyId: ctx.companyId,
     userId: ctx.userId,

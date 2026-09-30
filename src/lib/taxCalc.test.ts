@@ -80,4 +80,16 @@ describe("computeTaxedLines", () => {
     await computeTaxedLines(db, "co1", [{ quantity: 1, unitPrice: 10 }]);
     expect((db.taxCode.findMany as ReturnType<typeof vi.fn>)).not.toHaveBeenCalled();
   });
+
+  it("refuses a product id that isn't this company's", async () => {
+    const db = {
+      ...(fakeDb([]) as object),
+      product: { count: vi.fn(async ({ where }: { where: { companyId: string; id: { in: string[] } } }) => where.id.in.filter((id) => id === "own-product").length) },
+    } as unknown as Parameters<typeof computeTaxedLines>[0];
+    await expect(
+      computeTaxedLines(db, "co1", [{ quantity: 1, unitPrice: 10, productId: "other-tenant-product" }]),
+    ).rejects.toThrow("Product not found.");
+    const ok = await computeTaxedLines(db, "co1", [{ quantity: 1, unitPrice: 10, productId: "own-product" }]);
+    expect(ok.total.toFixed(2)).toBe("10.00");
+  });
 });
