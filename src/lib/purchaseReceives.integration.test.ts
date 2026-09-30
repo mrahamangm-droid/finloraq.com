@@ -133,7 +133,15 @@ describe.skipIf(!enabled)("purchase receives (real Postgres)", () => {
     // Receive the other 6, bill them, then delete that draft: quantities go back.
     await po.createPurchaseReceive({ ...ctx, poId: order.id, receiveDate: new Date(), lines: [{ purchaseOrderLineId: stockLine!.id, quantity: 6 }] });
     expect(await balance(grni)).toBe(-600);
-    const bill2 = await po.convertPOToBill({ ...ctx, poId: order.id, dueDate: new Date() });
+    // Two converts at once (a double-click): exactly one bills the 6 units.
+    const converts = await Promise.allSettled([
+      po.convertPOToBill({ ...ctx, poId: order.id, dueDate: new Date() }),
+      po.convertPOToBill({ ...ctx, poId: order.id, dueDate: new Date() }),
+    ]);
+    expect(converts.filter((c) => c.status === "fulfilled")).toHaveLength(1);
+    const bill2 = (converts.find((c) => c.status === "fulfilled") as PromiseFulfilledResult<Awaited<ReturnType<typeof po.convertPOToBill>>>).value;
+    const afterConvert = await prisma.purchaseOrder.findUniqueOrThrow({ where: { id: order.id }, include: { lines: true } });
+    expect(Number(afterConvert.lines.find((l) => l.id === stockLine!.id)!.billedQuantity)).toBe(10);
     expect((await prisma.purchaseOrder.findUniqueOrThrow({ where: { id: order.id } })).status).toBe("BILLED");
     await purchases.deleteBill({ ...ctx, billId: bill2.id });
     const afterDelete = await prisma.purchaseOrder.findUniqueOrThrow({ where: { id: order.id }, include: { lines: true } });
