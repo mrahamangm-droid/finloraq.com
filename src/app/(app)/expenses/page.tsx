@@ -69,7 +69,7 @@ export default async function ExpensesPage(props: { searchParams?: Promise<Expen
         <Link href="/import" className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted">Import past data</Link>
       </div>
 
-      <NewExpenseForm />
+      <NewExpenseForm baseCurrency={active.company.baseCurrency} />
 
       <PeriodPicker {...pickerProps(period)} showingAll={!filtered} clearable={filtered} />
 
@@ -113,9 +113,12 @@ export default async function ExpensesPage(props: { searchParams?: Promise<Expen
               {expenses.map((e: any) => {
                 // The Bank line's credit is the single line equal to the full
                 // amount (expense + tax); the debit side splits across 1-2 lines.
+                // Always base currency — see createExpense in src/lib/expenses.ts.
                 const bankLine = e.lines.find((l: any) => l.account.code === bankAccountCode);
                 const amount = bankLine ? bankLine.credit.toNumber() : e.lines.reduce((a: any, l: any) => a + l.debit.toNumber(), 0);
                 const taxLine = e.lines.find((l: any) => l.account.code === inputTaxCode);
+                const exchangeRate = e.exchangeRate.toNumber();
+                const isForeignCurrency = e.currency !== active.company.baseCurrency;
                 return (
                   <ExpenseRow
                     key={e.id}
@@ -126,9 +129,16 @@ export default async function ExpensesPage(props: { searchParams?: Promise<Expen
                       amount,
                       taxAmount: taxLine ? taxLine.debit.toNumber() : undefined,
                       status: e.status,
+                      currency: e.currency,
+                      exchangeRate,
                     }}
+                    baseCurrency={active.company.baseCurrency}
                     canEdit={canEdit}
                     moneyDisplay={fmt.money(amount)}
+                    // The amount actually entered, in the expense's own
+                    // currency — shown alongside the base-currency amount
+                    // for a foreign-currency expense.
+                    originalDisplay={isForeignCurrency ? `${(amount / exchangeRate).toFixed(2)} ${e.currency}` : undefined}
                     dateDisplay={fmt.date(e.date)}
                   />
                 );
@@ -139,9 +149,7 @@ export default async function ExpensesPage(props: { searchParams?: Promise<Expen
                 <tr>
                   <td className="px-4 py-2" colSpan={2}>Total · {period.label} · {totals.count} {totals.count === 1 ? "expense" : "expenses"}</td>
                   <td className="px-4 py-2 text-right tabular-nums">
-                    {totals.byCurrency.map((g) => (
-                      <div key={g.currency}>{fmt.money(g.total)} {g.currency}</div>
-                    ))}
+                    {fmt.money(totals.total)} {active.company.baseCurrency}
                   </td>
                   <td colSpan={2} />
                 </tr>
