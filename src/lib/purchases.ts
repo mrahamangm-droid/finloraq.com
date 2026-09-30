@@ -239,13 +239,16 @@ export async function deleteBill(params: {
     throw new InvalidLineError("Only a draft bill can be deleted. An approved bill can't be removed — reverse it via a debit note instead.");
   }
 
-  // Hand any PO-linked quantities back to the purchase order first, so they
-  // can be billed again.
-  await releasePOBilledQuantities(params.companyId, bill.id);
-  await prisma.$transaction([
-    prisma.billLine.deleteMany({ where: { billId: bill.id } }),
-    prisma.bill.delete({ where: { id: bill.id } }),
-  ]);
+  // One transaction: claim the still-DRAFT row (the no-op update takes its
+  // row lock, so a concurrent delete waits and then finds nothing), hand any
+  // PO-linked quantities back so they can be billed again, then delete.
+  await prisma.$transaction(async (tx: any) => {
+    const claimed = await tx.bill.updateMany({ where: { id: bill.id, companyId: params.companyId, status: "DRAFT" }, data: { status: "DRAFT" } });
+    if (claimed.count !== 1) throw new InvalidLineError("This bill was changed or deleted by someone else in the meantime — refresh and try again.");
+    await releasePOBilledQuantities(tx, params.companyId, bill.id);
+    await tx.billLine.deleteMany({ where: { billId: bill.id } });
+    await tx.bill.delete({ where: { id: bill.id } });
+  });
 
   await recordAuditEvent({
     companyId: params.companyId,
