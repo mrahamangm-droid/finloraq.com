@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { InvalidLineError } from "@/lib/ledger";
 
 /**
  * Bookkeeping that ties Bills back to the Purchase Order lines they were
@@ -55,25 +56,29 @@ export async function refreshPOStatus(db: Db, poId: string): Promise<void> {
  * Hands a bill's PO-linked quantities back to their PO lines so they can be
  * billed again — called when a draft bill is deleted or a posted bill is
  * voided. No-op for a bill that wasn't raised from a PO.
+ *
+ * Must run in the same transaction as the caller's conditional status change
+ * (DRAFT -> deleted, posted -> VOID), so a bill's quantities are released at
+ * most once even when two deletes/voids race.
  */
-export async function releasePOBilledQuantities(companyId: string, billId: string): Promise<void> {
-  const lines = await prisma.billLine.findMany({
+export async function releasePOBilledQuantities(tx: Prisma.TransactionClient, companyId: string, billId: string): Promise<void> {
+  const lines = await tx.billLine.findMany({
     where: { billId, bill: { companyId }, purchaseOrderLineId: { not: null } },
     select: { quantity: true, purchaseOrderLineId: true, purchaseOrderLine: { select: { poId: true } } },
   });
   if (lines.length === 0) return;
   const poIds = new Set<string>();
-  await prisma.$transaction(async (tx) => {
-    for (const l of lines) {
-      await tx.purchaseOrderLine.update({
-        where: { id: l.purchaseOrderLineId! },
-        data: { billedQuantity: { decrement: l.quantity } },
-      });
-      if (l.purchaseOrderLine) poIds.add(l.purchaseOrderLine.poId);
-    }
-    for (const poId of poIds) {
-      await tx.purchaseOrder.updateMany({ where: { id: poId, billId }, data: { billId: null } });
-      await refreshPOStatus(tx, poId);
-    }
-  });
+  for (const l of lines) {
+    // Never below zero: a line can only give back what it actually billed.
+    const res = await tx.purchaseOrderLine.updateMany({
+      where: { id: l.purchaseOrderLineId!, billedQuantity: { gte: l.quantity } },
+      data: { billedQuantity: { decrement: l.quantity } },
+    });
+    if (res.count !== 1) throw new InvalidLineError("This bill's purchase order quantities were already released — refresh and try again.");
+    if (l.purchaseOrderLine) poIds.add(l.purchaseOrderLine.poId);
+  }
+  for (const poId of poIds) {
+    await tx.purchaseOrder.updateMany({ where: { id: poId, billId }, data: { billId: null } });
+    await refreshPOStatus(tx, poId);
+  }
 }

@@ -396,29 +396,56 @@ export async function convertPOToBill(params: {
     );
   }
 
-  const bill = await createBill({
-    companyId: params.companyId,
-    membershipId: params.membershipId,
-    userId: params.userId,
-    supplierId: po.supplierId,
-    issueDate: params.issueDate ?? new Date(),
-    dueDate: params.dueDate,
-    currency: po.currency,
-    exchangeRate: Number(po.exchangeRate),
-    lines: billable.map(({ line, qty }: { line: any; qty: Decimal }) => ({
-      description: line.description,
-      quantity: qty.toNumber(),
-      unitPrice: Number(line.unitPrice),
-      taxCodeId: line.taxCodeId ?? undefined,
-      productId: line.productId ?? undefined,
-      purchaseOrderLineId: line.id,
-    })),
-  });
-
+  // Reserve the quantities before creating the bill. Each increment is
+  // conditional on the line still being where this snapshot saw it (billed
+  // no further, and for stock nothing un-received since), so two concurrent
+  // converts can't both bill the same goods — the loser aborts here.
   await prisma.$transaction(async (tx: any) => {
     for (const { line, qty } of billable as { line: any; qty: Decimal }[]) {
-      await tx.purchaseOrderLine.update({ where: { id: line.id }, data: { billedQuantity: { increment: qty.toNumber() } } });
+      const ceiling = line.product?.trackInventory ? money(line.receivedQuantity) : money(line.quantity);
+      const res = await tx.purchaseOrderLine.updateMany({
+        where: {
+          id: line.id,
+          billedQuantity: { lte: ceiling.minus(qty).toNumber() },
+          ...(line.product?.trackInventory ? { receivedQuantity: { gte: money(line.receivedQuantity).toNumber() } } : {}),
+        },
+        data: { billedQuantity: { increment: qty.toNumber() } },
+      });
+      if (res.count !== 1) throw new InvalidLineError(`"${line.description}" was billed by someone else in the meantime — refresh and try again.`);
     }
+  });
+
+  let bill: Awaited<ReturnType<typeof createBill>>;
+  try {
+    bill = await createBill({
+      companyId: params.companyId,
+      membershipId: params.membershipId,
+      userId: params.userId,
+      supplierId: po.supplierId,
+      issueDate: params.issueDate ?? new Date(),
+      dueDate: params.dueDate,
+      currency: po.currency,
+      exchangeRate: Number(po.exchangeRate),
+      lines: billable.map(({ line, qty }: { line: any; qty: Decimal }) => ({
+        description: line.description,
+        quantity: qty.toNumber(),
+        unitPrice: Number(line.unitPrice),
+        taxCodeId: line.taxCodeId ?? undefined,
+        productId: line.productId ?? undefined,
+        purchaseOrderLineId: line.id,
+      })),
+    });
+  } catch (err) {
+    // Release the reservation so a refused bill leaves the PO as it was.
+    await prisma.$transaction(async (tx: any) => {
+      for (const { line, qty } of billable as { line: any; qty: Decimal }[]) {
+        await tx.purchaseOrderLine.update({ where: { id: line.id }, data: { billedQuantity: { decrement: qty.toNumber() } } });
+      }
+    });
+    throw err;
+  }
+
+  await prisma.$transaction(async (tx: any) => {
     await tx.purchaseOrder.update({ where: { id: po.id }, data: { billId: bill.id } });
     await refreshPOStatus(tx, po.id);
   });

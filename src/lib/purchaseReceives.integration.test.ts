@@ -133,16 +133,34 @@ describe.skipIf(!enabled)("purchase receives (real Postgres)", () => {
     // Receive the other 6, bill them, then delete that draft: quantities go back.
     await po.createPurchaseReceive({ ...ctx, poId: order.id, receiveDate: new Date(), lines: [{ purchaseOrderLineId: stockLine!.id, quantity: 6 }] });
     expect(await balance(grni)).toBe(-600);
-    const bill2 = await po.convertPOToBill({ ...ctx, poId: order.id, dueDate: new Date() });
+    // Two converts at once (a double-click): exactly one bills the 6 units.
+    const converts = await Promise.allSettled([
+      po.convertPOToBill({ ...ctx, poId: order.id, dueDate: new Date() }),
+      po.convertPOToBill({ ...ctx, poId: order.id, dueDate: new Date() }),
+    ]);
+    expect(converts.filter((c) => c.status === "fulfilled")).toHaveLength(1);
+    const bill2 = (converts.find((c) => c.status === "fulfilled") as PromiseFulfilledResult<Awaited<ReturnType<typeof po.convertPOToBill>>>).value;
+    const afterConvert = await prisma.purchaseOrder.findUniqueOrThrow({ where: { id: order.id }, include: { lines: true } });
+    expect(Number(afterConvert.lines.find((l) => l.id === stockLine!.id)!.billedQuantity)).toBe(10);
     expect((await prisma.purchaseOrder.findUniqueOrThrow({ where: { id: order.id } })).status).toBe("BILLED");
-    await purchases.deleteBill({ ...ctx, billId: bill2.id });
+    // Two deletes at once: only one releases the 6 units.
+    const deletes = await Promise.allSettled([
+      purchases.deleteBill({ ...ctx, billId: bill2.id }),
+      purchases.deleteBill({ ...ctx, billId: bill2.id }),
+    ]);
+    expect(deletes.filter((d) => d.status === "fulfilled")).toHaveLength(1);
     const afterDelete = await prisma.purchaseOrder.findUniqueOrThrow({ where: { id: order.id }, include: { lines: true } });
     expect(afterDelete.status).toBe("RECEIVED");
     expect(Number(afterDelete.lines.find((l) => l.id === stockLine!.id)!.billedQuantity)).toBe(4);
 
     // Voiding the posted bill re-opens GRNI for its 4 units and releases them.
     const { voidBill } = await import("@/lib/voidDocuments");
-    await voidBill({ ...ctx, billId: bill1.id, reason: "Test void" });
+    // Two voids at once: they share one reversal and only one releases.
+    const voids = await Promise.allSettled([
+      voidBill({ ...ctx, billId: bill1.id, reason: "Test void" }),
+      voidBill({ ...ctx, billId: bill1.id, reason: "Test void" }),
+    ]);
+    expect(voids.filter((v) => v.status === "fulfilled")).toHaveLength(1);
     expect(await balance(grni)).toBe(-1000); // all 10 received, none billed
     const afterVoid = await prisma.purchaseOrder.findUniqueOrThrow({ where: { id: order.id }, include: { lines: true } });
     expect(afterVoid.lines.every((l) => Number(l.billedQuantity) === 0)).toBe(true);

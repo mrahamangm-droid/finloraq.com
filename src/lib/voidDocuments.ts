@@ -90,11 +90,17 @@ export async function voidBill(ctx: Ctx & { billId: string; reason: string }) {
   if (!entry) throw new InvalidLineError("This bill has no posted journal entry to reverse.");
 
   const reversal = await findOrCreateReversal(ctx, entry.id, `Void of bill ${bill.billNumber}: ${reason}`);
-  await prisma.bill.update({ where: { id: bill.id }, data: { status: "VOID" } });
-  // A voided PO bill no longer counts as billed: its quantities go back to
-  // the purchase order (and the reversal above re-opens GRNI for any stock
-  // that was received), so the goods can be billed again correctly.
-  await releasePOBilledQuantities(ctx.companyId, bill.id);
+  await prisma.$transaction(async (tx: any) => {
+    // Conditional on the status read above, so of two concurrent voids only
+    // one gets here (findOrCreateReversal already makes them share a single
+    // reversal).
+    const res = await tx.bill.updateMany({ where: { id: bill.id, companyId: ctx.companyId, status: bill.status }, data: { status: "VOID" } });
+    if (res.count !== 1) throw new InvalidLineError("This bill was changed by someone else in the meantime — refresh and try again.");
+    // A voided PO bill no longer counts as billed: its quantities go back to
+    // the purchase order (and the reversal above re-opens GRNI for any stock
+    // that was received), so the goods can be billed again correctly.
+    await releasePOBilledQuantities(tx, ctx.companyId, bill.id);
+  });
   await recordAuditEvent({
     companyId: ctx.companyId,
     userId: ctx.userId,
