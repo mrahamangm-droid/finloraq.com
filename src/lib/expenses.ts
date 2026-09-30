@@ -10,8 +10,10 @@ import {
   buildExpensePosting,
   validateBalanced,
   findOpenPeriod,
+  resolveDocumentCurrency,
   InvalidLineError,
 } from "@/lib/ledger";
+import { roundMoney, money } from "@/lib/currency";
 import { getBankAccountCode, getInputTaxReceivableCode } from "@/lib/accounts";
 
 /**
@@ -30,20 +32,36 @@ export async function createExpense(params: {
   userId: string;
   date: Date;
   description: string;
+  /** In `currency` (or the company's base currency, if `currency` is omitted). */
   amount: number;
+  /** In `currency`. */
   taxAmount?: number;
   expenseAccountCode?: string;
+  /** Defaults to the company's base currency when omitted. Rate to convert
+   *  1 unit of `currency` into the company's base currency is required
+   *  (and must be positive) only when `currency` isn't the base currency —
+   *  there is no live FX rate lookup, the caller supplies it. */
+  currency?: string;
+  exchangeRate?: number;
 }) {
-  // Recorded in the company's own base currency — never a hardcoded one,
-  // since companies can pick their base currency at onboarding.
-  const [{ baseCurrency }, bankAccountCode, inputTaxCode] = await Promise.all([
-    prisma.company.findUniqueOrThrow({
-      where: { id: params.companyId },
-      select: { baseCurrency: true },
-    }),
+  const [bankAccountCode, inputTaxCode] = await Promise.all([
     getBankAccountCode(params.companyId),
     getInputTaxReceivableCode(params.companyId),
   ]);
+  // Recorded in the company's own base currency by default — never a
+  // hardcoded one, since companies can pick their base currency at
+  // onboarding — but a caller can bill it in a foreign currency instead.
+  const rawCurrency = params.currency ?? (await prisma.company.findUniqueOrThrow({
+    where: { id: params.companyId },
+    select: { baseCurrency: true },
+  })).baseCurrency;
+  const { currency, exchangeRate } = await resolveDocumentCurrency(prisma, params.companyId, rawCurrency, params.exchangeRate);
+
+  // The ledger always posts in base currency; convert the entered amounts
+  // using the rate resolved above — mirrors postInvoiceToLedger in
+  // src/lib/sales.ts.
+  const baseAmount = roundMoney(money(params.amount).times(exchangeRate));
+  const baseTaxAmount = params.taxAmount !== undefined ? roundMoney(money(params.taxAmount).times(exchangeRate)) : undefined;
 
   // post:false inside postJournalEntry only requires journals:CREATE, which
   // every role from STAFF up holds — so submitting an expense never
@@ -56,10 +74,11 @@ export async function createExpense(params: {
     sourceType: "EXPENSE",
     sourceId: `expense:${params.userId}:${Date.now()}`,
     memo: params.description,
-    currency: baseCurrency,
+    currency,
+    exchangeRate,
     lines: buildExpensePosting({
-      amount: params.amount,
-      taxAmount: params.taxAmount,
+      amount: baseAmount,
+      taxAmount: baseTaxAmount,
       expenseAccountCode: params.expenseAccountCode,
       bankAccountCode,
       inputTaxCode,
@@ -90,9 +109,13 @@ export async function updateDraftExpense(params: {
   journalEntryId: string;
   date?: Date;
   description?: string;
+  /** In `currency` (the expense's existing currency, if not also changed here). */
   amount?: number;
+  /** In `currency`. */
   taxAmount?: number;
   expenseAccountCode?: string;
+  currency?: string;
+  exchangeRate?: number;
 }) {
   await requirePermission(params.membershipId, "expenses", "EDIT");
 
@@ -105,6 +128,22 @@ export async function updateDraftExpense(params: {
     throw new InvalidLineError("Only a draft expense can be edited. Once approved, correct it with a reversal instead.");
   }
 
+  // Editing may change currency freely (nothing has posted yet) —
+  // resolveDocumentCurrency re-validates the rate every time, same as
+  // createExpense(). Keeps the existing currency+rate when neither is given.
+  let currency = before.currency;
+  let exchangeRate = before.exchangeRate;
+  if (params.currency !== undefined || params.exchangeRate !== undefined) {
+    const resolved = await resolveDocumentCurrency(
+      prisma,
+      params.companyId,
+      params.currency ?? before.currency,
+      params.exchangeRate ?? (params.currency !== undefined ? undefined : before.exchangeRate)
+    );
+    currency = resolved.currency;
+    exchangeRate = resolved.exchangeRate;
+  }
+
   const [bankAccountCode, inputTaxCode] = await Promise.all([
     getBankAccountCode(params.companyId),
     getInputTaxReceivableCode(params.companyId),
@@ -112,12 +151,22 @@ export async function updateDraftExpense(params: {
   const currentExpenseLine = before.lines.find((l: any) => l.account.code !== bankAccountCode && l.account.code !== inputTaxCode);
   const currentTaxLine = before.lines.find((l: any) => l.account.code === inputTaxCode);
 
-  const amount = params.amount ?? currentExpenseLine?.debit.toNumber() ?? 0;
-  const taxAmount = params.taxAmount ?? currentTaxLine?.debit.toNumber() ?? undefined;
+  // The existing lines are always base currency; recover the expense's OWN
+  // currency amount by dividing back by its PREVIOUS rate, mirroring how
+  // updateInvoice/updateBill keep the previous amount when the caller
+  // doesn't supply a new one.
+  const currentAmountOwnCurrency = currentExpenseLine ? roundMoney(currentExpenseLine.debit.dividedBy(before.exchangeRate)) : money(0);
+  const currentTaxOwnCurrency = currentTaxLine ? roundMoney(currentTaxLine.debit.dividedBy(before.exchangeRate)) : undefined;
+
+  const amountOwnCurrency = params.amount ?? currentAmountOwnCurrency.toNumber();
+  const taxAmountOwnCurrency = params.taxAmount ?? currentTaxOwnCurrency?.toNumber();
   const expenseAccountCode = params.expenseAccountCode ?? currentExpenseLine?.account.code;
   const date = params.date ?? before.date;
 
-  const newLines = buildExpensePosting({ amount, taxAmount, expenseAccountCode, bankAccountCode, inputTaxCode });
+  const baseAmount = roundMoney(money(amountOwnCurrency).times(exchangeRate));
+  const baseTaxAmount = taxAmountOwnCurrency !== undefined ? roundMoney(money(taxAmountOwnCurrency).times(exchangeRate)) : undefined;
+
+  const newLines = buildExpensePosting({ amount: baseAmount, taxAmount: baseTaxAmount, expenseAccountCode, bankAccountCode, inputTaxCode });
   validateBalanced(newLines);
 
   const accounts = (await prisma.account.findMany({
@@ -139,6 +188,8 @@ export async function updateDraftExpense(params: {
       data: {
         date,
         memo: params.description ?? before.memo,
+        currency,
+        exchangeRate,
         periodId: period.id,
         lines: {
           create: newLines.map((l) => ({
@@ -266,14 +317,20 @@ export async function approveExpense(params: {
 }
 
 /**
- * Totals for the same filter as listRecentExpenses(), computed in the
+ * Total for the same filter as listRecentExpenses(), computed in the
  * database over EVERY matching expense — the list itself is capped, so
  * summing it would understate a period with more expenses than the cap.
  *
  * Mirrors the Expenses page's per-row amount rule exactly: an expense
  * with a Bank line counts that line's credit; one without counts the sum
- * of its debits. Split by the entry's currency, since amounts in
- * different currencies don't add up to a total.
+ * of its debits. Always in the company's base currency: JournalLine
+ * amounts are always base currency regardless of an individual expense's
+ * own `currency` (a foreign-currency expense is converted before its
+ * lines are built — see createExpense above), so there is nothing to
+ * split by currency here. An earlier version of this function grouped by
+ * JournalEntry.currency and labeled each group's (already base-currency)
+ * total with that currency — harmless while every expense really was
+ * base-currency, but wrong once a foreign-currency expense exists.
  */
 export async function expenseTotals(
   companyId: string,
@@ -286,37 +343,25 @@ export async function expenseTotals(
     ...(range ? { date: { gte: range.from, lte: range.to } } : {}),
     ...(status ? { status } : {}),
   };
-  const [groups, bankAccountCode] = await Promise.all([
-    prisma.journalEntry.groupBy({
-      by: ["currency"],
-      where: entryWhere,
-      _count: { _all: true },
-      orderBy: { currency: "asc" },
-    }),
+  const [count, bankAccountCode] = await Promise.all([
+    prisma.journalEntry.count({ where: entryWhere }),
     getBankAccountCode(companyId),
   ]);
 
-  const byCurrency = await Promise.all(
-    groups.map(async (g) => {
-      const where = { ...entryWhere, currency: g.currency };
-      const [withBank, withoutBank] = await Promise.all([
-        prisma.journalLine.aggregate({
-          _sum: { credit: true },
-          where: { account: { code: bankAccountCode }, journalEntry: where },
-        }),
-        prisma.journalLine.aggregate({
-          _sum: { debit: true },
-          where: { journalEntry: { ...where, lines: { none: { account: { code: bankAccountCode } } } } },
-        }),
-      ]);
-      const creditTotal = withBank._sum.credit ? Number(withBank._sum.credit) : 0;
-      const debitTotal = withoutBank._sum.debit ? Number(withoutBank._sum.debit) : 0;
-      const total = creditTotal + debitTotal;
-      return { currency: g.currency, total };
+  const [withBank, withoutBank] = await Promise.all([
+    prisma.journalLine.aggregate({
+      _sum: { credit: true },
+      where: { account: { code: bankAccountCode }, journalEntry: entryWhere },
     }),
-  );
+    prisma.journalLine.aggregate({
+      _sum: { debit: true },
+      where: { journalEntry: { ...entryWhere, lines: { none: { account: { code: bankAccountCode } } } } },
+    }),
+  ]);
+  const creditTotal = withBank._sum.credit ? Number(withBank._sum.credit) : 0;
+  const debitTotal = withoutBank._sum.debit ? Number(withoutBank._sum.debit) : 0;
 
-  return { count: groups.reduce((n, g) => n + g._count._all, 0), byCurrency };
+  return { count, total: creditTotal + debitTotal };
 }
 
 /**

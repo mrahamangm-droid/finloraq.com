@@ -12,6 +12,8 @@ const patchSchema = z.object({
   amount: z.number().nonnegative().optional(),
   taxAmount: z.number().nonnegative().optional(),
   expenseAccountCode: z.string().optional(),
+  currency: z.string().length(3).optional(),
+  exchangeRate: z.number().positive().optional(),
 });
 
 export async function PATCH(req: Request, props: { params: Promise<{ id: string }> }) {
@@ -33,6 +35,8 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
       amount: parsed.data.amount,
       taxAmount: parsed.data.taxAmount,
       expenseAccountCode: parsed.data.expenseAccountCode,
+      currency: parsed.data.currency,
+      exchangeRate: parsed.data.exchangeRate,
     });
     return NextResponse.json({ id: expense.id });
   } catch (err) {
