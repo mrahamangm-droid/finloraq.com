@@ -76,7 +76,7 @@ differentiators and larger builds. P4 = polish.
 | Suppliers CRUD | EXISTS | | — |
 | Bills: draft, approve & post, pay | EXISTS | | — |
 | Void / debit-note a posted bill | MISSING | Same gap as invoices. | **P1** |
-| Purchase orders | MISSING | | P3 |
+| Purchase orders → purchase receives → bills | EXISTS | Multi-currency POs with product lines; partial receives post DR Inventory / CR GRNI and open FIFO layers; PO-linked bills clear GRNI (price/FX difference → purchase price variance) and bill only received stock quantities; delete/void releases billed quantities. Receives can't yet be reversed (correct with a stock adjustment + manual journal). | — |
 | Recurring bills | MISSING | | P2 |
 | Expenses: submit as draft, approve & post, reverse | EXISTS | | — |
 | Expense approval rules by amount/role | EXISTS | (#69) | — |
@@ -110,8 +110,8 @@ differentiators and larger builds. P4 = polish.
 
 | Capability | Status | Notes | Priority |
 |---|---|---|---|
-| Items / products catalogue on invoice & bill lines | MISSING | Lines are free text. | P2 |
-| Inventory quantities, costing (FIFO/average), COGS | MISSING | Large build; depends on items. | P3 |
+| Items / products catalogue on invoice & bill lines | EXISTS | Product links on quote, SO, invoice, PO and bill lines, validated against the company. | — |
+| Inventory quantities, costing (FIFO/average), COGS | PARTIAL | Perpetual FIFO with COGS at invoice/shipment and capitalization at bill/receive. No warehouses, transfers, batches or serials yet. | P2 |
 | Projects with budget vs actual | EXISTS | Revenue/cost from invoices and bills. | — |
 | Project cost from expenses / journals | PARTIAL | Documented gap: only invoices/bills carry `projectId`. | P2 |
 | Time tracking / billable hours | MISSING | | P3 |

@@ -8,6 +8,7 @@ const statusColor: Record<string, string> = {
   DRAFT: "bg-muted text-muted-foreground",
   SENT: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
   ACKNOWLEDGED: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300",
+  PARTIALLY_RECEIVED: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
   RECEIVED: "bg-success/10 text-success",
   BILLED: "bg-primary/10 text-primary",
   CANCELLED: "bg-destructive/10 text-destructive",
@@ -84,7 +85,7 @@ export default async function PurchaseOrdersPage() {
                 <td className="px-4 py-2 text-right tabular-nums">{fmt.money(po.total)} {po.currency}</td>
                 <td className="px-4 py-2">
                   <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusColor[po.status] ?? "bg-muted text-muted-foreground"}`}>
-                    {po.status}
+                    {po.status.replace(/_/g, " ")}
                   </span>
                 </td>
               </tr>

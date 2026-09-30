@@ -11,6 +11,7 @@ import {
   assertBaseCurrency,
   UnsupportedCurrencyError,
   normalizeCurrencyCode,
+  resolveDocumentCurrency,
 } from "./ledger";
 
 describe("validateBalanced — the core double-entry invariant", () => {
@@ -199,5 +200,42 @@ describe("normalizeCurrencyCode", () => {
   it("stores one canonical uppercase form", () => {
     expect(normalizeCurrencyCode("aed")).toBe("AED");
     expect(normalizeCurrencyCode(" Usd ")).toBe("USD");
+  });
+});
+
+describe("resolveDocumentCurrency", () => {
+  const db = { company: { findUniqueOrThrow: async () => ({ baseCurrency: "AED" }) } } as unknown as Parameters<typeof resolveDocumentCurrency>[0];
+
+  it("refuses a zero exchange rate on a foreign-currency document", async () => {
+    // decimal.js treats 0 as isPositive(); a 0 rate would book every base
+    // amount as zero, so it must be refused explicitly.
+    await expect(resolveDocumentCurrency(db, "co", "EUR", 0)).rejects.toThrow(/positive exchange rate/);
+    await expect(resolveDocumentCurrency(db, "co", "EUR", -1)).rejects.toThrow(/positive exchange rate/);
+    const ok = await resolveDocumentCurrency(db, "co", "eur", 4.2);
+    expect(ok.currency).toBe("EUR");
+    expect(ok.exchangeRate.toString()).toBe("4.2");
+  });
+
+  it("forces a base-currency document's rate to 1", async () => {
+    await expect(resolveDocumentCurrency(db, "co", "AED", 2)).rejects.toThrow(/must be 1/);
+    expect((await resolveDocumentCurrency(db, "co", "AED")).exchangeRate.toString()).toBe("1");
+  });
+});
+
+describe("buildBillPosting with a favourable purchase price variance", () => {
+  it("turns a negative expense amount into a credit and still balances", () => {
+    // GRNI cleared at 400, bill line worth 380: variance -20 is a credit.
+    const lines = buildBillPosting({
+      expenseLines: [{ accountCode: "2150", amount: 400 }, { accountCode: "5100", amount: -20 }],
+      taxTotal: 19,
+      total: 399,
+      inputTaxCode: "1200",
+      accountsPayableCode: "2000",
+    });
+    expect(lines.find((l) => l.accountCode === "5100")).toMatchObject({ credit: expect.anything() });
+    expect(lines.find((l) => l.accountCode === "5100")!.debit).toBeUndefined();
+    const { debits, credits } = validateBalanced(lines);
+    expect(debits.toFixed(2)).toBe("419.00");
+    expect(credits.toFixed(2)).toBe("419.00");
   });
 });

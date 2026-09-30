@@ -229,6 +229,7 @@ const SYSTEM_ACCOUNT_LABEL: Record<SystemAccountPurpose, string> = {
   EXCHANGE_GAIN_LOSS: "Exchange Gain/Loss",
   INVENTORY_ASSET: "Inventory Asset",
   COGS_EXPENSE: "Cost of Goods Sold",
+  GOODS_RECEIVED_NOT_INVOICED: "Goods Received Not Invoiced",
 };
 
 export const getBankAccountCode = (companyId: string) => getSystemAccountCode(companyId, "BANK");
@@ -271,6 +272,17 @@ export async function getOrCreateInventoryAssetCode(companyId: string): Promise<
  */
 export async function getOrCreateCogsExpenseCode(companyId: string): Promise<string> {
   return getOrCreateLazySystemAccount(companyId, "COGS_EXPENSE", "EXPENSE", 5100, 5199);
+}
+
+/**
+ * This company's Goods Received Not Invoiced clearing account (a current
+ * LIABILITY), created lazily on the first Purchase Receive of tracked stock.
+ * A receive credits it at the PO's base-currency cost; the PO-linked bill
+ * debits it back out, so its balance is always "stock received, supplier
+ * not yet billed". See createPurchaseReceive / approveAndPostBill.
+ */
+export async function getOrCreateGrniCode(companyId: string): Promise<string> {
+  return getOrCreateLazySystemAccount(companyId, "GOODS_RECEIVED_NOT_INVOICED", "LIABILITY", 2150, 2199);
 }
 
 async function getOrCreateLazySystemAccount(

@@ -8,8 +8,9 @@ import { postJournalEntry, buildBillPosting, buildSupplierPaymentPosting, Invali
 import { roundMoney, sum, money } from "@/lib/currency";
 import { nextDocumentNumber } from "@/lib/numbering";
 import { computeTaxedLines } from "@/lib/taxCalc";
-import { getBankAccountCode, getInputTaxReceivableCode, getAccountsPayableCode, getOrCreateInventoryAssetCode, getOrCreateExchangeGainLossCode } from "@/lib/accounts";
+import { getBankAccountCode, getInputTaxReceivableCode, getAccountsPayableCode, getOrCreateInventoryAssetCode, getOrCreateExchangeGainLossCode, getOrCreateGrniCode, getOrCreateCogsExpenseCode } from "@/lib/accounts";
 import { foreignReferenceProblem } from "@/lib/tenantRefs";
+import { releasePOBilledQuantities } from "@/lib/po-billing";
 
 export interface BillLineInput {
   description: string;
@@ -17,6 +18,9 @@ export interface BillLineInput {
   unitPrice: number;
   taxCodeId?: string;
   productId?: string; // optional; if the product trackInventory=true, stock is received on approval
+  /** Set only by convertPOToBill (purchase-orders.ts) — never taken from a
+   *  request body. See BillLine.purchaseOrderLineId. */
+  purchaseOrderLineId?: string;
 }
 
 export async function createBill(params: {
@@ -42,6 +46,13 @@ export async function createBill(params: {
   }
   const supplierProblem = await foreignReferenceProblem(prisma, params.companyId, "supplier", [params.supplierId]);
   if (supplierProblem) throw new InvalidLineError(supplierProblem);
+  const poLineIds = [...new Set(params.lines.map((l) => l.purchaseOrderLineId).filter((id): id is string => Boolean(id)))];
+  if (poLineIds.length > 0) {
+    const owned = await prisma.purchaseOrderLine.count({
+      where: { id: { in: poLineIds }, purchaseOrder: { companyId: params.companyId, supplierId: params.supplierId } },
+    });
+    if (owned !== poLineIds.length) throw new InvalidLineError("Purchase order line not found.");
+  }
 
   const { lines: computedLines, subtotal, taxTotal, total } = await computeTaxedLines(prisma, params.companyId, params.lines);
 
@@ -71,6 +82,7 @@ export async function createBill(params: {
             taxCodeId: l.line.taxCodeId,
             lineTotal: l.lineTotal,
             ...(l.line.productId ? { productId: l.line.productId } : {}),
+            ...(l.line.purchaseOrderLineId ? { purchaseOrderLineId: l.line.purchaseOrderLineId } : {}),
           })),
         },
       },
@@ -134,6 +146,9 @@ export async function updateBill(params: {
   }
   const supplierProblem = await foreignReferenceProblem(prisma, params.companyId, "supplier", [params.supplierId]);
   if (supplierProblem) throw new InvalidLineError(supplierProblem);
+  if (params.supplierId && params.supplierId !== before.supplierId && before.lines.some((l: any) => l.purchaseOrderLineId)) {
+    throw new InvalidLineError("This bill was raised from a purchase order, so its supplier can't be changed.");
+  }
 
   let subtotal = before.subtotal, taxTotal = before.taxTotal, total = before.total;
   let lineData: { description: string; quantity: number; unitPrice: number; taxCodeId?: string; lineTotal: Decimal }[] | undefined;
@@ -142,11 +157,36 @@ export async function updateBill(params: {
     if (params.lines.length === 0) {
       throw new InvalidLineError("A bill needs at least one line.");
     }
-    const computedLines = await computeTaxedLines(prisma, params.companyId, params.lines);
+    // A bill raised from a Purchase Order keeps its link to the PO lines.
+    // Prices, tax codes and descriptions may be corrected to match the
+    // supplier's actual invoice (any price difference is booked as a
+    // purchase price variance on approval), but the lines themselves —
+    // their count, products and quantities — must stay as billed
+    // from the PO, since the PO's billed quantities were counted from them.
+    // To bill different quantities, delete this draft and convert again.
+    const poLinked = before.lines.some((l: any) => l.purchaseOrderLineId);
+    if (poLinked) {
+      // Pair each submitted line with an existing one of the same product and
+      // quantity (preferring the same description), independent of order.
+      const unmatched = [...(before.lines as any[])];
+      const relinked: BillLineInput[] = [];
+      for (const l of params.lines) {
+        const candidates = unmatched.filter((prev) => money(l.quantity).equals(prev.quantity) && (l.productId ?? null) === (prev.productId ?? null));
+        const match = candidates.find((prev) => prev.description === l.description) ?? candidates[0];
+        if (!match) { relinked.length = 0; break; }
+        unmatched.splice(unmatched.indexOf(match), 1);
+        relinked.push({ ...l, purchaseOrderLineId: match.purchaseOrderLineId ?? undefined });
+      }
+      if (relinked.length !== before.lines.length || params.lines.length !== before.lines.length) {
+        throw new InvalidLineError("This bill was raised from a purchase order: its lines, products and quantities can't be changed. Delete the draft and convert the purchase order again to bill different quantities.");
+      }
+      params = { ...params, lines: relinked };
+    }
+    const computedLines = await computeTaxedLines(prisma, params.companyId, params.lines!);
     subtotal = computedLines.subtotal;
     taxTotal = computedLines.taxTotal;
     total = computedLines.total;
-    lineData = computedLines.lines.map((l) => ({ description: l.line.description, quantity: l.line.quantity, unitPrice: l.line.unitPrice, taxCodeId: l.line.taxCodeId, lineTotal: l.lineTotal, ...(l.line.productId ? { productId: l.line.productId } : {}) }));
+    lineData = computedLines.lines.map((l) => ({ description: l.line.description, quantity: l.line.quantity, unitPrice: l.line.unitPrice, taxCodeId: l.line.taxCodeId, lineTotal: l.lineTotal, ...(l.line.productId ? { productId: l.line.productId } : {}), ...(l.line.purchaseOrderLineId ? { purchaseOrderLineId: l.line.purchaseOrderLineId } : {}) }));
   }
 
   const bill = await prisma.$transaction(async (tx: any) => {
@@ -199,6 +239,9 @@ export async function deleteBill(params: {
     throw new InvalidLineError("Only a draft bill can be deleted. An approved bill can't be removed — reverse it via a debit note instead.");
   }
 
+  // Hand any PO-linked quantities back to the purchase order first, so they
+  // can be billed again.
+  await releasePOBilledQuantities(params.companyId, bill.id);
   await prisma.$transaction([
     prisma.billLine.deleteMany({ where: { billId: bill.id } }),
     prisma.bill.delete({ where: { id: bill.id } }),
@@ -242,41 +285,69 @@ export async function approveAndPostBill(params: {
     getAccountsPayableCode(params.companyId),
   ]);
 
-  // Group each line by the account its cost lands on: a tracked-inventory
-  // line is capitalized to the Inventory Asset account (it isn't an expense
-  // yet — it becomes COGS only when later sold, see postInvoiceToLedger in
-  // src/lib/sales.ts), everything else expenses immediately to its own
-  // product's expenseAccountCode, or the bill-level default, or "5000".
-  const hasTrackedLine = bill.lines.some((l: any) => l.product?.trackInventory);
-  const inventoryAssetCode = hasTrackedLine ? await getOrCreateInventoryAssetCode(params.companyId) : undefined;
-  const expenseGroups = new Map<string, Decimal>();
-  for (const line of bill.lines as any[]) {
-    const code = line.product?.trackInventory ? inventoryAssetCode! : (line.product?.expenseAccountCode ?? params.expenseAccountCode ?? "5000");
-    expenseGroups.set(code, (expenseGroups.get(code) ?? money(0)).plus(line.lineTotal));
-  }
-  const expenseLines = [...expenseGroups.entries()].map(([accountCode, amount]) => ({ accountCode, amount }));
-
-  // The ledger always posts in base currency. For a foreign-currency bill,
-  // convert using the rate captured at issue time (bill.exchangeRate) —
-  // mirrors postInvoiceToLedger in src/lib/sales.ts. baseTotal and
-  // baseTaxTotal are each rounded independently; each expense-group amount
-  // but the last is also rounded independently, and the last absorbs
-  // whatever's left so the whole set always sums exactly to
-  // baseTotal - baseTaxTotal — independent rounding of every group could
-  // otherwise leave the entry off by a cent and fail the ledger's
-  // debit=credit check.
+  // The ledger always posts in base currency. Convert each line at the
+  // rate captured at issue time (bill.exchangeRate) — mirrors
+  // postInvoiceToLedger in src/lib/sales.ts. baseTotal and baseTaxTotal are
+  // each rounded independently; every line but the last is rounded on its
+  // own and the last absorbs whatever's left, so the lines always sum
+  // exactly to baseTotal - baseTaxTotal and the entry balances to the cent.
   const baseTotal = roundMoney(money(bill.total).times(bill.exchangeRate));
   const baseTaxTotal = roundMoney(money(bill.taxTotal).times(bill.exchangeRate));
   const baseSubtotal = baseTotal.minus(baseTaxTotal);
+  const billLines = bill.lines as any[];
   let convertedSoFar = money(0);
-  const baseExpenseLines = expenseLines.map((l, i) => {
-    if (i === expenseLines.length - 1) {
-      return { accountCode: l.accountCode, amount: baseSubtotal.minus(convertedSoFar) };
-    }
-    const baseAmount = roundMoney(money(l.amount).times(bill.exchangeRate));
-    convertedSoFar = convertedSoFar.plus(baseAmount);
-    return { accountCode: l.accountCode, amount: baseAmount };
+  const baseLineAmounts = billLines.map((l, i) => {
+    if (i === billLines.length - 1) return baseSubtotal.minus(convertedSoFar);
+    const amount = roundMoney(money(l.lineTotal).times(bill.exchangeRate));
+    convertedSoFar = convertedSoFar.plus(amount);
+    return amount;
   });
+
+  // Where each line's base amount lands:
+  //  - a tracked-inventory line raised from a Purchase Order was already
+  //    capitalized by its PurchaseReceive (DR Inventory / CR GRNI), so it
+  //    clears GRNI at the received cost; any difference between that and
+  //    the bill's own line value (supplier price change or FX movement since
+  //    the PO) is a purchase price variance, booked to Cost of Goods Sold;
+  //  - any other tracked-inventory line is capitalized to Inventory Asset
+  //    (it becomes COGS only when later sold, see postInvoiceToLedger);
+  //  - everything else expenses immediately to its product's
+  //    expenseAccountCode, or the bill-level default, or "5000".
+  const receivedLines = billLines.filter((l) => l.product?.trackInventory && l.purchaseOrderLineId);
+  const directStockLines = billLines.filter((l) => l.product?.trackInventory && !l.purchaseOrderLineId);
+  const inventoryAssetCode = directStockLines.length > 0 ? await getOrCreateInventoryAssetCode(params.companyId) : undefined;
+  const [grniCode, varianceCode] = receivedLines.length > 0
+    ? await Promise.all([getOrCreateGrniCode(params.companyId), getOrCreateCogsExpenseCode(params.companyId)])
+    : [undefined, undefined];
+  const receivedCostByPoLine = new Map<string, Decimal>();
+  if (receivedLines.length > 0) {
+    const poLines = await prisma.purchaseOrderLine.findMany({
+      where: { id: { in: receivedLines.map((l) => l.purchaseOrderLineId) }, purchaseOrder: { companyId: params.companyId } },
+      select: { id: true, unitPrice: true, purchaseOrder: { select: { exchangeRate: true } } },
+    });
+    for (const pl of poLines) {
+      // Same base unit cost createPurchaseReceive capitalized at.
+      receivedCostByPoLine.set(pl.id, roundMoney(money(pl.unitPrice).times(pl.purchaseOrder.exchangeRate)));
+    }
+  }
+
+  const expenseGroups = new Map<string, Decimal>();
+  const addTo = (code: string, amount: Decimal) => expenseGroups.set(code, (expenseGroups.get(code) ?? money(0)).plus(amount));
+  billLines.forEach((line, i) => {
+    const baseAmount = baseLineAmounts[i]!;
+    if (line.product?.trackInventory && line.purchaseOrderLineId) {
+      const unitCost = receivedCostByPoLine.get(line.purchaseOrderLineId);
+      if (!unitCost) throw new InvalidLineError(`The purchase order line behind "${line.description}" no longer exists.`);
+      const grniAmount = roundMoney(unitCost.times(line.quantity));
+      addTo(grniCode!, grniAmount);
+      addTo(varianceCode!, baseAmount.minus(grniAmount));
+    } else if (line.product?.trackInventory) {
+      addTo(inventoryAssetCode!, baseAmount);
+    } else {
+      addTo(line.product?.expenseAccountCode ?? params.expenseAccountCode ?? "5000", baseAmount);
+    }
+  });
+  const baseExpenseLines = [...expenseGroups.entries()].map(([accountCode, amount]) => ({ accountCode, amount }));
 
   const entry = await postJournalEntry({
     companyId: params.companyId,
@@ -307,7 +378,8 @@ export async function approveAndPostBill(params: {
   // Failures are logged but never abort the bill approval — the ledger
   // entry is already committed. A manual stock adjustment can correct later.
   for (const line of bill.lines) {
-    if (line.product?.trackInventory && line.quantity) {
+    // A PO-linked line's stock was already received by its PurchaseReceive.
+    if (line.product?.trackInventory && line.quantity && !line.purchaseOrderLineId) {
       try {
         await receiveStock(
           params.companyId,
@@ -361,7 +433,7 @@ export async function recordSupplierPayment(params: {
   }
 
   const paymentExchangeRate = params.exchangeRate !== undefined ? money(params.exchangeRate) : money(bill.exchangeRate);
-  if (!paymentExchangeRate.isPositive()) {
+  if (!paymentExchangeRate.greaterThan(0)) {
     throw new InvalidLineError("Payment exchange rate must be positive.");
   }
   if (money(bill.exchangeRate).equals(1) && !paymentExchangeRate.equals(1)) {

@@ -398,7 +398,7 @@ export async function recordInvoicePayment(params: {
   }
 
   const paymentExchangeRate = params.exchangeRate !== undefined ? money(params.exchangeRate) : money(invoice.exchangeRate);
-  if (!paymentExchangeRate.isPositive()) {
+  if (!paymentExchangeRate.greaterThan(0)) {
     throw new InvalidLineError("Payment exchange rate must be positive.");
   }
   if (money(invoice.exchangeRate).equals(1) && !paymentExchangeRate.equals(1)) {

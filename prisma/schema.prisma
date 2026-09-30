@@ -190,6 +190,7 @@ model Company {
   creditNotes            CreditNote[]
   salesOrders            SalesOrder[]
   shipments              Shipment[]
+  purchaseReceives       PurchaseReceive[]
 
   @@index([countryCode])
 }
@@ -367,6 +368,7 @@ enum SystemAccountPurpose {
   EXCHANGE_GAIN_LOSS
   INVENTORY_ASSET
   COGS_EXPENSE
+  GOODS_RECEIVED_NOT_INVOICED
 }
 
 model Account {
@@ -433,6 +435,7 @@ enum JournalSourceType {
   RECURRING
   AI_DRAFT
   SHIPMENT
+  PURCHASE_RECEIVE
 }
 
 enum JournalStatus {
@@ -686,20 +689,26 @@ model Bill {
 }
 
 model BillLine {
-  id          String  @id @default(cuid())
-  billId      String
-  productId   String? // optional link to Product; enables inventory receipt on bill approval
-  description String
-  quantity    Decimal @db.Decimal(18, 4)
-  unitPrice   Decimal @db.Decimal(18, 4)
-  taxCodeId   String?
-  lineTotal   Decimal @db.Decimal(18, 2)
+  id                  String  @id @default(cuid())
+  billId              String
+  productId           String? // optional link to Product; enables inventory receipt on bill approval
+  /// Set when the line was raised from a Purchase Order. A tracked line
+  /// linked this way was already capitalized by a PurchaseReceive, so bill
+  /// approval clears GRNI rather than receiving stock again.
+  purchaseOrderLineId String?
+  description         String
+  quantity            Decimal @db.Decimal(18, 4)
+  unitPrice           Decimal @db.Decimal(18, 4)
+  taxCodeId           String?
+  lineTotal           Decimal @db.Decimal(18, 2)
 
-  bill    Bill     @relation(fields: [billId], references: [id], onDelete: Cascade)
-  taxCode TaxCode? @relation(fields: [taxCodeId], references: [id])
-  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  bill              Bill               @relation(fields: [billId], references: [id], onDelete: Cascade)
+  taxCode           TaxCode?           @relation(fields: [taxCodeId], references: [id])
+  product           Product?           @relation(fields: [productId], references: [id], onDelete: SetNull)
+  purchaseOrderLine PurchaseOrderLine? @relation(fields: [purchaseOrderLineId], references: [id], onDelete: SetNull)
 
   @@index([productId])
+  @@index([purchaseOrderLineId])
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -851,13 +860,14 @@ model Product {
   createdAt          DateTime    @default(now())
   updatedAt          DateTime    @updatedAt
 
-  company         Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  taxCode         TaxCode?         @relation(fields: [taxCodeId], references: [id])
-  stockMovements  StockMovement[]
-  invoiceLines    InvoiceLine[]
-  billLines       BillLine[]
-  salesOrderLines SalesOrderLine[]
-  quoteLines      QuoteLine[]
+  company            Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  taxCode            TaxCode?            @relation(fields: [taxCodeId], references: [id])
+  stockMovements     StockMovement[]
+  invoiceLines       InvoiceLine[]
+  billLines          BillLine[]
+  salesOrderLines    SalesOrderLine[]
+  quoteLines         QuoteLine[]
+  purchaseOrderLines PurchaseOrderLine[]
 
   @@unique([companyId, sku])
   @@index([companyId, isActive])
@@ -1168,6 +1178,7 @@ enum PurchaseOrderStatus {
   DRAFT
   SENT
   ACKNOWLEDGED
+  PARTIALLY_RECEIVED
   RECEIVED
   BILLED
   CANCELLED
@@ -1349,6 +1360,10 @@ model PurchaseOrder {
   issueDate    DateTime
   expectedDate DateTime?
   currency     String              @default("USD")
+  /// Rate to convert 1 unit of `currency` into the company's base currency,
+  /// captured when the PO is raised. Purchase receives value stock at
+  /// unitPrice x this rate (see createPurchaseReceive).
+  exchangeRate Decimal             @default(1) @db.Decimal(18, 8)
   subtotal     Decimal             @db.Decimal(18, 2)
   taxTotal     Decimal             @db.Decimal(18, 2)
   total        Decimal             @db.Decimal(18, 2)
@@ -1363,6 +1378,7 @@ model PurchaseOrder {
   project  Project?            @relation(fields: [projectId], references: [id])
   bill     Bill?               @relation(fields: [billId], references: [id])
   lines    PurchaseOrderLine[]
+  receives PurchaseReceive[]
 
   @@unique([companyId, poNumber])
   @@index([companyId, status])
@@ -1370,16 +1386,66 @@ model PurchaseOrder {
 }
 
 model PurchaseOrderLine {
-  id          String  @id @default(cuid())
-  poId        String
-  description String
-  quantity    Decimal @db.Decimal(18, 4)
-  unitPrice   Decimal @db.Decimal(18, 4)
-  taxCodeId   String?
-  lineTotal   Decimal @db.Decimal(18, 2)
+  id               String  @id @default(cuid())
+  poId             String
+  productId        String?
+  description      String
+  quantity         Decimal @db.Decimal(18, 4)
+  unitPrice        Decimal @db.Decimal(18, 4)
+  taxCodeId        String?
+  lineTotal        Decimal @db.Decimal(18, 2)
+  /// Cumulative quantity received against this line across all
+  /// PurchaseReceives — never exceeds `quantity`.
+  receivedQuantity Decimal @default(0) @db.Decimal(18, 4)
+  /// Cumulative quantity billed against this line (bills in any status but
+  /// VOID). A tracked-inventory line can only be billed up to what has been
+  /// received; any other line up to `quantity`. See convertPOToBill.
+  billedQuantity   Decimal @default(0) @db.Decimal(18, 4)
 
-  purchaseOrder PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
-  taxCode       TaxCode?      @relation(fields: [taxCodeId], references: [id])
+  purchaseOrder PurchaseOrder         @relation(fields: [poId], references: [id], onDelete: Cascade)
+  product       Product?              @relation(fields: [productId], references: [id], onDelete: SetNull)
+  taxCode       TaxCode?              @relation(fields: [taxCodeId], references: [id])
+  receiveLines  PurchaseReceiveLine[]
+  billLines     BillLine[]
+
+  @@index([productId])
+}
+
+/// A goods receipt against a Purchase Order. For tracked-inventory lines it
+/// posts DR Inventory Asset / CR Goods Received Not Invoiced at the PO's
+/// base-currency cost and creates the FIFO cost layer; the eventual Bill
+/// then clears GRNI instead of debiting Inventory Asset a second time. See
+/// src/lib/purchase-orders.ts.
+model PurchaseReceive {
+  id            String   @id @default(cuid())
+  companyId     String
+  poId          String
+  receiveNumber String
+  receiveDate   DateTime @db.Date
+  notes         String?
+  createdAt     DateTime @default(now())
+  createdBy     String // userId
+
+  company       Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  purchaseOrder PurchaseOrder         @relation(fields: [poId], references: [id])
+  lines         PurchaseReceiveLine[]
+
+  @@unique([companyId, receiveNumber])
+  @@index([companyId, poId])
+}
+
+model PurchaseReceiveLine {
+  id                  String  @id @default(cuid())
+  receiveId           String
+  purchaseOrderLineId String
+  quantity            Decimal @db.Decimal(18, 4)
+  /// Base-currency unit cost the stock was capitalized at.
+  unitCost            Decimal @db.Decimal(18, 4)
+
+  receive           PurchaseReceive   @relation(fields: [receiveId], references: [id], onDelete: Cascade)
+  purchaseOrderLine PurchaseOrderLine @relation(fields: [purchaseOrderLineId], references: [id])
+
+  @@index([purchaseOrderLineId])
 }
 
 model CreditNote {

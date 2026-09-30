@@ -118,7 +118,7 @@ export async function resolveDocumentCurrency(
     }
     return { currency: normalizedCurrency, exchangeRate: money(1) };
   }
-  if (exchangeRate === undefined || !money(exchangeRate).isPositive()) {
+  if (exchangeRate === undefined || !money(exchangeRate).greaterThan(0)) {
     throw new InvalidLineError(`A ${normalizedCurrency} document needs a positive exchange rate to ${normalizedBase}.`);
   }
   return { currency: normalizedCurrency, exchangeRate: money(exchangeRate) };
@@ -270,7 +270,7 @@ export async function postJournalEntry(input: PostJournalEntryInput) {
       if (input.exchangeRate !== undefined && !money(input.exchangeRate).equals(1)) {
         throw new InvalidLineError("A base-currency entry's exchange rate must be 1.");
       }
-    } else if (input.exchangeRate === undefined || !money(input.exchangeRate).isPositive()) {
+    } else if (input.exchangeRate === undefined || !money(input.exchangeRate).greaterThan(0)) {
       throw new InvalidLineError("A non-base-currency entry needs a positive exchange rate.");
     }
   }
@@ -618,9 +618,16 @@ export function buildBillPosting(input: {
   inputTaxCode?: string;
   accountsPayableCode?: string;
 }): LineInput[] {
+  // A negative amount is a credit to that account — used for a favourable
+  // purchase price variance when a PO-linked bill clears GRNI at more than
+  // the bill's own line value (see approveAndPostBill in purchases.ts).
   const lines: LineInput[] = input.expenseLines
     .filter((l) => !isZero(l.amount))
-    .map((l) => ({ accountCode: l.accountCode, debit: l.amount, description: "Expense" }));
+    .map((l) =>
+      new Decimal(l.amount).isNegative()
+        ? { accountCode: l.accountCode, credit: new Decimal(l.amount).negated(), description: "Expense" }
+        : { accountCode: l.accountCode, debit: l.amount, description: "Expense" }
+    );
   if (!isZero(input.taxTotal)) {
     lines.push({ accountCode: input.inputTaxCode ?? "1200", debit: input.taxTotal, description: "Input Tax Receivable" });
   }

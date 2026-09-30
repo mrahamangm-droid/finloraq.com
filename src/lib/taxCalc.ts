@@ -18,6 +18,11 @@ export interface TaxableLineInput {
   quantity: number;
   unitPrice: number;
   taxCodeId?: string;
+  /** Optional product link. Validated against `companyId` the same way a
+   *  tax code is: a product id from another tenant is refused rather than
+   *  stored on the line (where the document page would read back that
+   *  tenant's product name/price through the relation). */
+  productId?: string;
 }
 
 export interface TaxedLine<T extends TaxableLineInput> {
@@ -53,6 +58,12 @@ export async function computeTaxedLines<T extends TaxableLineInput>(
     : [] as Array<{ id: string; rate: number | { toNumber(): number } }>;
   if (taxCodes.length !== taxCodeIds.length) throw new InvalidLineError("Tax code not found.");
   const taxCodeById = new Map(taxCodes.map((t) => [t.id, t]));
+
+  const productIds = [...new Set(lines.map((l) => l.productId).filter((id): id is string => Boolean(id)))];
+  if (productIds.length > 0) {
+    const owned = await db.product.count({ where: { companyId, id: { in: productIds } } });
+    if (owned !== productIds.length) throw new InvalidLineError("Product not found.");
+  }
 
   const computed = lines.map((line) => {
     const lineTotal = roundMoney(money(line.quantity).times(line.unitPrice));
