@@ -46,6 +46,12 @@ export default async function ChartOfAccountsPage() {
             Journal Entries
           </Link>
           <Link
+            href="/accounting/opening-balances"
+            className="rounded-md border border-border px-3 py-1.5 text-sm text-foreground hover:bg-muted"
+          >
+            Opening Balances
+          </Link>
+          <Link
             href="/accounting/reports/trial-balance"
             className="rounded-md border border-border px-3 py-1.5 text-sm text-foreground hover:bg-muted"
           >
