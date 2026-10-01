@@ -52,10 +52,14 @@ export function PlanCard({
     router.refresh();
   }
 
+  // E-invoicing and voice are gated by plan like any other feature, but neither
+  // is live yet: e-invoicing runs on a simulated adapter (live: false, no
+  // accredited provider) and voice takes typed text (no speech-to-text). The
+  // labels say so rather than selling them as finished (issue #88).
   const featureList: [string, boolean][] = [
     ["Document extraction (OCR)", def.features.documentExtraction],
-    ["Voice commands", def.features.voiceCommands],
-    ["E-invoicing", def.features.eInvoicing],
+    ["Voice commands (typed, beta)", def.features.voiceCommands],
+    ["E-invoicing (simulated preview)", def.features.eInvoicing],
     ["Multi-company", def.features.multiCompany],
     ["API access", def.features.apiAccess],
   ];

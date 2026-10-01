@@ -58,7 +58,7 @@ export const PLANS: Record<SubscriptionPlan, PlanDefinition> = {
     seats: 5,
     aiUsageLimitPerMonth: 200,
     features: { voiceCommands: false, documentExtraction: true, eInvoicing: true, multiCompany: false, apiAccess: false },
-    description: "Adds banking reconciliation, tax reports, and e-invoicing for a growing operations team.",
+    description: "Adds banking reconciliation, tax reports, and an e-invoicing preview (simulated until an accredited provider is connected) for a growing operations team.",
   },
   PROFESSIONAL: {
     plan: "PROFESSIONAL",
@@ -68,7 +68,7 @@ export const PLANS: Record<SubscriptionPlan, PlanDefinition> = {
     seats: 15,
     aiUsageLimitPerMonth: 1000,
     features: { voiceCommands: true, documentExtraction: true, eInvoicing: true, multiCompany: false, apiAccess: true },
-    description: "Full cash-flow intelligence, projects/cost centres, and voice commands for a full finance department.",
+    description: "Full cash-flow intelligence, projects/cost centres, API access, and typed voice commands (beta) for a full finance department.",
   },
   AI_CFO: {
     plan: "AI_CFO",

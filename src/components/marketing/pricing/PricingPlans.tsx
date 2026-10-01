@@ -22,10 +22,14 @@ import {
 
 type Card = { plan: SubscriptionPlan; features: string[]; featured?: boolean };
 
+// E-invoicing and voice are labelled as preview/beta: e-invoicing runs on a
+// simulated adapter until an accredited provider is chosen, and voice takes
+// typed commands until a speech-to-text provider is (issue #88).
+
 const CARDS: Card[] = [
   { plan: "STARTER", features: ["Double-entry accounting & reports", "Invoices, bills & expenses", "UAE VAT tax codes"] },
-  { plan: "GROWTH", features: ["Everything in Starter", "Receipt & invoice reading (AI)", "E-invoicing", "Bank reconciliation"] },
-  { plan: "PROFESSIONAL", featured: true, features: ["Everything in Growth", "Cash-flow intelligence", "Projects & cost centres", "Voice commands & API access"] },
+  { plan: "GROWTH", features: ["Everything in Starter", "Receipt & invoice reading (AI)", "Bank reconciliation", "E-invoicing preview (simulated, not yet submitted)"] },
+  { plan: "PROFESSIONAL", featured: true, features: ["Everything in Growth", "Cash-flow intelligence", "Projects & cost centres", "API access", "Typed voice commands (beta)"] },
   { plan: "AI_CFO", features: ["Everything in Professional", "Multi-company", "Priority support"] },
   { plan: "ENTERPRISE", features: ["Custom users & limits", "Unlimited AI actions", "Dedicated support", "Advanced security review"] },
 ];
