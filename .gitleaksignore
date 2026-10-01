@@ -1,0 +1,5 @@
+# Known false positives: test fixtures, not real secrets.
+# - RFC 6238 TOTP test vector (mfa.test.ts)
+# - fake sk_live_ value used to prove env validation never echoes secrets (env.test.ts)
+7352a7103b12ab4acb16dbab83348d0a95292fac:src/lib/env.test.ts:stripe-access-token:23
+804252da2280127620117b11c7e7123fb8217ec8:src/lib/mfa.test.ts:generic-api-key:9
