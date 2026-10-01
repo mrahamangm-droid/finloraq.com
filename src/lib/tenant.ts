@@ -57,11 +57,11 @@ export async function requireTenantContext() {
  * active member of that same company. Returns null for any failure; the
  * caller answers 401 without saying which check failed.
  */
-export async function getApiKeyTenantContext(rawKey: string) {
+export async function getApiTenantContext(bearer: string) {
   const { hashApiKey, looksLikeApiKey } = await import("@/lib/apiKeys");
-  if (!looksLikeApiKey(rawKey)) return null;
+  if (!looksLikeApiKey(bearer)) return null;
   const key = await prisma.apiKey.findUnique({
-    where: { keyHash: await hashApiKey(rawKey) },
+    where: { keyHash: await hashApiKey(bearer) },
     include: { membership: { include: { company: true } } },
   });
   if (!key || key.revokedAt) return null;

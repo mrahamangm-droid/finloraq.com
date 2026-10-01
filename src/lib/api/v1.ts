@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { Prisma, type PermissionAction } from "@prisma/client";
 import { ZodError } from "zod";
 import { prisma } from "@/lib/db";
-import { getApiKeyTenantContext } from "@/lib/tenant";
+import { getApiTenantContext } from "@/lib/tenant";
 import { can, ForbiddenError, roleCan, type Module } from "@/lib/rbac";
 import { companyHasApiAccess } from "@/lib/apiKeys";
 import { checkRateLimit, clientIpFromHeaders } from "@/lib/rateLimit";
@@ -15,7 +15,7 @@ import { InvalidLineError, UnbalancedEntryError, PeriodLockedError } from "@/lib
  * declares which module/action it needs and returns data.
  */
 
-export type ApiContext = NonNullable<Awaited<ReturnType<typeof getApiKeyTenantContext>>> & {
+export type ApiContext = NonNullable<Awaited<ReturnType<typeof getApiTenantContext>>> & {
   companyId: string;
   membershipId: string;
 };
@@ -69,7 +69,7 @@ export function apiRoute(permission: { module: Module; action: PermissionAction 
     const auth = req.headers.get("authorization") ?? "";
     const match = /^Bearer\s+(\S+)$/i.exec(auth);
     const ip = clientIpFromHeaders(req.headers);
-    const ctxRow = match ? await getApiKeyTenantContext(match[1]!) : null;
+    const ctxRow = match ? await getApiTenantContext(match[1]!) : null;
     if (!ctxRow) {
       // Keys can't be guessed (256 bits); this just stops a misconfigured
       // client or a scanner from hammering the key lookup.
