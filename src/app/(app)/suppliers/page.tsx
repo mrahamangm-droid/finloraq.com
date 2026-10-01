@@ -1,29 +1,35 @@
 import { requireTenantContext } from "@/lib/tenant";
 import { viewGate } from "@/lib/page-access";
 import { prisma } from "@/lib/db";
+import { Pagination } from "@/components/pagination";
+import { pageWindow, parsePage } from "@/lib/pagination";
 import { can } from "@/lib/rbac";
 import { fieldDefs } from "@/lib/customization/server";
 import { CustomFieldInputs } from "@/components/custom-fields/custom-field-inputs";
 import { createSupplierAction } from "./actions";
 import { SupplierRow } from "@/components/suppliers/supplier-row";
 
-export default async function SuppliersPage(props: { searchParams: Promise<{ archived?: string }> }) {
+export default async function SuppliersPage(props: { searchParams: Promise<{ archived?: string; page?: string }> }) {
   const searchParams = await props.searchParams;
   const sp = searchParams;
   const { active } = await requireTenantContext();
   const denied = await viewGate(active.id, "suppliers");
   if (denied) return denied;
   const showArchived = searchParams.archived === "1";
+  const page = parsePage(searchParams.page);
+  const listWhere = { companyId: active.companyId, isActive: !showArchived };
 
-  const [suppliers, defs, canDelete, canEdit, archivedCount] = await Promise.all([
+  const [suppliers, defs, canDelete, canEdit, archivedCount, listTotal] = await Promise.all([
     prisma.supplier.findMany({
-      where: { companyId: active.companyId, isActive: !showArchived },
-      orderBy: { createdAt: "desc" },
+      where: listWhere,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      ...pageWindow(page),
     }),
     fieldDefs(active.companyId, "SUPPLIER"),
     can(active.id, "suppliers", "DELETE"),
     can(active.id, "suppliers", "EDIT"),
     prisma.supplier.count({ where: { companyId: active.companyId, isActive: false } }),
+    prisma.supplier.count({ where: listWhere }),
   ]);
 
   return (
@@ -81,6 +87,8 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ arc
           </table>
         </div>
       </div>
+
+      <Pagination path="/suppliers" params={searchParams} page={page} total={listTotal} noun="suppliers" />
     </div>
   );
 }

@@ -2,6 +2,8 @@ import Link from "next/link";
 import { requireTenantContext } from "@/lib/tenant";
 import { getFormatter } from "@/lib/customization/server";
 import { prisma } from "@/lib/db";
+import { Pagination } from "@/components/pagination";
+import { pageWindow, parsePage } from "@/lib/pagination";
 import { can } from "@/lib/rbac";
 
 const statusColor: Record<string, string> = {
@@ -13,18 +15,21 @@ const statusColor: Record<string, string> = {
   INVOICED: "bg-primary/10 text-primary",
 };
 
-export default async function QuotesPage() {
+export default async function QuotesPage(props: { searchParams?: Promise<{ page?: string }> }) {
+  const sp = (await props.searchParams) ?? {};
+  const page = parsePage(sp.page);
   const { active, userId } = await requireTenantContext();
   const fmt = await getFormatter(userId);
 
-  const [quotes, canCreate] = await Promise.all([
+  const [quotes, canCreate, total] = await Promise.all([
     prisma.quote.findMany({
       where: { companyId: active.companyId },
-      orderBy: { issueDate: "desc" },
+      orderBy: [{ issueDate: "desc" }, { id: "desc" }], // id breaks ties so pages never overlap
       include: { customer: true },
-      take: 200,
+      ...pageWindow(page),
     }),
     can(active.id, "quotes", "CREATE"),
+    prisma.quote.count({ where: { companyId: active.companyId } }),
   ]);
 
   return (
@@ -96,6 +101,8 @@ export default async function QuotesPage() {
           </tbody>
         </table>
       </div>
+
+      <Pagination path="/quotes" params={sp} page={page} total={total} noun="quotes" />
     </div>
   );
 }

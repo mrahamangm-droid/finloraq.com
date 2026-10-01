@@ -2,6 +2,8 @@ import Link from "next/link";
 import { requireTenantContext } from "@/lib/tenant";
 import { getFormatter } from "@/lib/customization/server";
 import { prisma } from "@/lib/db";
+import { Pagination } from "@/components/pagination";
+import { pageWindow, parsePage } from "@/lib/pagination";
 import { can } from "@/lib/rbac";
 
 const statusColor: Record<string, string> = {
@@ -11,18 +13,21 @@ const statusColor: Record<string, string> = {
   VOID: "bg-destructive/10 text-destructive",
 };
 
-export default async function CreditNotesPage() {
+export default async function CreditNotesPage(props: { searchParams?: Promise<{ page?: string }> }) {
+  const sp = (await props.searchParams) ?? {};
+  const page = parsePage(sp.page);
   const { active, userId } = await requireTenantContext();
   const fmt = await getFormatter(userId);
 
-  const [creditNotes, canCreate] = await Promise.all([
+  const [creditNotes, canCreate, total] = await Promise.all([
     prisma.creditNote.findMany({
       where: { companyId: active.companyId },
-      orderBy: { issueDate: "desc" },
+      orderBy: [{ issueDate: "desc" }, { id: "desc" }], // id breaks ties so pages never overlap
       include: { customer: true, invoice: { select: { invoiceNumber: true } } },
-      take: 200,
+      ...pageWindow(page),
     }),
     can(active.id, "credit_notes", "CREATE"),
+    prisma.creditNote.count({ where: { companyId: active.companyId } }),
   ]);
 
   return (
@@ -94,6 +99,8 @@ export default async function CreditNotesPage() {
           </tbody>
         </table>
       </div>
+
+      <Pagination path="/credit-notes" params={sp} page={page} total={total} noun="credit notes" />
     </div>
   );
 }

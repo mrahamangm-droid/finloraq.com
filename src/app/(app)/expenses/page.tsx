@@ -6,6 +6,8 @@ import { listRecentExpenses, expenseTotals } from "@/lib/expenses";
 import { pickerProps, resolvePeriod, type PeriodParams } from "@/lib/periods";
 import { can } from "@/lib/rbac";
 import { PeriodPicker } from "@/components/periods/period-picker";
+import { Pagination } from "@/components/pagination";
+import { pageWindow, parsePage } from "@/lib/pagination";
 import { NewExpenseForm } from "@/components/forms/new-expense-form";
 import { ExpenseRow } from "@/components/forms/expense-row";
 import { getBankAccountCode, getInputTaxReceivableCode } from "@/lib/accounts";
@@ -18,7 +20,7 @@ const STATUS_TABS: { value: ExpenseStatus | "ALL"; label: string }[] = [
   { value: "REVERSED", label: "Reversed" },
 ];
 
-type ExpensesPageParams = PeriodParams & { status?: string };
+type ExpensesPageParams = PeriodParams & { status?: string; page?: string };
 
 export default async function ExpensesPage(props: { searchParams?: Promise<ExpensesPageParams> }) {
   const searchParams = (await props.searchParams) ?? {};
@@ -28,6 +30,7 @@ export default async function ExpensesPage(props: { searchParams?: Promise<Expen
   if (denied) return denied;
   const [fmt, canEdit] = await Promise.all([getFormatter(userId), can(active.id, "expenses", "EDIT")]);
   const filtered = Boolean(sp.period);
+  const page = parsePage(sp.page);
   const period = resolvePeriod(sp);
   // Deliberately checked against the three real JournalStatus values, not
   // STATUS_TABS (which also carries the synthetic "ALL" entry) — "ALL"
@@ -38,7 +41,7 @@ export default async function ExpensesPage(props: { searchParams?: Promise<Expen
     ? (sp.status as ExpenseStatus)
     : undefined;
   const [expenses, totals, bankAccountCode, inputTaxCode] = await Promise.all([
-    listRecentExpenses(active.companyId, filtered ? period : undefined, statusFilter),
+    listRecentExpenses(active.companyId, filtered ? period : undefined, statusFilter, pageWindow(page)),
     expenseTotals(active.companyId, filtered ? period : undefined, statusFilter),
     getBankAccountCode(active.companyId),
     getInputTaxReceivableCode(active.companyId),
@@ -157,12 +160,9 @@ export default async function ExpensesPage(props: { searchParams?: Promise<Expen
             )}
           </table>
         </div>
-        {expenses.length < totals.count && (
-          <p className="border-t border-border px-4 py-2 text-xs text-muted-foreground">
-            Showing the latest {expenses.length} of {totals.count} expenses{filtered ? "" : " — pick a period to see older ones"}.{filtered ? " The total above covers all of them." : ""}
-          </p>
-        )}
       </div>
+
+      <Pagination path="/expenses" params={sp} page={page} total={totals.count} noun="expenses" />
     </div>
   );
 }
