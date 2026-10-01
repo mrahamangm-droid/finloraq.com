@@ -120,7 +120,7 @@ describe.skipIf(!enabled)("public REST API /api/v1 (real Postgres)", () => {
 
   it("stores only a hash of each key", async () => {
     const row = await prisma.apiKey.findFirstOrThrow({ where: { companyId: A.companyId, label: "read" } });
-    expect(row.keyHash).toBe(keys.hashApiKey(A.readKey));
+    expect(row.keyHash).toBe(await keys.hashApiKey(A.readKey));
     expect(JSON.stringify(row)).not.toContain(A.readKey);
   });
 

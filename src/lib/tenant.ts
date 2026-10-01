@@ -61,7 +61,7 @@ export async function getApiKeyTenantContext(rawKey: string) {
   const { hashApiKey, looksLikeApiKey } = await import("@/lib/apiKeys");
   if (!looksLikeApiKey(rawKey)) return null;
   const key = await prisma.apiKey.findUnique({
-    where: { keyHash: hashApiKey(rawKey) },
+    where: { keyHash: await hashApiKey(rawKey) },
     include: { membership: { include: { company: true } } },
   });
   if (!key || key.revokedAt) return null;

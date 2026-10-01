@@ -7,19 +7,19 @@ import { toApiJson } from "@/lib/api/v1";
 import { roleCan } from "@/lib/rbac";
 
 describe("API key generation", () => {
-  it("makes 256-bit keys with a recognizable prefix and stores only a hash", () => {
-    const a = generateApiKey();
-    const b = generateApiKey();
+  it("makes 256-bit keys with a recognizable prefix and stores only a hash", async () => {
+    const a = await generateApiKey();
+    const b = await generateApiKey();
     expect(a.key).toMatch(/^fq_[A-Za-z0-9_-]{43}$/);
     expect(a.key).not.toBe(b.key);
     expect(a.prefix).toBe(a.key.slice(0, 11));
-    expect(a.hash).toBe(hashApiKey(a.key));
+    expect(a.hash).toBe(await hashApiKey(a.key)); // deterministic, so a presented key can be looked up
     expect(a.hash).toMatch(/^[0-9a-f]{64}$/);
     expect(a.hash).not.toContain(a.key.slice(3));
   });
 
-  it("rejects anything that isn't key-shaped before any lookup", () => {
-    expect(looksLikeApiKey(generateApiKey().key)).toBe(true);
+  it("rejects anything that isn't key-shaped before any lookup", async () => {
+    expect(looksLikeApiKey((await generateApiKey()).key)).toBe(true);
     for (const bad of ["", "fq_short", "sk_" + "a".repeat(43), "fq_" + "a".repeat(42) + "!"]) expect(looksLikeApiKey(bad)).toBe(false);
   });
 

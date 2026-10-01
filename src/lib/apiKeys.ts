@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { promisify } from "node:util";
 import type { CompanyRole } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { NotFoundError } from "@/lib/errors";
@@ -10,9 +11,12 @@ import { planDefinition } from "@/lib/billing/plans";
  * API keys for the public REST API (/api/v1), sold as "API access" on
  * Professional and above.
  *
- * - A key is 32 random bytes (256 bits), so a fast SHA-256 is the right
- *   lookup hash: there is nothing to brute-force, unlike a password. Only
- *   the hash is stored; the raw key is returned once, by createApiKey().
+ * - A key is 32 random bytes (256 bits). Only a hash is stored; the raw key
+ *   is returned once, by createApiKey(). The hash is scrypt with a fixed,
+ *   versioned salt: deterministic, so a presented key can be looked up by
+ *   its hash, and a memory-hard KDF rather than a bare SHA-256, so a leaked
+ *   table gives an attacker nothing cheap to grind (on top of 256-bit keys
+ *   being unguessable). N=2^12 costs ~10 ms, async, per API request.
  * - A key acts AS the member who created it, CAPPED by its own role. A
  *   request is allowed only if both the member (live role, overrides,
  *   still active) and the key's role permit it — see apiCan() in
@@ -29,13 +33,19 @@ export type ApiKeyRole = (typeof API_KEY_ROLES)[number];
 
 export class ApiKeyError extends Error {}
 
-export function generateApiKey(): { key: string; prefix: string; hash: string } {
+const scrypt = promisify(crypto.scrypt) as (password: string, salt: string, keylen: number, options: crypto.ScryptOptions) => Promise<Buffer>;
+
+/** Changing any of these invalidates every stored key — bump the salt's version if you ever must. */
+const KEY_HASH_SALT = "finloraq:api-key:v1";
+const KEY_HASH_PARAMS: crypto.ScryptOptions = { N: 4096, r: 8, p: 1 };
+
+export async function generateApiKey(): Promise<{ key: string; prefix: string; hash: string }> {
   const key = `${API_KEY_PREFIX}${crypto.randomBytes(32).toString("base64url")}`;
-  return { key, prefix: key.slice(0, API_KEY_PREFIX.length + 8), hash: hashApiKey(key) };
+  return { key, prefix: key.slice(0, API_KEY_PREFIX.length + 8), hash: await hashApiKey(key) };
 }
 
-export function hashApiKey(key: string): string {
-  return crypto.createHash("sha256").update(key, "utf8").digest("hex");
+export async function hashApiKey(key: string): Promise<string> {
+  return (await scrypt(key, KEY_HASH_SALT, 32, KEY_HASH_PARAMS)).toString("hex");
 }
 
 /** Cheap shape check before touching the database. */
@@ -64,7 +74,7 @@ export async function createApiKey(params: Actor & { label: string; role: ApiKey
   if (!label || label.length > 80) throw new ApiKeyError("Give the key a name (up to 80 characters).");
   if (!API_KEY_ROLES.includes(params.role)) throw new ApiKeyError("Unsupported key role.");
 
-  const { key, prefix, hash } = generateApiKey();
+  const { key, prefix, hash } = await generateApiKey();
   const apiKey = await prisma.apiKey.create({
     data: {
       companyId: params.companyId,
