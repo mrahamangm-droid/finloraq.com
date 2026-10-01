@@ -1,0 +1,7 @@
+# RFC 6238 Appendix B public TOTP test vector (base32 of "12345678901234567890")
+# in the MFA unit test. Not a credential.
+804252da2280127620117b11c7e7123fb8217ec8:src/lib/mfa.test.ts:generic-api-key:9
+
+# Placeholder Stripe key (sk_live_ + "SUPERSECRET") in the env-validation test,
+# used to assert secrets are never echoed. Not a credential.
+7352a7103b12ab4acb16dbab83348d0a95292fac:src/lib/env.test.ts:stripe-access-token:23
