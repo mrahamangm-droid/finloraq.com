@@ -34,7 +34,10 @@ export default async function SettingsPage(props: { searchParams?: Promise<{ pay
   const { active, userId } = await requireTenantContext();
   const denied = await viewGate(active.id, "settings");
   if (denied) return denied;
-  const canEdit = await can(active.id, "settings", "EDIT");
+  const [canEdit, canExport] = await Promise.all([
+    can(active.id, "settings", "EDIT"),
+    can(active.id, "settings", "EXPORT"),
+  ]);
 
   const me = await prisma.user.findUnique({ where: { id: userId }, select: { avatarUrl: true } });
 
@@ -206,6 +209,28 @@ export default async function SettingsPage(props: { searchParams?: Promise<{ pay
           )}
         </div>
       </div>
+
+      {canExport && (
+        <div className="rounded-lg border border-border bg-card">
+          <div className="border-b border-border px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Data export
+          </div>
+          <div className="space-y-3 p-4 text-sm">
+            <p className="text-muted-foreground">
+              Download everything core to your books as a ZIP of CSV files: chart of accounts, journal entries and lines,
+              invoices, bills, customers, suppliers, tax codes, and bank accounts and transactions. Amounts are exact, as
+              stored. Each export is recorded in the audit log.
+            </p>
+            <a
+              href="/api/export"
+              download
+              className="inline-block rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted"
+            >
+              Download company data (.zip)
+            </a>
+          </div>
+        </div>
+      )}
 
 
       <div className="rounded-lg border border-border bg-card">
