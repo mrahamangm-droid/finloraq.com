@@ -1,0 +1,4 @@
+# Platform-kit CODEOWNERS (from saas-platform-kit templates/github/CODEOWNERS)
+*                       @mrahamangm-droid
+/prisma/migrations/     @mrahamangm-droid
+/.github/               @mrahamangm-droid
