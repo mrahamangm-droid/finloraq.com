@@ -20,6 +20,7 @@ export default function DocumentsPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [created, setCreated] = useState<string | null>(null);
+  const [stored, setStored] = useState<boolean | null>(null);
 
   async function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -30,6 +31,7 @@ export default function DocumentsPage() {
     setError(null);
     setFields(null);
     setCreated(null);
+    setStored(null);
 
     const base64 = await fileToBase64(file);
 
@@ -50,6 +52,7 @@ export default function DocumentsPage() {
     const data = await res.json();
     setDocumentId(data.documentId);
     setFields(data.fields);
+    setStored(data.stored === true);
   }
 
   async function createExpense() {
@@ -109,6 +112,19 @@ export default function DocumentsPage() {
           <div className="text-xs uppercase text-muted-foreground">
             Extracted (confidence: {fields.confidence}) — edit anything before saving
           </div>
+          {stored && documentId ? (
+            <p className="text-xs text-muted-foreground">
+              Original saved.{" "}
+              <a href={`/api/documents/${documentId}/file`} target="_blank" rel="noreferrer" className="text-primary hover:underline">
+                View original
+              </a>
+            </p>
+          ) : stored === false ? (
+            <p role="status" className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-foreground">
+              The original file was not kept: document storage isn&apos;t configured on this deployment, so only the
+              extracted fields are saved. Keep your own copy of this receipt for your records.
+            </p>
+          ) : null}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-xs font-medium text-card-foreground">Vendor</label>

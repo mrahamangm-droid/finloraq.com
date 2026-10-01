@@ -169,10 +169,10 @@ clear "no AI provider configured" error instead of a fabricated result. Set
   guess" prompt, and returns fields for human review — it never creates an Expense
   itself. `createDraftExpenseFromExtraction()` only runs after that review and produces a
   DRAFT via the same `createExpense()` every manually-typed expense uses — an approver
-  still has to post it. Known gap: no object storage is configured yet
-  (`OBJECT_STORAGE_*` in `.env.example`), so the source image itself isn't persisted,
-  only the extraction result — the `Document.storageKey` is a placeholder pending that
-  wiring.
+  still has to post it. The original file is kept in a private Vercel Blob store
+  (`src/lib/storage/documentStorage.ts`) when `BLOB_READ_WRITE_TOKEN` is set, readable
+  only through `/api/documents/[id]/file`; without it the upload says plainly that the
+  original wasn't kept.
 - **UI**: an AI Copilot chat page and a Documents upload/review page, both real, both
   honest about failure (a clear error banner, not a silent fake success) when no provider
   is configured.

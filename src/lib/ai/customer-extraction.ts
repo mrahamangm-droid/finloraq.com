@@ -12,6 +12,8 @@ import { detectSourceKind } from "@/lib/files/source-kind";
 import { findCustomerMatches, type CustomerMatchCandidate } from "@/lib/customers/matching";
 import { createCustomer, updateCustomerFromReview } from "@/lib/parties";
 import { foreignReferenceProblem } from "@/lib/tenantRefs";
+import { UNSTORED_PREFIX } from "@/lib/storage/documentStorage";
+import { retainDocumentFile } from "@/lib/storage/retainDocument";
 
 /**
  * Customer File Intelligence (spec item 5): "when users upload any
@@ -125,7 +127,7 @@ export async function extractCustomerDocument(params: {
    *  in extraction.ts. Decoded to text internally for CSV/xlsx/plain-text
    *  sources; passed through as-is to the vision call for images/PDFs. */
   fileBase64: string;
-}): Promise<{ documentId: string; extraction: CustomerDocumentExtraction }> {
+}): Promise<{ documentId: string; extraction: CustomerDocumentExtraction; stored: boolean }> {
   await requirePermission(params.membershipId, "documents", "CREATE");
 
   const subscription = await prisma.subscription.findUnique({ where: { companyId: params.companyId } });
@@ -149,9 +151,8 @@ export async function extractCustomerDocument(params: {
     data: {
       companyId: params.companyId,
       fileName: params.fileName,
-      // See extraction.ts's Document.storageKey comment — same "no object
-      // storage configured yet" situation, same placeholder convention.
-      storageKey: `unstored:${params.fileName}`,
+      // Replaced by retainDocumentFile() below once the bytes are stored.
+      storageKey: `${UNSTORED_PREFIX}${params.fileName}`,
       hash,
       mimeType: params.mimeType,
       sizeBytes: Math.ceil((params.fileBase64.length * 3) / 4),
@@ -160,6 +161,8 @@ export async function extractCustomerDocument(params: {
       uploadedBy: params.userId,
     },
   });
+
+  const { stored } = await retainDocumentFile(document, params.fileBase64);
 
   let records: Omit<ExtractedCustomerRecord, "matches">[];
   let truncated = false;
@@ -228,12 +231,12 @@ export async function extractCustomerDocument(params: {
     action: "document.customer_extracted",
     entityType: "Document",
     entityId: document.id,
-    newValue: { sourceType, recordCount: recordsWithMatches.length },
+    newValue: { sourceType, recordCount: recordsWithMatches.length, sourceFileStored: stored },
     source: "ai",
   });
   await recordAiUsage({ companyId: params.companyId, kind: "ocr_page" });
 
-  return { documentId: document.id, extraction };
+  return { documentId: document.id, extraction, stored };
 }
 
 /** Reads back a Document row's extraction, throwing if it isn't a

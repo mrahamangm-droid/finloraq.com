@@ -55,6 +55,7 @@ export function FileIntelligencePanel({ queue }: { queue: QueueDocument[] }) {
   const fileInput = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [notStored, setNotStored] = useState(false);
 
   async function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -63,6 +64,7 @@ export function FileIntelligencePanel({ queue }: { queue: QueueDocument[] }) {
 
     setUploading(true);
     setUploadError(null);
+    setNotStored(false);
     try {
       const fileBase64 = await fileToBase64(file);
       const res = await fetch("/api/customers/intelligence/extract", {
@@ -75,6 +77,8 @@ export function FileIntelligencePanel({ queue }: { queue: QueueDocument[] }) {
         setUploadError(data.error ?? "Something went wrong reading that file.");
         return;
       }
+      const data = await res.json().catch(() => ({}));
+      setNotStored(data.stored === false);
       router.refresh();
     } finally {
       setUploading(false);
@@ -114,6 +118,11 @@ export function FileIntelligencePanel({ queue }: { queue: QueueDocument[] }) {
           for anything else, the upload comes back with a clear, specific
           reason instead of the file just never appearing in the picker. */}
       <input ref={fileInput} type="file" className="hidden" onChange={onFileChange} />
+      {notStored && (
+        <p role="status" className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-foreground">
+          File read, but the original wasn&apos;t kept: document storage isn&apos;t configured on this deployment.
+        </p>
+      )}
       {uploadError && (
         <p className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{uploadError}</p>
       )}

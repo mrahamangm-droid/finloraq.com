@@ -117,7 +117,7 @@ is kept for standing up a *new* environment from scratch — see step 3.
    | `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID` | from Meta | optional — simulated without them |
    | `INBOUND_EMAIL_WEBHOOK_SECRET` | any strong random string | required only if you wire up inbound email; the webhook rejects all requests until this is set |
    | `REDIS_URL` | from Upstash/Redis Cloud etc. | optional for now — rate limiting works in-memory per-instance without it, but see the production checklist below |
-   | `OBJECT_STORAGE_*` (4 vars) | from your S3-compatible provider | not yet wired to actual uploads (README's documented Phase 6 gap) — leave blank until that's built |
+   | `BLOB_READ_WRITE_TOKEN` | set automatically when you connect a Vercel Blob store (Storage → Create → Blob, **private** access) to the project | recommended for production — keeps the original of every uploaded receipt/bill/customer file. Without it, uploads still work but originals aren't kept (Settings → Integrations shows "Not configured", and each upload says so) |
 
 4. Deploy. The build log is where `prisma migrate deploy` runs against your real
    database for the first time — watch it for migration errors, not just a green
@@ -271,9 +271,10 @@ all return 200 with the correct content-type, and `<head>` carries the matching
       (`src/lib/integrations/payment.ts`), WhatsApp
       (`src/lib/integrations/whatsapp.ts`), e-invoicing
       (`src/lib/integrations/einvoicing.ts`), inbound email secret.
-- [ ] Object storage (`OBJECT_STORAGE_*`) is wired up before document extraction is
-      relied on for real receipts — right now only the extraction result is persisted,
-      not the source image (`Document.storageKey` is a placeholder).
+- [ ] A **private** Vercel Blob store is connected (`BLOB_READ_WRITE_TOKEN` set) before
+      document extraction is relied on for real receipts, so the source tax invoice is
+      retained (UAE VAT record-keeping). Check Settings → Integrations → Document storage
+      shows "Live", upload a receipt, and confirm "View original" opens it.
 - [ ] MFA is enabled for every admin-level account before go-live.
 - [x] `robots.txt` and `robots: { index: false }` (already in place) keep
       `app.finloraq.com` out of search results — **confirmed 2026-09-24**:

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { getAiProvider } from "@/lib/ai/provider";
 import { isWhatsAppConfigured } from "@/lib/integrations/whatsapp";
 import { getEInvoicingAdapter } from "@/lib/integrations/einvoicing";
+import { isDocumentStorageConfigured } from "@/lib/storage/documentStorage";
 import { updateCompanySettingsAction } from "./actions";
 import { MfaPanel } from "@/components/settings/mfa-panel";
 import { ChangePasswordPanel } from "@/components/settings/change-password-panel";
@@ -45,6 +46,7 @@ export default async function SettingsPage(props: { searchParams?: Promise<{ pay
   const whatsappConfigured = isWhatsAppConfigured();
   const einvoicingProvider = getEInvoicingAdapter().provider;
   const emailWebhookConfigured = Boolean(process.env.INBOUND_EMAIL_WEBHOOK_SECRET);
+  const storageConfigured = isDocumentStorageConfigured();
 
   const stripeOn = isStripeConfigured();
   let payConn = stripeOn ? await getPaymentConnection(active.companyId) : null;
@@ -248,6 +250,18 @@ export default async function SettingsPage(props: { searchParams?: Promise<{ pay
               </div>
             </div>
             <StatusBadge live={aiConfigured} label={aiConfigured ? "Live" : "Not configured"} />
+          </div>
+
+          <div className="flex items-center justify-between px-4 py-3">
+            <div>
+              <div className="text-sm font-medium text-foreground">Document storage</div>
+              <div className="text-xs text-muted-foreground">
+                {storageConfigured
+                  ? "BLOB_READ_WRITE_TOKEN is set — uploaded receipts, bills and customer files are kept privately in Vercel Blob and can be reopened from the document."
+                  : "BLOB_READ_WRITE_TOKEN is not set — uploads are still read, but the original files are NOT kept. Each upload says so."}
+              </div>
+            </div>
+            <StatusBadge live={storageConfigured} label={storageConfigured ? "Live" : "Not configured"} />
           </div>
 
           <div className="flex items-center justify-between px-4 py-3">
