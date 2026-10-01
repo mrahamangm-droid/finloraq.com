@@ -49,4 +49,31 @@ export async function requireTenantContext() {
   };
 }
 
+/**
+ * The API-key counterpart of getTenantContext(), for /api/v1 bearer auth —
+ * kept here so tenant resolution still has one home. The company comes
+ * only from the stored key row (never from the request), and the key is
+ * usable only while it's unrevoked and the member it acts as is still an
+ * active member of that same company. Returns null for any failure; the
+ * caller answers 401 without saying which check failed.
+ */
+export async function getApiKeyTenantContext(rawKey: string) {
+  const { hashApiKey, looksLikeApiKey } = await import("@/lib/apiKeys");
+  if (!looksLikeApiKey(rawKey)) return null;
+  const key = await prisma.apiKey.findUnique({
+    where: { keyHash: hashApiKey(rawKey) },
+    include: { membership: { include: { company: true } } },
+  });
+  if (!key || key.revokedAt) return null;
+  const membership = key.membership;
+  if (!membership.isActive || membership.companyId !== key.companyId) return null;
+  return {
+    keyId: key.id,
+    keyRole: key.role,
+    lastUsedAt: key.lastUsedAt,
+    userId: membership.userId,
+    active: membership,
+  };
+}
+
 export { ACTIVE_COMPANY_COOKIE };
