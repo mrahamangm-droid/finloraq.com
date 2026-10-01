@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireTenantContext } from "@/lib/tenant";
+import { viewGate } from "@/lib/page-access";
 import { getFormatter } from "@/lib/customization/server";
 import { prisma } from "@/lib/db";
 
@@ -9,6 +10,8 @@ export const metadata = { title: "Inventory" };
 
 export default async function InventoryPage() {
   const { active, userId } = await requireTenantContext();
+  const denied = await viewGate(active.id, "inventory");
+  if (denied) return denied;
   const fmt = await getFormatter(userId);
 
   const products = await prisma.product.findMany({

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireTenantContext } from "@/lib/tenant";
+import { viewGate } from "@/lib/page-access";
 import { listPendingApprovals } from "@/lib/workflow";
 import { approveApprovalAction, rejectApprovalAction } from "./actions";
 
@@ -67,6 +68,8 @@ function ApproveForm({ approvalId }: { approvalId: string }) {
 
 export default async function ApprovalsPage() {
   const { active } = await requireTenantContext();
+  const denied = await viewGate(active.id, "approvals");
+  if (denied) return denied;
   // active IS the CompanyMembership record (from requireTenantContext);
   // active.id = membershipId, active.companyId / active.company.id = companyId.
   const approvals = await listPendingApprovals(active.companyId, active.id);

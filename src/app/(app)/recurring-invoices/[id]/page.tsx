@@ -1,4 +1,5 @@
 import { requireTenantContext } from "@/lib/tenant";
+import { viewGate } from "@/lib/page-access";
 import { getRecurringInvoice } from "@/lib/recurring-invoices";
 import { getFormatter } from "@/lib/customization/server";
 import { can } from "@/lib/rbac";
@@ -24,6 +25,8 @@ export default async function RecurringInvoicePage(
 ) {
   const { id } = await props.params;
   const { active, userId } = await requireTenantContext();
+  const denied = await viewGate(active.id, "recurring_invoices");
+  if (denied) return denied;
   const fmt = await getFormatter(userId);
 
   const [ri, canEdit, canDelete] = await Promise.all([

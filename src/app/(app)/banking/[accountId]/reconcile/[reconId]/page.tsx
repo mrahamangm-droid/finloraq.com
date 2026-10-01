@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireTenantContext } from "@/lib/tenant";
+import { viewGate } from "@/lib/page-access";
 import { can } from "@/lib/rbac";
 import { getReconciliation } from "@/lib/bank-reconciliation";
 import { getFormatter } from "@/lib/customization/server";
@@ -14,6 +15,8 @@ export default async function ReconciliationWorkspacePage(props: {
   const params = await props.params;
   const { accountId, reconId } = params;
   const { active, userId } = await requireTenantContext();
+  const denied = await viewGate(active.id, "banking");
+  if (denied) return denied;
   const fmt = await getFormatter(userId);
 
   const data = await getReconciliation(active.companyId, reconId);

@@ -1,4 +1,5 @@
 import { requireTenantContext } from "@/lib/tenant";
+import { viewGate } from "@/lib/page-access";
 import { can } from "@/lib/rbac";
 import { prisma } from "@/lib/db";
 import { SettingsTabs } from "@/components/settings/customize/settings-tabs";
@@ -12,6 +13,8 @@ export const metadata = { title: "Cost Centres — Finloraq" };
 
 export default async function CostCentresPage() {
   const { active } = await requireTenantContext();
+  const denied = await viewGate(active.id, "settings");
+  if (denied) return denied;
   const [canEdit, costCentres] = await Promise.all([
     can(active.id, "settings", "EDIT"),
     prisma.costCentre.findMany({

@@ -1,4 +1,5 @@
 import { requireTenantContext } from "@/lib/tenant";
+import { viewGate } from "@/lib/page-access";
 import { supplierStatement } from "@/lib/statements";
 import { getFormatter } from "@/lib/customization/server";
 import { ReportActions } from "@/components/reports/report-actions";
@@ -13,6 +14,8 @@ export default async function SupplierStatementPage(
   const { id: supplierId } = await props.params;
   const sp = await props.searchParams;
   const { active, userId } = await requireTenantContext();
+  const denied = await viewGate(active.id, "suppliers");
+  if (denied) return denied;
   const fmt = await getFormatter(userId);
 
   const now = new Date();

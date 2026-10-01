@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireTenantContext } from "@/lib/tenant";
+import { viewGate } from "@/lib/page-access";
 import { getFormatter } from "@/lib/customization/server";
 import { prisma } from "@/lib/db";
 import { Pagination } from "@/components/pagination";
@@ -20,6 +21,8 @@ export default async function PurchaseOrdersPage(props: { searchParams?: Promise
   const sp = (await props.searchParams) ?? {};
   const page = parsePage(sp.page);
   const { active, userId } = await requireTenantContext();
+  const denied = await viewGate(active.id, "purchase_orders");
+  if (denied) return denied;
   const fmt = await getFormatter(userId);
 
   const [pos, canCreate, total] = await Promise.all([

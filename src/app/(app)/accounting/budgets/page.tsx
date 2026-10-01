@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireTenantContext } from "@/lib/tenant";
+import { viewGate } from "@/lib/page-access";
 import { can } from "@/lib/rbac";
 import { listBudgets } from "@/lib/budget";
 
@@ -7,6 +8,8 @@ export const metadata = { title: "Budgets — Finloraq" };
 
 export default async function BudgetsPage() {
   const { active } = await requireTenantContext();
+  const denied = await viewGate(active.id, "reports");
+  if (denied) return denied;
   const [budgets, canCreate] = await Promise.all([
     listBudgets(active.companyId, active.id),
     can(active.id, "reports", "CREATE"),
