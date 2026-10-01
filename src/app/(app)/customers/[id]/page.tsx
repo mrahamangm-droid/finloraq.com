@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { requireTenantContext } from "@/lib/tenant";
+import { viewGate } from "@/lib/page-access";
 import { prisma } from "@/lib/db";
 import { getFormatter } from "@/lib/customization/server";
 
@@ -26,6 +27,8 @@ const STATUS_LABEL: Record<string, string> = {
 export default async function CustomerDetailPage(props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params;
   const { active, userId } = await requireTenantContext();
+  const denied = await viewGate(active.id, "customers");
+  if (denied) return denied;
   const fmt = await getFormatter(userId);
 
   const customer = await prisma.customer.findFirst({

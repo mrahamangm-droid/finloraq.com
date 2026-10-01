@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireTenantContext } from "@/lib/tenant";
+import { viewGate } from "@/lib/page-access";
 import { prisma } from "@/lib/db";
 import { can } from "@/lib/rbac";
 import { listReconciliations } from "@/lib/bank-reconciliation";
@@ -16,6 +17,8 @@ export default async function ReconcileListPage(props: { params: Promise<{ accou
   const params = await props.params;
   const { accountId } = params;
   const { active, userId } = await requireTenantContext();
+  const denied = await viewGate(active.id, "banking");
+  if (denied) return denied;
   const fmt = await getFormatter(userId);
 
   const account = await prisma.bankAccount.findFirst({

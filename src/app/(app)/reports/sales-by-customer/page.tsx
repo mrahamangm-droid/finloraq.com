@@ -1,4 +1,5 @@
 import { requireTenantContext } from "@/lib/tenant";
+import { viewGate } from "@/lib/page-access";
 import { getFormatter } from "@/lib/customization/server";
 import { prisma } from "@/lib/db";
 import { pickerProps, resolvePeriod, type PeriodParams } from "@/lib/periods";
@@ -13,6 +14,8 @@ export default async function SalesByCustomerPage(props: {
 }) {
   const searchParams = (await props.searchParams) ?? {};
   const { active, userId } = await requireTenantContext();
+  const denied = await viewGate(active.id, "reports");
+  if (denied) return denied;
   const fmt    = await getFormatter(userId);
   const period = resolvePeriod(searchParams, new Date(), "year");
   const { from, to } = period;

@@ -1,4 +1,5 @@
 import { requireTenantContext } from "@/lib/tenant";
+import { viewGate } from "@/lib/page-access";
 import { listBudgets, budgetVsActual } from "@/lib/budget";
 import { getFormatter } from "@/lib/customization/server";
 import { ReportActions } from "@/components/reports/report-actions";
@@ -12,6 +13,8 @@ export default async function BudgetVsActualPage(
 ) {
   const sp = await props.searchParams;
   const { active, userId } = await requireTenantContext();
+  const denied = await viewGate(active.id, "reports");
+  if (denied) return denied;
   const fmt = await getFormatter(userId);
 
   const budgets = await listBudgets(active.companyId, active.id);

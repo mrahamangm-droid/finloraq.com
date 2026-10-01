@@ -1,4 +1,5 @@
 import { requireTenantContext } from "@/lib/tenant";
+import { viewGate } from "@/lib/page-access";
 import { listWorkflowRules } from "@/lib/workflow";
 import {
   createWorkflowRuleAction,
@@ -24,6 +25,8 @@ function fmtAmount(v: unknown): string {
 
 export default async function WorkflowsPage() {
   const { active } = await requireTenantContext();
+  const denied = await viewGate(active.id, "settings");
+  if (denied) return denied;
   const rules = await listWorkflowRules(active.company.id, active.id);
 
   return (

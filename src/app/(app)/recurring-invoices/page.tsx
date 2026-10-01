@@ -1,4 +1,5 @@
 import { requireTenantContext } from "@/lib/tenant";
+import { viewGate } from "@/lib/page-access";
 import { listRecurringInvoices } from "@/lib/recurring-invoices";
 import { getFormatter } from "@/lib/customization/server";
 import { can } from "@/lib/rbac";
@@ -21,6 +22,8 @@ const STATUS_CLASSES: Record<string, string> = {
 
 export default async function RecurringInvoicesPage() {
   const { active, userId } = await requireTenantContext();
+  const denied = await viewGate(active.id, "recurring_invoices");
+  if (denied) return denied;
   const fmt = await getFormatter(userId);
 
   const [items, canCreate] = await Promise.all([

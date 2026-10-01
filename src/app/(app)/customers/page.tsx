@@ -1,6 +1,8 @@
 import { requireTenantContext } from "@/lib/tenant";
 import { viewGate } from "@/lib/page-access";
 import { prisma } from "@/lib/db";
+import { Pagination } from "@/components/pagination";
+import { pageWindow, parsePage } from "@/lib/pagination";
 import { can } from "@/lib/rbac";
 import { fieldDefs } from "@/lib/customization/server";
 import { CustomFieldInputs } from "@/components/custom-fields/custom-field-inputs";
@@ -8,22 +10,26 @@ import { createCustomerAction } from "./actions";
 import { FileIntelligencePanel, type QueueDocument } from "@/components/customers/file-intelligence-panel";
 import { CustomerRow } from "@/components/customers/customer-row";
 
-export default async function CustomersPage(props: { searchParams: Promise<{ archived?: string }> }) {
+export default async function CustomersPage(props: { searchParams: Promise<{ archived?: string; page?: string }> }) {
   const searchParams = await props.searchParams;
   const { active } = await requireTenantContext();
   const denied = await viewGate(active.id, "customers");
   if (denied) return denied;
   const showArchived = searchParams.archived === "1";
+  const page = parsePage(searchParams.page);
+  const listWhere = { companyId: active.companyId, isActive: !showArchived };
 
-  const [customers, defs, canDelete, canEdit, archivedCount] = await Promise.all([
+  const [customers, defs, canDelete, canEdit, archivedCount, listTotal] = await Promise.all([
     prisma.customer.findMany({
-      where: { companyId: active.companyId, isActive: !showArchived },
-      orderBy: { createdAt: "desc" },
+      where: listWhere,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      ...pageWindow(page),
     }),
     fieldDefs(active.companyId, "CUSTOMER"),
     can(active.id, "customers", "DELETE"),
     can(active.id, "customers", "EDIT"),
     prisma.customer.count({ where: { companyId: active.companyId, isActive: false } }),
+    prisma.customer.count({ where: listWhere }),
   ]);
 
   // Customer File Intelligence review queue (spec item 5): documents still
@@ -98,6 +104,8 @@ export default async function CustomersPage(props: { searchParams: Promise<{ arc
           </table>
         </div>
       </div>
+
+      <Pagination path="/customers" params={searchParams} page={page} total={listTotal} noun="customers" />
     </div>
   );
 }

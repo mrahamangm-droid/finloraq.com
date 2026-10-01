@@ -5,6 +5,8 @@ import { getFormatter } from "@/lib/customization/server";
 import { prisma } from "@/lib/db";
 import { pickerProps, resolvePeriod, type PeriodParams } from "@/lib/periods";
 import { PeriodPicker } from "@/components/periods/period-picker";
+import { Pagination } from "@/components/pagination";
+import { pageWindow, parsePage } from "@/lib/pagination";
 
 function statusColor(status: string) {
   if (status === "PAID") return "bg-success/10 text-success";
@@ -13,7 +15,7 @@ function statusColor(status: string) {
   return "bg-primary/10 text-primary";
 }
 
-type PurchasesParams = PeriodParams & { supplierId?: string };
+type PurchasesParams = PeriodParams & { supplierId?: string; page?: string };
 
 export default async function PurchasesPage(props: { searchParams?: Promise<PurchasesParams> }) {
   const searchParams = (await props.searchParams) ?? {};
@@ -34,18 +36,25 @@ export default async function PurchasesPage(props: { searchParams?: Promise<Purc
       })
     : null;
 
-  // Same cap-not-paginate tradeoff as the Sales list (see its comment).
-  const where = { companyId: active.companyId, ...(filtered ? { issueDate: { gte: period.from, lte: period.to } } : {}) };
+  // Paginated 50 per page like the Audit Log. The supplier filter goes into
+  // the query itself; it's safe to pass the raw id because companyId scopes
+  // the same query, so another company's id simply matches nothing.
+  const page = parsePage(sp.page);
+  const where = {
+    companyId: active.companyId,
+    ...(filtered ? { issueDate: { gte: period.from, lte: period.to } } : {}),
+    ...(supplierFilter ? { supplierId: supplierFilter } : {}),
+  };
   const [bills, totalsByCurrency] = await Promise.all([
     prisma.bill.findMany({
       where,
-      orderBy: { issueDate: "desc" },
+      orderBy: [{ issueDate: "desc" }, { id: "desc" }], // id breaks ties so pages never overlap
       include: { supplier: true },
-      take: filtered ? 1000 : 200,
+      ...pageWindow(page),
     }),
     // Totals and the count come from the database over the WHOLE filtered
-    // set, not from the capped list above — summing the list would silently
-    // understate a period with more rows than the cap. Grouped by currency
+    // set, not from the page above — summing one page would silently
+    // understate a period with more rows than fit on it. Grouped by currency
     // because adding amounts in different currencies isn't a total.
     prisma.bill.groupBy({ by: ["currency"], where, _sum: { total: true }, _count: { _all: true }, orderBy: { currency: "asc" } }),
   ]);
@@ -115,10 +124,10 @@ export default async function PurchasesPage(props: { searchParams?: Promise<Purc
                 </tr>
               ))}
             </tbody>
-            {filtered && bills.length > 0 && (
+            {(filtered || supplierFilter) && bills.length > 0 && (
               <tfoot className="border-t border-border font-medium">
                 <tr>
-                  <td className="px-4 py-2" colSpan={4}>Total · {period.label} · {totalCount} bills</td>
+                  <td className="px-4 py-2" colSpan={4}>Total{filtered ? ` · ${period.label}` : ""} · {totalCount} bills</td>
                   <td className="px-4 py-2 text-right tabular-nums">
                     {totalsByCurrency.map((g) => (
                       <div key={g.currency}>{fmt.money(g._sum.total ?? 0)} {g.currency}</div>
@@ -130,12 +139,9 @@ export default async function PurchasesPage(props: { searchParams?: Promise<Purc
             )}
           </table>
         </div>
-        {bills.length < totalCount && (
-          <p className="border-t border-border px-4 py-2 text-xs text-muted-foreground">
-            Showing the latest {bills.length} of {totalCount} bills{filtered ? "" : " — pick a period to see older ones"}.{filtered ? " The total above covers all of them." : ""}
-          </p>
-        )}
       </div>
+
+      <Pagination path="/purchases" params={sp} page={page} total={totalCount} noun="bills" />
     </div>
   );
 }

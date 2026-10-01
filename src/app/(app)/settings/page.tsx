@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { getAiProvider } from "@/lib/ai/provider";
 import { isWhatsAppConfigured } from "@/lib/integrations/whatsapp";
 import { getEInvoicingAdapter } from "@/lib/integrations/einvoicing";
+import { isDocumentStorageConfigured } from "@/lib/storage/documentStorage";
 import { updateCompanySettingsAction } from "./actions";
 import { MfaPanel } from "@/components/settings/mfa-panel";
 import { ChangePasswordPanel } from "@/components/settings/change-password-panel";
@@ -34,7 +35,10 @@ export default async function SettingsPage(props: { searchParams?: Promise<{ pay
   const { active, userId } = await requireTenantContext();
   const denied = await viewGate(active.id, "settings");
   if (denied) return denied;
-  const canEdit = await can(active.id, "settings", "EDIT");
+  const [canEdit, canExport] = await Promise.all([
+    can(active.id, "settings", "EDIT"),
+    can(active.id, "settings", "EXPORT"),
+  ]);
 
   const me = await prisma.user.findUnique({ where: { id: userId }, select: { avatarUrl: true } });
 
@@ -42,6 +46,7 @@ export default async function SettingsPage(props: { searchParams?: Promise<{ pay
   const whatsappConfigured = isWhatsAppConfigured();
   const einvoicingProvider = getEInvoicingAdapter().provider;
   const emailWebhookConfigured = Boolean(process.env.INBOUND_EMAIL_WEBHOOK_SECRET);
+  const storageConfigured = isDocumentStorageConfigured();
 
   const stripeOn = isStripeConfigured();
   let payConn = stripeOn ? await getPaymentConnection(active.companyId) : null;
@@ -207,6 +212,28 @@ export default async function SettingsPage(props: { searchParams?: Promise<{ pay
         </div>
       </div>
 
+      {canExport && (
+        <div className="rounded-lg border border-border bg-card">
+          <div className="border-b border-border px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Data export
+          </div>
+          <div className="space-y-3 p-4 text-sm">
+            <p className="text-muted-foreground">
+              Download everything core to your books as a ZIP of CSV files: chart of accounts, journal entries and lines,
+              invoices, bills, customers, suppliers, tax codes, and bank accounts and transactions. Amounts are exact, as
+              stored. Each export is recorded in the audit log.
+            </p>
+            <a
+              href="/api/export"
+              download
+              className="inline-block rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted"
+            >
+              Download company data (.zip)
+            </a>
+          </div>
+        </div>
+      )}
+
 
       <div className="rounded-lg border border-border bg-card">
         <div className="border-b border-border px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -223,6 +250,18 @@ export default async function SettingsPage(props: { searchParams?: Promise<{ pay
               </div>
             </div>
             <StatusBadge live={aiConfigured} label={aiConfigured ? "Live" : "Not configured"} />
+          </div>
+
+          <div className="flex items-center justify-between px-4 py-3">
+            <div>
+              <div className="text-sm font-medium text-foreground">Document storage</div>
+              <div className="text-xs text-muted-foreground">
+                {storageConfigured
+                  ? "BLOB_READ_WRITE_TOKEN is set — uploaded receipts, bills and customer files are kept privately in Vercel Blob and can be reopened from the document."
+                  : "BLOB_READ_WRITE_TOKEN is not set — uploads are still read, but the original files are NOT kept. Each upload says so."}
+              </div>
+            </div>
+            <StatusBadge live={storageConfigured} label={storageConfigured ? "Live" : "Not configured"} />
           </div>
 
           <div className="flex items-center justify-between px-4 py-3">

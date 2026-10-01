@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireTenantContext } from "@/lib/tenant";
+import { viewGate } from "@/lib/page-access";
 import { getFormatter } from "@/lib/customization/server";
 import { prisma } from "@/lib/db";
 import { can } from "@/lib/rbac";
@@ -14,6 +15,8 @@ export async function generateMetadata(props: { params: Promise<{ id: string }> 
 export default async function JournalDetailPage(props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params;
   const { active, userId } = await requireTenantContext();
+  const denied = await viewGate(active.id, "journals");
+  if (denied) return denied;
   const fmt = await getFormatter(userId);
 
   const entry = await prisma.journalEntry.findFirst({

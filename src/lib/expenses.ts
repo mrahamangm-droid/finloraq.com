@@ -374,6 +374,8 @@ export async function listRecentExpenses(
   companyId: string,
   range?: { from: Date; to: Date },
   status?: "DRAFT" | "POSTED" | "REVERSED",
+  /** One page of the list (src/lib/pagination.ts); without it, the latest 50 (or 500 in a range). */
+  window?: { skip: number; take: number },
 ) {
   return prisma.journalEntry.findMany({
     where: {
@@ -382,8 +384,9 @@ export async function listRecentExpenses(
       ...(range ? { date: { gte: range.from, lte: range.to } } : {}),
       ...(status ? { status } : {}),
     },
-    orderBy: { date: "desc" },
-    take: range ? 500 : 50,
+    orderBy: [{ date: "desc" }, { id: "desc" }],
+    skip: window?.skip,
+    take: window?.take ?? (range ? 500 : 50),
     include: { lines: { include: { account: true } } },
   });
 }

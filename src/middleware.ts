@@ -96,6 +96,8 @@ export const config = {
     // NB: the lookahead must sit in front of `.*` — the previous form
     // "/api/((?!auth|webhooks|public).)*" compiled to single-character
     // segments and never matched real paths like /api/billing/subscription.
-    "/api/((?!auth/|auth$|webhooks/|public/|pay/|cron/).*)",
+    // /api/v1/* is the public REST API: no session — every route authenticates
+    // its own bearer API key (src/lib/api/v1.ts) and answers 401 itself.
+    "/api/((?!auth/|auth$|webhooks/|public/|pay/|cron/|v1/).*)",
   ],
 };

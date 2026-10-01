@@ -9,6 +9,8 @@ import { planDefinition } from "@/lib/billing/plans";
 import { detectSourceKind } from "@/lib/files/source-kind";
 import { parseCsv, rowsToTableText } from "@/lib/files/csv";
 import { parseXlsxRows } from "@/lib/files/xlsx-lite";
+import { UNSTORED_PREFIX } from "@/lib/storage/documentStorage";
+import { retainDocumentFile } from "@/lib/storage/retainDocument";
 
 export interface ExtractedDocumentFields {
   vendorName: string | null;
@@ -56,7 +58,7 @@ export async function extractDocument(params: {
    *  (src/lib/ai/customer-extraction.ts). */
   fileBase64: string;
   mimeType: string;
-}): Promise<{ documentId: string; fields: ExtractedDocumentFields }> {
+}): Promise<{ documentId: string; fields: ExtractedDocumentFields; stored: boolean }> {
   await requirePermission(params.membershipId, "documents", "CREATE");
 
   const subscription = await prisma.subscription.findUnique({ where: { companyId: params.companyId } });
@@ -89,13 +91,9 @@ export async function extractDocument(params: {
       companyId: params.companyId,
       kind: "EXPENSE",
       fileName: params.fileName,
-      // No object storage configured yet (OBJECT_STORAGE_* in .env.example
-      // is unused) — storageKey is a placeholder until that lands; the raw
-      // bytes are NOT persisted here, only the extraction result is, so
-      // this is safe but means the source image isn't retrievable later.
-      // TODO(Phase 7+/production): upload fileBase64 to object storage
-      // and store the real key here instead.
-      storageKey: `unstored:${params.fileName}`,
+      // Placeholder until retainDocumentFile() below stores the bytes and
+      // replaces it; it stays "unstored:" only when no storage is configured.
+      storageKey: `${UNSTORED_PREFIX}${params.fileName}`,
       hash,
       mimeType: params.mimeType,
       sizeBytes: Math.ceil((params.fileBase64.length * 3) / 4),
@@ -103,6 +101,8 @@ export async function extractDocument(params: {
       uploadedBy: params.userId,
     },
   });
+
+  const { stored } = await retainDocumentFile(document, params.fileBase64);
 
   let fields: ExtractedDocumentFields;
   try {
@@ -155,12 +155,12 @@ export async function extractDocument(params: {
     action: "document.extracted",
     entityType: "Document",
     entityId: document.id,
-    newValue: { vendorName: fields.vendorName, amount: fields.amount },
+    newValue: { vendorName: fields.vendorName, amount: fields.amount, sourceFileStored: stored },
     source: "ai",
   });
   await recordAiUsage({ companyId: params.companyId, kind: "ocr_page" });
 
-  return { documentId: document.id, fields };
+  return { documentId: document.id, fields, stored };
 }
 
 /**

@@ -9,14 +9,13 @@ import { recordAuditEvent } from "@/lib/audit";
  * model (src/lib/ai/extraction.ts), which is the Phase 6 receipt/bill
  * OCR pipeline.
  *
- * No object storage is configured yet (see src/lib/branding.ts's
- * identical note for User.avatarUrl/Company.logoUrl, and the
- * OBJECT_STORAGE_* vars reserved in .env.example) — this stores the
- * bytes as a `data:` URL directly in the MemberFile row. Fine at the
+ * This stores the bytes as a `data:` URL directly in the MemberFile row
+ * (see src/lib/branding.ts's identical note for User.avatarUrl/
+ * Company.logoUrl); Document uploads use src/lib/storage/documentStorage.ts. Fine at the
  * size these attachments actually need to be; the cap below is what
  * keeps it fine. If that cap is ever too small, the fix is a real
- * storageKey on this model (like Document's, once object storage is
- * wired up) — not raising the cap on base64-in-Postgres.
+ * storageKey on this model backed by src/lib/storage/documentStorage.ts,
+ * like Document's — not raising the cap on base64-in-Postgres.
  */
 export const MAX_MEMBER_FILE_BYTES = 5_000_000; // 5MB raw, before base64 encoding
 

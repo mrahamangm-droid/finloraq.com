@@ -165,6 +165,7 @@ model Company {
   bills                  Bill[]
   bankAccounts           BankAccount[]
   taxCodes               TaxCode[]
+  apiKeys                ApiKey[]
   products               Product[]
   projects               Project[]
   documents              Document[]
@@ -267,6 +268,7 @@ model CompanyMembership {
   company                  Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
   user                     User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   overrides                PermissionOverride[]
+  apiKeys                  ApiKey[]
   dashboardLayout          DashboardLayout?
   files                    MemberFile[]
   // CRM back-relations
@@ -1875,4 +1877,33 @@ model RateLimitHit {
 
   @@index([keyHash, createdAt])
   @@index([createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// PUBLIC API KEYS (/api/v1) — see src/lib/apiKeys.ts
+// ─────────────────────────────────────────────────────────────────────────
+
+/// A company-scoped key for the public REST API. Only a SHA-256 hash of the
+/// key is stored; the raw key is shown once, at creation. A key acts as the
+/// member who created it, capped by its own `role`: every request is allowed
+/// only if BOTH that member (live role + overrides) and `role` permit it.
+model ApiKey {
+  id           String      @id @default(cuid())
+  companyId    String
+  membershipId String
+  label        String
+  role         CompanyRole
+  /// First characters of the key, shown in the UI so a key can be recognized.
+  prefix       String
+  keyHash      String      @unique
+  createdBy    String
+  createdAt    DateTime    @default(now())
+  lastUsedAt   DateTime?
+  revokedAt    DateTime?
+  revokedBy    String?
+
+  company    Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  membership CompanyMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
 }

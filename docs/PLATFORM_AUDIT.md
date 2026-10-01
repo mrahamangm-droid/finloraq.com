@@ -23,6 +23,31 @@ differentiators and larger builds. P4 = polish.
 
 ---
 
+## Status update — 1 Oct 2026
+
+The tables below are the original September snapshot. Since then, every P0
+and P1 build-order item has shipped (balance-sheet earnings, the
+foreign-currency guard and then real multi-currency, the Postgres rate
+limiter, period lock, void, cross-tenant tests, bank statement import,
+recurring invoices, quotes, sales orders, items and FIFO inventory, purchase
+receives). This pass closed the remaining open issues:
+
+| Item | Now |
+|---|---|
+| Tax code management UI (#89) | EXISTS — Settings > Tax Codes; rate/treatment frozen once a code is used |
+| Pagination on large lists (#92) | EXISTS — offset pagination on every capped list, plus Customers/Suppliers |
+| Full company data export (#91) | EXISTS — Settings > Data export (ZIP of CSVs, audited) |
+| Opening balances (#90) | EXISTS — Accounting > Opening Balances, one ledger entry |
+| Object storage for documents (#86) | EXISTS — private Vercel Blob; needs `BLOB_READ_WRITE_TOKEN` set in production |
+| Public REST API + API keys (#87) | EXISTS — `/api/v1`, see docs/API.md |
+| Plan honesty (#88) | DONE — e-invoicing and voice labelled preview/beta wherever they're sold |
+| App pages without a VIEW gate | FIXED — 24 pages; `page-gates.test.ts` now guards every page |
+
+Still blocked on a provider decision: live e-invoicing, speech-to-text,
+inbound-email HMAC, WhatsApp, live bank feeds (§4).
+
+---
+
 ## 1. P0 findings (fix first)
 
 | # | Finding | Status | Evidence | Proposed fix (one PR each) |

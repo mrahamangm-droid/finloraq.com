@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireTenantContext } from "@/lib/tenant";
+import { viewGate } from "@/lib/page-access";
 import { can } from "@/lib/rbac";
 import { prisma } from "@/lib/db";
 import { getFormatter } from "@/lib/customization/server";
@@ -21,6 +22,10 @@ export default async function ProjectTimePage(props: {
   const { id: projectId } = params;
 
   const { active, userId } = await requireTenantContext();
+
+  const denied = await viewGate(active.id, "projects");
+
+  if (denied) return denied;
   const fmt = await getFormatter(userId);
 
   const project = await prisma.project.findFirst({

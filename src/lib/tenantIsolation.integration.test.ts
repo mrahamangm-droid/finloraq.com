@@ -184,6 +184,7 @@ describe.skipIf(!enabled)("tenant isolation across API routes (real Postgres)", 
     "customers/intelligence/[documentId]/apply": () => import("@/app/api/customers/intelligence/[documentId]/apply/route"),
     "customers/intelligence/[documentId]/ignore": () => import("@/app/api/customers/intelligence/[documentId]/ignore/route"),
     "documents/[id]/create-expense": () => import("@/app/api/documents/[id]/create-expense/route"),
+    "documents/[id]/file": () => import("@/app/api/documents/[id]/file/route"),
     "expenses": () => import("@/app/api/expenses/route"),
     "expenses/[id]": () => import("@/app/api/expenses/[id]/route"),
     "expenses/[id]/approve": () => import("@/app/api/expenses/[id]/approve/route"),
@@ -201,6 +202,8 @@ describe.skipIf(!enabled)("tenant isolation across API routes (real Postgres)", 
     "projects": () => import("@/app/api/projects/route"),
     "projects/[id]": () => import("@/app/api/projects/[id]/route"),
     "projects/[id]/archive": () => import("@/app/api/projects/[id]/archive/route"),
+    "tax-codes": () => import("@/app/api/tax-codes/route"),
+    "tax-codes/[id]": () => import("@/app/api/tax-codes/[id]/route"),
   };
   const route = async (path: string): Promise<Mod> => {
     const load = routes[path];
@@ -290,9 +293,12 @@ describe.skipIf(!enabled)("tenant isolation across API routes (real Postgres)", 
       ["projects/[id]", "DELETE", { id: B.projectId }],
       ["projects/[id]/archive", "POST", { id: B.projectId }, { isActive: false }],
       ["documents/[id]/create-expense", "POST", { id: B.documentId }, { description: "Hijack", amount: 10, date: today() }],
+      ["documents/[id]/file", "GET", { id: B.documentId }],
       ["customers/intelligence/[documentId]/apply", "POST", { documentId: B.documentId }, { kind: "create", recordIndex: 0, name: "Hijack" }],
       ["customers/intelligence/[documentId]/ignore", "POST", { documentId: B.documentId }, { recordIndex: 0 }],
       ["member-files/[id]", "GET", { id: B.memberFileId }],
+      ["tax-codes/[id]", "PATCH", { id: B.taxCodeId }, { name: "Hijack", isActive: false }],
+      ["tax-codes/[id]", "DELETE", { id: B.taxCodeId }],
     ];
 
     const accepted: string[] = [];
@@ -362,7 +368,7 @@ describe.skipIf(!enabled)("tenant isolation across API routes (real Postgres)", 
   it("list endpoints only return the caller's own company", async () => {
     signInAs(A);
     const bIds = Object.entries(B).filter(([k]) => k.endsWith("Id") && k !== "userId").map(([, v]) => v);
-    for (const path of ["invoices", "bills", "expenses", "journals", "accounts", "bank-accounts"]) {
+    for (const path of ["invoices", "bills", "expenses", "journals", "accounts", "bank-accounts", "tax-codes"]) {
       const res = await call(await route(path), "GET");
       expect(res.status, path).toBe(200);
       for (const id of bIds) expect(res.body, `${path} leaks ${id}`).not.toContain(id);

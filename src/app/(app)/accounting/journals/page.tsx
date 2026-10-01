@@ -3,6 +3,8 @@ import { requireTenantContext } from "@/lib/tenant";
 import { viewGate } from "@/lib/page-access";
 import { getFormatter } from "@/lib/customization/server";
 import { prisma } from "@/lib/db";
+import { Pagination } from "@/components/pagination";
+import { pageWindow, parsePage } from "@/lib/pagination";
 
 function statusColor(status: string) {
   if (status === "POSTED") return "bg-success/10 text-success";
@@ -10,18 +12,23 @@ function statusColor(status: string) {
   return "bg-muted text-muted-foreground";
 }
 
-export default async function JournalsPage() {
+export default async function JournalsPage(props: { searchParams?: Promise<{ page?: string }> }) {
+  const sp = (await props.searchParams) ?? {};
+  const page = parsePage(sp.page);
   const { active, userId } = await requireTenantContext();
   const denied = await viewGate(active.id, "journals");
   if (denied) return denied;
   const fmt = await getFormatter(userId);
 
-  const entries = await prisma.journalEntry.findMany({
-    where: { companyId: active.companyId },
-    orderBy: { date: "desc" },
-    take: 100,
-    include: { lines: true },
-  });
+  const [entries, total] = await Promise.all([
+    prisma.journalEntry.findMany({
+      where: { companyId: active.companyId },
+      orderBy: [{ date: "desc" }, { id: "desc" }], // id breaks ties so pages never overlap
+      ...pageWindow(page),
+      include: { lines: true },
+    }),
+    prisma.journalEntry.count({ where: { companyId: active.companyId } }),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -82,6 +89,8 @@ export default async function JournalsPage() {
           </table>
         </div>
       </div>
+
+      <Pagination path="/accounting/journals" params={sp} page={page} total={total} noun="journal entries" />
     </div>
   );
 }
