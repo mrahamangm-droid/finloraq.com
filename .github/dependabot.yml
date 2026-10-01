@@ -7,6 +7,13 @@ updates:
     open-pull-requests-limit: 5
     ignore:
       - dependency-name: "decimal.js"
+      # Prisma 7 changes config/datasource handling and touches every DB call,
+      # the ledger included. It needs a dedicated migration PR run against the
+      # full DB-backed test suite, not a bot bump (see issue #119).
+      - dependency-name: "prisma"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@prisma/client"
+        update-types: ["version-update:semver-major"]
     groups:
       minor-and-patch:
         update-types:
