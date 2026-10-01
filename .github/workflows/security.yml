@@ -1,0 +1,23 @@
+# Secret scanning (gitleaks) and dependency review from the shared saas-platform-kit.
+# CodeQL already runs in codeql.yml, so it is turned off here.
+name: Security
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  security:
+    uses: mrahamangm-droid/saas-platform-kit/.github/workflows/reusable-security.yml@v1
+    permissions:
+      contents: read
+      pull-requests: write
+      security-events: write
+      actions: read
+    with:
+      run-codeql: false
