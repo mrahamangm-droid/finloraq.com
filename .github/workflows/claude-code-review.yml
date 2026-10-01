@@ -1,7 +1,7 @@
 name: Claude Code Review
 
-# Automatic Claude review on every non-draft PR. Read-only: comments on the PR,
-# never pushes or merges.
+# Automatic Claude review on every non-draft PR. It may post review comments,
+# but it never pushes or merges.
 
 on:
   pull_request:
@@ -13,8 +13,8 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
-      pull-requests: read
-      issues: read
+      pull-requests: write
+      issues: write
       id-token: write
     steps:
       - uses: actions/checkout@v6
@@ -24,6 +24,7 @@ jobs:
       - uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           plugin_marketplaces: "https://github.com/anthropics/claude-code.git"
           plugins: "code-review@claude-code-plugins"
           prompt: "/code-review:code-review --comment ${{ github.repository }}/pull/${{ github.event.pull_request.number }}"
