@@ -2,15 +2,12 @@ import { requireTenantContext } from "@/lib/tenant";
 import { viewGate } from "@/lib/page-access";
 import { getFormatter } from "@/lib/customization/server";
 import { prisma } from "@/lib/db";
+import Link from "next/link";
 import { can } from "@/lib/rbac";
+import { rateToPercentString } from "@/lib/taxRate";
 import { vatReturn } from "@/lib/reports";
 import { pickerProps, resolvePeriod, type PeriodParams } from "@/lib/periods";
 import { PeriodPicker } from "@/components/periods/period-picker";
-import {
-  createTaxCodeAction,
-  toggleTaxCodeAction,
-  deleteTaxCodeAction,
-} from "./actions";
 
 const TREATMENTS = [
   { value: "STANDARD",    label: "Standard rated" },
@@ -110,11 +107,18 @@ export default async function TaxesPage(props: { searchParams?: Promise<PeriodPa
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-foreground">Tax Codes</h2>
-          <span className="text-xs text-muted-foreground">{taxCodes.length} codes</span>
+          <span className="flex items-center gap-3 text-xs text-muted-foreground">
+            {taxCodes.length} codes
+            {canEdit && (
+              <Link href="/settings/tax-codes" className="font-medium text-primary hover:underline">
+                Manage tax codes
+              </Link>
+            )}
+          </span>
         </div>
 
         {taxCodes.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No tax codes yet. Add one below.</p>
+          <p className="text-sm text-muted-foreground">No tax codes yet.</p>
         ) : (
           <div className="overflow-hidden rounded-lg border border-border">
             <table className="w-full text-sm">
@@ -126,7 +130,6 @@ export default async function TaxesPage(props: { searchParams?: Promise<PeriodPa
                   <th className="px-4 py-3 text-left">Direction</th>
                   <th className="px-4 py-3 text-right">Rate</th>
                   <th className="px-4 py-3 text-left">Status</th>
-                  {canEdit && <th className="px-4 py-3" />}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -141,7 +144,7 @@ export default async function TaxesPage(props: { searchParams?: Promise<PeriodPa
                       {tc.isInput ? "Input (purchases)" : "Output (sales)"}
                     </td>
                     <td className="px-4 py-3 text-right font-mono text-foreground">
-                      {(Number(tc.rate) * 100).toFixed(1)}%
+                      {rateToPercentString(tc.rate.toString())}%
                     </td>
                     <td className="px-4 py-3">
                       <span
@@ -154,119 +157,10 @@ export default async function TaxesPage(props: { searchParams?: Promise<PeriodPa
                         {tc.isActive ? "Active" : "Inactive"}
                       </span>
                     </td>
-                    {canEdit && (
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <form action={toggleTaxCodeAction.bind(null, tc.id, !tc.isActive)}>
-                            <button
-                              type="submit"
-                              className="text-xs text-primary underline-offset-2 hover:underline"
-                            >
-                              {tc.isActive ? "Deactivate" : "Activate"}
-                            </button>
-                          </form>
-                          <form action={deleteTaxCodeAction.bind(null, tc.id)}>
-                            <button
-                              type="submit"
-                              className="text-xs text-destructive underline-offset-2 hover:underline"
-                            >
-                              Delete
-                            </button>
-                          </form>
-                        </div>
-                      </td>
-                    )}
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
-        )}
-
-        {/* ── Add Tax Code form ─────────────────────────────────────────── */}
-        {canEdit && (
-          <div className="rounded-lg border border-border bg-card p-5">
-            <h3 className="mb-4 text-sm font-semibold text-foreground">Add Tax Code</h3>
-            <form
-              action={createTaxCodeAction}
-              className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
-            >
-              <div>
-                <label className="mb-1 block text-xs font-medium text-muted-foreground">
-                  Code (e.g. VAT_STD_5)
-                </label>
-                <input
-                  name="code"
-                  required
-                  placeholder="VAT_STD_5"
-                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm uppercase focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-xs font-medium text-muted-foreground">
-                  Name
-                </label>
-                <input
-                  name="name"
-                  required
-                  placeholder="Standard Rate 5%"
-                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-xs font-medium text-muted-foreground">
-                  Rate (%)
-                </label>
-                <input
-                  name="rate"
-                  type="number"
-                  step="0.001"
-                  min="0"
-                  max="100"
-                  required
-                  placeholder="5"
-                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-xs font-medium text-muted-foreground">
-                  Treatment
-                </label>
-                <select
-                  name="treatment"
-                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                >
-                  {TREATMENTS.map((t) => (
-                    <option key={t.value} value={t.value}>{t.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-xs font-medium text-muted-foreground">
-                  Direction
-                </label>
-                <select
-                  name="isInput"
-                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                >
-                  <option value="false">Output (sales / collected)</option>
-                  <option value="true">Input (purchases / recoverable)</option>
-                </select>
-              </div>
-
-              <div className="flex items-end">
-                <button
-                  type="submit"
-                  className="w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-                >
-                  Add Tax Code
-                </button>
-              </div>
-            </form>
           </div>
         )}
       </div>
